@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../supabase.js'
-import { s } from '../estilos.js'
+import { s, colores } from '../estilos.js'
+import { UserCog, X } from 'lucide-react'
 
-const c = { main: '#1e90ff', light: '#e0f2fe', gradient: 'linear-gradient(135deg, #1e90ff, #0ea5e9)' }
+const c = colores.usuarios
 
 function Usuarios() {
   const [usuarios, setUsuarios] = useState([])
@@ -48,7 +49,7 @@ function Usuarios() {
     <div style={{ fontFamily: "'Segoe UI', sans-serif" }}>
       <div style={s.cabecera(c.gradient)}>
         <div>
-          <h3 style={s.cabeceraTexto}>👤 Gestión de usuarios</h3>
+          <h3 style={{ ...s.cabeceraTexto, display:'flex', alignItems:'center', gap:'9px' }}><UserCog size={19} /> Gestión de usuarios</h3>
           <p style={s.cabeceraSubtexto}>{pendientes.length} pendientes · {aprobados.length} aprobados</p>
         </div>
       </div>
@@ -65,7 +66,7 @@ function Usuarios() {
 
       {/* TABS */}
       <div style={{ display:'flex', gap:'10px', marginBottom:'20px' }}>
-        {[['pendiente', `⏳ Pendientes (${pendientes.length})`], ['aprobado', `✅ Aprobados (${aprobados.length})`]].map(([v, lbl]) => (
+        {[['pendiente', `⏳ Pendientes (${pendientes.length})`], ['aprobado', `Aprobados (${aprobados.length})`]].map(([v, lbl]) => (
           <button key={v} onClick={() => setFiltro(v)} style={filtro === v ? s.btnPrimario(c.main) : s.btnSecundario}>{lbl}</button>
         ))}
       </div>
@@ -74,7 +75,7 @@ function Usuarios() {
         {loading ? <div style={s.empty}>Cargando...</div>
         : filtrados.length === 0 ? (
           <div style={s.empty}>
-            {filtro === 'pendiente' ? '✅ No hay solicitudes pendientes' : 'No hay usuarios aprobados'}
+            {filtro === 'pendiente' ? 'No hay solicitudes pendientes' : 'No hay usuarios aprobados'}
           </div>
         ) : (
           <table style={s.tabla}>
@@ -104,8 +105,8 @@ function Usuarios() {
                   <td style={s.tablaCell}>
                     {!u.aprobado ? (
                       <div style={{ display:'flex', gap:'8px' }}>
-                        <button style={{ ...s.btnPrimario('#059669'), padding:'6px 14px', fontSize:'12px' }} onClick={() => aprobar(u.id)}>✅ Aprobar</button>
-                        <button style={s.btnPeligro} onClick={() => rechazar(u.id)}>✕ Rechazar</button>
+                        <button style={{ ...s.btnPrimario('#059669'), padding:'6px 14px', fontSize:'12px' }} onClick={() => aprobar(u.id)}>Aprobar</button>
+                        <button style={s.btnPeligro} onClick={() => rechazar(u.id)}><X size={13} style={{ marginRight: 4, verticalAlign: '-2px' }} />Rechazar</button>
                       </div>
                     ) : (
                       <button style={s.btnPeligro} onClick={() => revocarAcceso(u.id)}>Revocar acceso</button>
