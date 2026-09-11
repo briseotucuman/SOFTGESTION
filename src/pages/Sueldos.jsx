@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../supabase.js'
 import { s, colores } from '../estilos.js'
+import { Briefcase, Plus, X } from 'lucide-react'
 
-const c = { main: '#7c3aed', light: '#ede9fe', gradient: 'linear-gradient(135deg, #7c3aed, #a78bfa)' }
+const c = colores.sueldos
 
 function calcularLiquidacion(form) {
   const bruto = (parseFloat(form.sueldo_basico)||0) + (parseFloat(form.horas_extra)||0) + (parseFloat(form.bonificaciones)||0)
@@ -104,14 +105,14 @@ function Sueldos() {
       {/* CABECERA */}
       <div style={s.cabecera(c.gradient)}>
         <div>
-          <h3 style={s.cabeceraTexto}>💼 Liquidación de Sueldos</h3>
+          <h3 style={{ ...s.cabeceraTexto, display:'flex', alignItems:'center', gap:'9px' }}><Briefcase size={19} /> Liquidación de Sueldos</h3>
           <p style={s.cabeceraSubtexto}>{liquidaciones.length} liquidaciones · {periodo}</p>
         </div>
         <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
           <input type="month" value={periodo} onChange={e => setPeriodo(e.target.value)}
             style={{ ...s.input, background: 'rgba(255,255,255,0.2)', border: '1px solid rgba(255,255,255,0.3)', color: '#fff', maxWidth: '180px' }} />
           <button style={s.btnPrimario('rgba(255,255,255,0.25)')} onClick={() => setMostrarForm(!mostrarForm)}>
-            {mostrarForm ? '✕ Cancelar' : '+ Nueva liquidación'}
+            {mostrarForm ? <><X size={14} style={{ marginRight: 5, verticalAlign: '-2px' }} />Cancelar</> : <><Plus size={14} style={{ marginRight: 5, verticalAlign: '-2px' }} />Nueva liquidación</>}
           </button>
         </div>
       </div>
@@ -120,7 +121,7 @@ function Sueldos() {
       {empleadosSinLiquidar.length > 0 && !mostrarForm && (
         <div style={{ background: '#fef3c7', border: '1px solid #fcd34d', borderRadius: '12px', padding: '14px 18px', marginBottom: '16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <p style={{ margin: 0, color: '#d97706', fontWeight: '600', fontSize: '13px' }}>
-            ⚠️ {empleadosSinLiquidar.length} empleado(s) sin liquidar este período: {empleadosSinLiquidar.map(e => e.apellido + ' ' + e.nombre).join(', ')}
+            {empleadosSinLiquidar.length} empleado(s) sin liquidar este período: {empleadosSinLiquidar.map(e => e.apellido + ' ' + e.nombre).join(', ')}
           </p>
           <button style={s.btnPrimario('#d97706')} onClick={() => setMostrarForm(true)}>Liquidar ahora</button>
         </div>
@@ -158,7 +159,7 @@ function Sueldos() {
                   <option value="">Seleccionar empleado</option>
                   {empleados.map(e => (
                     <option key={e.id} value={e.id}>
-                      {e.apellido}, {e.nombre} {empleadosLiquidados.includes(e.id) ? '✓ Ya liquidado' : ''}
+                      {e.apellido}, {e.nombre} {empleadosLiquidados.includes(e.id) ? 'Ya liquidado' : ''}
                     </option>
                   ))}
                 </select>
@@ -179,7 +180,7 @@ function Sueldos() {
 
             {/* HABERES */}
             <div style={{ background: '#f0fdf4', borderRadius: '12px', padding: '16px', margin: '16px 0', border: '1px solid #86efac' }}>
-              <p style={{ ...s.label, color: '#059669', marginBottom: '14px', fontSize: '13px' }}>✅ Haberes</p>
+              <p style={{ ...s.label, color: '#059669', marginBottom: '14px', fontSize: '13px' }}>Haberes</p>
               <div style={s.grid3}>
                 <div>
                   <label style={s.label}>Sueldo básico ($)</label>
@@ -204,7 +205,7 @@ function Sueldos() {
 
             {/* DESCUENTOS */}
             <div style={{ background: '#fff1f2', borderRadius: '12px', padding: '16px', margin: '0 0 16px', border: '1px solid #fca5a5' }}>
-              <p style={{ ...s.label, color: '#dc2626', marginBottom: '14px', fontSize: '13px' }}>❌ Descuentos</p>
+              <p style={{ ...s.label, color: '#dc2626', marginBottom: '14px', fontSize: '13px' }}>Descuentos</p>
               <div style={s.grid3}>
                 <div>
                   <label style={s.label}>Jubilación 11% ($)</label>
@@ -301,7 +302,7 @@ function Sueldos() {
                       <div style={{ display: 'flex', gap: '6px' }}>
                         <button style={{ ...s.btnPrimario(c.main), padding: '5px 10px', fontSize: '12px' }}
                           onClick={() => setVerDetalle(l)}>Ver</button>
-                        <button style={s.btnPeligro} onClick={() => eliminar(l.id)}>✕</button>
+                        <button style={s.btnPeligro} onClick={() => eliminar(l.id)}><X size={16} /></button>
                       </div>
                     </td>
                   </tr>
@@ -327,11 +328,11 @@ function Sueldos() {
                 <h4 style={{ margin:0, fontWeight:'800', color:'#0f172a', fontSize:'16px' }}>Recibo de sueldo</h4>
                 <p style={{ margin:'4px 0 0', fontSize:'13px', color:'#64748b' }}>{verDetalle.empleados?.apellido}, {verDetalle.empleados?.nombre} · {verDetalle.periodo}</p>
               </div>
-              <button onClick={() => setVerDetalle(null)} style={{ background:'none', border:'none', fontSize:'22px', cursor:'pointer', color:'#94a3b8' }}>✕</button>
+              <button onClick={() => setVerDetalle(null)} style={{ background:'none', border:'none', fontSize:'22px', cursor:'pointer', color:'#94a3b8' }}><X size={16} /></button>
             </div>
 
             <div style={{ background:'#f0fdf4', borderRadius:'12px', padding:'16px', marginBottom:'12px' }}>
-              <p style={{ margin:'0 0 8px', fontWeight:'700', color:'#059669', fontSize:'13px', textTransform:'uppercase' }}>✅ Haberes</p>
+              <p style={{ margin:'0 0 8px', fontWeight:'700', color:'#059669', fontSize:'13px', textTransform:'uppercase' }}>Haberes</p>
               {[['Sueldo básico', verDetalle.sueldo_basico], ['Horas extra', verDetalle.horas_extra], ['Bonificaciones', verDetalle.bonificaciones]].map(([lbl, val]) => (
                 Number(val) > 0 && <div key={lbl} style={{ display:'flex', justifyContent:'space-between', fontSize:'13px', padding:'4px 0', color:'#374151' }}>
                   <span>{lbl}</span><span style={{ fontWeight:'600' }}>{Number(val).toLocaleString('es-AR',{style:'currency',currency:'ARS'})}</span>
@@ -343,7 +344,7 @@ function Sueldos() {
             </div>
 
             <div style={{ background:'#fff1f2', borderRadius:'12px', padding:'16px', marginBottom:'12px' }}>
-              <p style={{ margin:'0 0 8px', fontWeight:'700', color:'#dc2626', fontSize:'13px', textTransform:'uppercase' }}>❌ Descuentos</p>
+              <p style={{ margin:'0 0 8px', fontWeight:'700', color:'#dc2626', fontSize:'13px', textTransform:'uppercase' }}>Descuentos</p>
               {[['Jubilación (11%)', verDetalle.descuento_jubilacion], ['Obra social (3%)', verDetalle.descuento_obra_social], ['Sindical', verDetalle.descuento_sindical], ['Otros', verDetalle.otros_descuentos]].map(([lbl, val]) => (
                 Number(val) > 0 && <div key={lbl} style={{ display:'flex', justifyContent:'space-between', fontSize:'13px', padding:'4px 0', color:'#374151' }}>
                   <span>{lbl}</span><span style={{ fontWeight:'600', color:'#dc2626' }}>-{Number(val).toLocaleString('es-AR',{style:'currency',currency:'ARS'})}</span>
@@ -355,12 +356,12 @@ function Sueldos() {
             </div>
 
             <div style={{ background:'#f5f3ff', borderRadius:'12px', padding:'16px', border:'2px solid #a78bfa', textAlign:'center' }}>
-              <p style={{ margin:'0 0 4px', fontSize:'12px', color:'#7c3aed', fontWeight:'700', textTransform:'uppercase' }}>💼 Neto a cobrar</p>
+              <p style={{ margin:'0 0 4px', fontSize:'12px', color:'#7c3aed', fontWeight:'700', textTransform:'uppercase' }}>Neto a cobrar</p>
               <p style={{ margin:0, fontSize:'32px', fontWeight:'900', color:'#7c3aed' }}>{Number(verDetalle.total_neto).toLocaleString('es-AR',{style:'currency',currency:'ARS'})}</p>
             </div>
 
             {verDetalle.observaciones && (
-              <p style={{ margin:'12px 0 0', fontSize:'12px', color:'#64748b' }}>📝 {verDetalle.observaciones}</p>
+              <p style={{ margin:'12px 0 0', fontSize:'12px', color:'#64748b' }}>{verDetalle.observaciones}</p>
             )}
           </div>
         </div>
