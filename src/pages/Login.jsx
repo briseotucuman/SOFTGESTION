@@ -90,7 +90,7 @@ function Login({ onLogin }) {
 
               {error && (
                 <div style={{ background:'#fff1f2', border:'1px solid #fecdd3', borderRadius:'10px', padding:'10px 14px', marginBottom:'16px', color:'#dc2626', fontSize:'13px', fontWeight:'500' }}>
-                  ⚠️ {error}
+                  {error}
                 </div>
               )}
 
@@ -134,7 +134,7 @@ function Login({ onLogin }) {
 
               {error && (
                 <div style={{ background:'#fff1f2', border:'1px solid #fecdd3', borderRadius:'10px', padding:'10px 14px', marginBottom:'16px', color:'#dc2626', fontSize:'13px', fontWeight:'500' }}>
-                  ⚠️ {error}
+                  {error}
                 </div>
               )}
 
@@ -168,7 +168,7 @@ function Login({ onLogin }) {
 
               <div style={{ textAlign:'center', marginTop:'20px' }}>
                 <button onClick={() => { setModo('login'); setError('') }} style={{ background:'none', border:'none', color:'#1e90ff', fontWeight:'700', cursor:'pointer', fontSize:'13px' }}>
-                  ← Volver al login
+                  Volver al login
                 </button>
               </div>
             </>
