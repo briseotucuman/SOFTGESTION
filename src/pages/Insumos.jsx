@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../supabase.js'
 import { s, colores } from '../estilos.js'
+import { Package, Pencil, Plus, Trash2, X } from 'lucide-react'
 
 const c = colores.insumos
 
@@ -126,30 +127,30 @@ function Insumos() {
     <div style={{ fontFamily: "'Segoe UI', sans-serif" }}>
       <div style={s.cabecera(c.gradient)}>
         <div>
-          <h3 style={s.cabeceraTexto}>🧴 Insumos y Stock</h3>
+          <h3 style={{ ...s.cabeceraTexto, display:'flex', alignItems:'center', gap:'9px' }}><Package size={19} /> Insumos y Stock</h3>
           <p style={s.cabeceraSubtexto}>{insumos.length} insumos registrados</p>
         </div>
         <button style={s.btnPrimario('rgba(255,255,255,0.25)')} onClick={() => { if (mostrarForm) { cancelar() } else { setMostrarForm(true) } }}>
-          {mostrarForm ? '✕ Cancelar' : '+ Nuevo insumo'}
+          {mostrarForm ? <><X size={14} style={{ marginRight: 5, verticalAlign: '-2px' }} />Cancelar</> : <><Plus size={14} style={{ marginRight: 5, verticalAlign: '-2px' }} />Nuevo insumo</>}
         </button>
       </div>
 
       {bajoMinimo.length > 0 && (
         <div style={{ background: '#fff1f2', border: '1px solid #fecdd3', borderRadius: '12px', padding: '14px 18px', marginBottom: '16px' }}>
-          <p style={{ margin: 0, color: '#dc2626', fontWeight: '600', fontSize: '13px' }}>⚠️ {bajoMinimo.length} insumo(s) bajo stock mínimo: {bajoMinimo.map(i => i.nombre).join(', ')}</p>
+          <p style={{ margin: 0, color: '#dc2626', fontWeight: '600', fontSize: '13px' }}>{bajoMinimo.length} insumo(s) bajo stock mínimo: {bajoMinimo.map(i => i.nombre).join(', ')}</p>
         </div>
       )}
 
       <div style={{ display: 'flex', gap: '10px', marginBottom: '16px' }}>
         {['insumos','movimientos'].map(v => (
-          <button key={v} onClick={() => setVista(v)} style={vista === v ? s.btnPrimario(c.main) : s.btnSecundario}>{v === 'insumos' ? '📦 Insumos' : '🔄 Movimientos'}</button>
+          <button key={v} onClick={() => setVista(v)} style={vista === v ? s.btnPrimario(c.main) : s.btnSecundario}>{v === 'insumos' ? 'Insumos' : 'Movimientos'}</button>
         ))}
       </div>
 
       {mostrarForm && (
         <div style={s.card}>
           <h4 style={{ margin: '0 0 20px', color: c.main, fontWeight: '700' }}>
-            {editando ? `✏️ Editando — ${editando.nombre}` : 'Nuevo insumo'}
+            {editando ? <><Pencil size={15} style={{ marginRight: 6, verticalAlign: '-2px' }} />Editando — {editando.nombre}</> : 'Nuevo insumo'}
           </h4>
           <form onSubmit={guardarInsumo}>
             <div style={s.grid2}>
@@ -163,7 +164,7 @@ function Insumos() {
             </div>
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '20px' }}>
               <button type="button" style={s.btnSecundario} onClick={cancelar}>Cancelar</button>
-              <button type="submit" style={s.btnPrimario(c.main)}>{editando ? '💾 Guardar cambios' : 'Guardar insumo'}</button>
+              <button type="submit" style={s.btnPrimario(c.main)}>{editando ? 'Guardar cambios' : 'Guardar insumo'}</button>
             </div>
           </form>
         </div>
@@ -174,7 +175,7 @@ function Insumos() {
           <div style={{ background: '#fff', borderRadius: '20px', padding: '28px', width: '100%', maxWidth: '420px', boxShadow: '0 20px 60px rgba(0,0,0,0.2)' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
               <h4 style={{ margin: 0, fontWeight: '700', color: '#0f172a' }}>Movimiento — {mostrarMovimiento.nombre}</h4>
-              <button onClick={() => setMostrarMovimiento(null)} style={{ background: 'none', border: 'none', fontSize: '20px', cursor: 'pointer', color: '#94a3b8' }}>✕</button>
+              <button onClick={() => setMostrarMovimiento(null)} style={{ background: 'none', border: 'none', fontSize: '20px', cursor: 'pointer', color: '#94a3b8' }}><X size={16} /></button>
             </div>
             <p style={{ color: '#64748b', fontSize: '13px', marginBottom: '16px' }}>Stock actual: <strong style={{ color: '#0f172a' }}>{mostrarMovimiento.stock_actual} {mostrarMovimiento.unidad_medida}</strong></p>
             <form onSubmit={registrarMovimiento}>
@@ -195,7 +196,7 @@ function Insumos() {
 
       {vista === 'insumos' && (
         <>
-          <div style={{ marginBottom: '16px' }}><input style={s.buscador} placeholder="🔍  Buscar insumo..." value={busqueda} onChange={e => setBusqueda(e.target.value)} /></div>
+          <div style={{ marginBottom: '16px' }}><input style={s.buscador} placeholder=" Buscar insumo..." value={busqueda} onChange={e => setBusqueda(e.target.value)} /></div>
           <div style={{ ...s.card, padding: 0, overflow: 'hidden' }}>
             {loading ? <div style={s.empty}>Cargando...</div>
             : filtrados.length === 0 ? <div style={s.empty}>No hay insumos registrados</div>
@@ -214,8 +215,8 @@ function Insumos() {
                       <td style={s.tablaCell}>
                         <div style={{ display: 'flex', gap: '6px' }}>
                           <button style={{ ...s.btnPrimario(c.main), padding: '5px 10px', fontSize: '12px' }} onClick={() => setMostrarMovimiento(ins)}>+ Mov.</button>
-                          <button style={{ ...s.btnPrimario('#0077cc'), padding: '5px 10px', fontSize: '12px' }} onClick={() => abrirEdicion(ins)}>✏️</button>
-                          <button style={s.btnPeligro} onClick={() => eliminarInsumo(ins.id)}>🗑️</button>
+                          <button style={{ ...s.btnPrimario('#0077cc'), padding: '5px 10px', fontSize: '12px' }} onClick={() => abrirEdicion(ins)}><Pencil size={14} /></button>
+                          <button style={s.btnPeligro} onClick={() => eliminarInsumo(ins.id)}><Trash2 size={14} /></button>
                         </div>
                       </td>
                     </tr>
