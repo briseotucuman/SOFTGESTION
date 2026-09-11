@@ -1,282 +1,272 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../supabase.js'
+import { s, colores } from '../estilos.js'
+import { HardHat, Pencil, Plus, X } from 'lucide-react'
+
+const c = colores.personal
 
 function Personal() {
   const [empleados, setEmpleados] = useState([])
   const [loading, setLoading] = useState(true)
   const [mostrarForm, setMostrarForm] = useState(false)
   const [busqueda, setBusqueda] = useState('')
+  const [editando, setEditando] = useState(null)
   const [form, setForm] = useState({
-    nombre: '',
-    apellido: '',
-    dni: '',
-    cuil: '',
-    fecha_nacimiento: '',
-    fecha_ingreso: '',
-    puesto: '',
-    categoria: '',
-    salario_base: '',
-    costo_hora: '',
-    email: '',
-    telefono: '',
-    direccion: '',
-    tipo_contrato: 'relacion_dependencia',
-    observaciones: ''
+    nombre: '', apellido: '', dni: '', cuil: '',
+    fecha_nacimiento: '', fecha_ingreso: '', puesto: '',
+    salario_base: '', costo_hora: '', email: '',
+    telefono: '', direccion: '', tipo_contrato: 'relacion_dependencia', observaciones: ''
   })
 
-  useEffect(() => {
-    cargarEmpleados()
-  }, [])
+  useEffect(() => { cargarEmpleados() }, [])
 
   async function cargarEmpleados() {
     setLoading(true)
-    const { data, error } = await supabase
-      .from('empleados')
-      .select('*')
-      .eq('activo', true)
-      .order('apellido', { ascending: true })
-    if (!error) setEmpleados(data)
+    const { data } = await supabase.from('empleados').select('*').eq('activo', true).order('apellido')
+    if (data) setEmpleados(data)
     setLoading(false)
   }
 
-  async function guardarEmpleado(e) {
+  function abrirEdicion(emp) {
+    setEditando(emp)
+    setForm({
+      nombre: emp.nombre || '',
+      apellido: emp.apellido || '',
+      dni: emp.dni || '',
+      cuil: emp.cuil || '',
+      fecha_nacimiento: emp.fecha_nacimiento || '',
+      fecha_ingreso: emp.fecha_ingreso || '',
+      puesto: emp.puesto || '',
+      salario_base: emp.salario_base || '',
+      costo_hora: emp.costo_hora || '',
+      email: emp.email || '',
+      telefono: emp.telefono || '',
+      direccion: emp.direccion || '',
+      tipo_contrato: emp.tipo_contrato || 'relacion_dependencia',
+      observaciones: emp.observaciones || ''
+    })
+    setMostrarForm(true)
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+
+  function cancelar() {
+    setMostrarForm(false)
+    setEditando(null)
+    setForm({ nombre: '', apellido: '', dni: '', cuil: '', fecha_nacimiento: '', fecha_ingreso: '', puesto: '', salario_base: '', costo_hora: '', email: '', telefono: '', direccion: '', tipo_contrato: 'relacion_dependencia', observaciones: '' })
+  }
+
+  function abrirEdicion(emp) {
+    setEditando(emp)
+    setForm({
+      nombre: emp.nombre || '',
+      apellido: emp.apellido || '',
+      dni: emp.dni || '',
+      cuil: emp.cuil || '',
+      fecha_nacimiento: emp.fecha_nacimiento || '',
+      fecha_ingreso: emp.fecha_ingreso || '',
+      puesto: emp.puesto || '',
+      salario_base: emp.salario_base || '',
+      costo_hora: emp.costo_hora || '',
+      email: emp.email || '',
+      telefono: emp.telefono || '',
+      direccion: emp.direccion || '',
+      tipo_contrato: emp.tipo_contrato || 'relacion_dependencia',
+      observaciones: emp.observaciones || ''
+    })
+    setMostrarForm(true)
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+
+  function cancelar() {
+    setMostrarForm(false)
+    setEditando(null)
+    setForm({ nombre: '', apellido: '', dni: '', cuil: '', fecha_nacimiento: '', fecha_ingreso: '', puesto: '', salario_base: '', costo_hora: '', email: '', telefono: '', direccion: '', tipo_contrato: 'relacion_dependencia', observaciones: '' })
+  }
+
+    async function guardarEmpleado(e) {
     e.preventDefault()
-    const { error } = await supabase.from('empleados').insert([{
+    const datos = {
       ...form,
+      fecha_nacimiento: form.fecha_nacimiento || null,
+      fecha_ingreso: form.fecha_ingreso || null,
       salario_base: form.salario_base ? parseFloat(form.salario_base) : null,
       costo_hora: form.costo_hora ? parseFloat(form.costo_hora) : null,
-    }])
-    if (error) {
-      alert('Error al guardar: ' + error.message)
-    } else {
-      setMostrarForm(false)
-      setForm({
-        nombre: '', apellido: '', dni: '', cuil: '',
-        fecha_nacimiento: '', fecha_ingreso: '', puesto: '',
-        categoria: '', salario_base: '', costo_hora: '',
-        email: '', telefono: '', direccion: '',
-        tipo_contrato: 'relacion_dependencia', observaciones: ''
-      })
-      cargarEmpleados()
     }
+    if (editando) {
+      const { error } = await supabase.from('empleados').update(datos).eq('id', editando.id)
+      if (error) { alert('Error: ' + error.message); return }
+    } else {
+      const { error } = await supabase.from('empleados').insert([datos])
+      if (error) { alert('Error: ' + error.message); return }
+    }
+    cancelar()
+    cargarEmpleados()
   }
 
   async function darDeBaja(id) {
-    if (!confirm('¿Seguro que queres dar de baja este empleado?')) return
+    if (!confirm('¿Dar de baja este empleado?')) return
     await supabase.from('empleados').update({ activo: false }).eq('id', id)
     cargarEmpleados()
   }
 
-  const empleadosFiltrados = empleados.filter(e =>
+  const filtrados = empleados.filter(e =>
     (e.nombre + ' ' + e.apellido).toLowerCase().includes(busqueda.toLowerCase()) ||
-    (e.dni || '').includes(busqueda) ||
-    (e.puesto || '').toLowerCase().includes(busqueda.toLowerCase())
+    (e.dni || '').includes(busqueda)
   )
 
-  const tipoContrato = {
-    relacion_dependencia: 'Relacion de dependencia',
-    monotributo: 'Monotributo',
-    eventual: 'Eventual'
-  }
+  const tipoLabel = { relacion_dependencia: 'Relación dependencia', monotributo: 'Monotributo', eventual: 'Eventual' }
 
   return (
-    <div>
-      <div className="flex items-center justify-between mb-6">
+    <div style={{ fontFamily: "'Segoe UI', sans-serif" }}>
+      <div style={s.cabecera(c.gradient)}>
         <div>
-          <h3 className="text-lg font-semibold text-gray-700">Personal</h3>
-          <p className="text-sm text-gray-400">{empleados.length} empleados activos</p>
+          <h3 style={{ ...s.cabeceraTexto, display:'flex', alignItems:'center', gap:'9px' }}><HardHat size={19} /> Personal</h3>
+          <p style={s.cabeceraSubtexto}>{empleados.length} empleados activos</p>
         </div>
-        <button
-          onClick={() => setMostrarForm(!mostrarForm)}
-          className="bg-blue-800 hover:bg-blue-900 text-white px-5 py-2 rounded-lg font-medium transition"
-        >
-          {mostrarForm ? 'Cancelar' : '+ Nuevo empleado'}
+        <button style={s.btnPrimario('rgba(255,255,255,0.25)')} onClick={() => { if (mostrarForm) { cancelar() } else { setMostrarForm(true) } }}>
+          {mostrarForm ? <><X size={14} style={{ marginRight: 5, verticalAlign: '-2px' }} />Cancelar</> : <><Plus size={14} style={{ marginRight: 5, verticalAlign: '-2px' }} />Nuevo empleado</>}
         </button>
       </div>
 
       {mostrarForm && (
-        <div className="bg-white rounded-xl shadow p-6 mb-6">
-          <h4 className="font-semibold text-gray-700 mb-4">Nuevo empleado</h4>
-          <form onSubmit={guardarEmpleado} className="grid grid-cols-1 md:grid-cols-2 gap-4">
-
-            <div>
-              <label className="block text-sm font-medium text-gray-600 mb-1">Nombre</label>
-              <input type="text" value={form.nombre}
-                onChange={e => setForm({ ...form, nombre: e.target.value })}
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                required />
+        <div style={s.card}>
+          <h4 style={{ margin: '0 0 20px', color: c.main, fontWeight: '700' }}>
+            {editando ? <><Pencil size={15} style={{ marginRight: 6, verticalAlign: '-2px' }} />Editando — {editando.apellido}, {editando.nombre}</> : 'Nuevo empleado'}
+          </h4>
+          <form onSubmit={guardarEmpleado}>
+            <div style={s.grid2}>
+              {[['Nombre','nombre','text',true],['Apellido','apellido','text',true],['DNI','dni','text',true],['CUIL','cuil','text',false]].map(([lbl,key,type,req]) => (
+                <div key={key}>
+                  <label style={s.label}>{lbl}</label>
+                  <input type={type} style={s.input} value={form[key]}
+                    onChange={e => setForm({ ...form, [key]: e.target.value })}
+                    onFocus={e => e.target.style.borderColor = c.main}
+                    onBlur={e => e.target.style.borderColor = '#e2e8f0'}
+                    required={req} />
+                </div>
+              ))}
+              <div>
+                <label style={s.label}>Fecha de nacimiento</label>
+                <input type="date" style={s.input} value={form.fecha_nacimiento}
+                  onChange={e => setForm({ ...form, fecha_nacimiento: e.target.value })}
+                  onFocus={e => e.target.style.borderColor = c.main}
+                  onBlur={e => e.target.style.borderColor = '#e2e8f0'} />
+              </div>
+              <div>
+                <label style={s.label}>Fecha de ingreso</label>
+                <input type="date" style={s.input} value={form.fecha_ingreso}
+                  onChange={e => setForm({ ...form, fecha_ingreso: e.target.value })}
+                  onFocus={e => e.target.style.borderColor = c.main}
+                  onBlur={e => e.target.style.borderColor = '#e2e8f0'} required />
+              </div>
+              <div>
+                <label style={s.label}>Puesto</label>
+                <input style={s.input} value={form.puesto}
+                  onChange={e => setForm({ ...form, puesto: e.target.value })}
+                  placeholder="Ej: Operario de limpieza"
+                  onFocus={e => e.target.style.borderColor = c.main}
+                  onBlur={e => e.target.style.borderColor = '#e2e8f0'} />
+              </div>
+              <div>
+                <label style={s.label}>Tipo de contrato</label>
+                <select style={s.input} value={form.tipo_contrato}
+                  onChange={e => setForm({ ...form, tipo_contrato: e.target.value })}>
+                  <option value="relacion_dependencia">Relación de dependencia</option>
+                  <option value="monotributo">Monotributo</option>
+                  <option value="eventual">Eventual</option>
+                </select>
+              </div>
+              <div>
+                <label style={s.label}>Salario base ($)</label>
+                <input type="number" style={s.input} value={form.salario_base}
+                  onChange={e => setForm({ ...form, salario_base: e.target.value })}
+                  onFocus={e => e.target.style.borderColor = c.main}
+                  onBlur={e => e.target.style.borderColor = '#e2e8f0'} />
+              </div>
+              <div>
+                <label style={s.label}>Costo por hora ($)</label>
+                <input type="number" style={s.input} value={form.costo_hora}
+                  onChange={e => setForm({ ...form, costo_hora: e.target.value })}
+                  onFocus={e => e.target.style.borderColor = c.main}
+                  onBlur={e => e.target.style.borderColor = '#e2e8f0'} />
+              </div>
+              <div>
+                <label style={s.label}>Teléfono</label>
+                <input style={s.input} value={form.telefono}
+                  onChange={e => setForm({ ...form, telefono: e.target.value })}
+                  onFocus={e => e.target.style.borderColor = c.main}
+                  onBlur={e => e.target.style.borderColor = '#e2e8f0'} />
+              </div>
+              <div>
+                <label style={s.label}>Email</label>
+                <input type="email" style={s.input} value={form.email}
+                  onChange={e => setForm({ ...form, email: e.target.value })}
+                  onFocus={e => e.target.style.borderColor = c.main}
+                  onBlur={e => e.target.style.borderColor = '#e2e8f0'} />
+              </div>
+              <div>
+                <label style={s.label}>Dirección</label>
+                <input style={s.input} value={form.direccion}
+                  onChange={e => setForm({ ...form, direccion: e.target.value })}
+                  onFocus={e => e.target.style.borderColor = c.main}
+                  onBlur={e => e.target.style.borderColor = '#e2e8f0'} />
+              </div>
+              <div style={{ gridColumn: '1 / -1' }}>
+                <label style={s.label}>Observaciones</label>
+                <textarea style={{ ...s.input, resize: 'vertical' }} rows={2} value={form.observaciones}
+                  onChange={e => setForm({ ...form, observaciones: e.target.value })}
+                  onFocus={e => e.target.style.borderColor = c.main}
+                  onBlur={e => e.target.style.borderColor = '#e2e8f0'} />
+              </div>
             </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-600 mb-1">Apellido</label>
-              <input type="text" value={form.apellido}
-                onChange={e => setForm({ ...form, apellido: e.target.value })}
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                required />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-600 mb-1">DNI</label>
-              <input type="text" value={form.dni}
-                onChange={e => setForm({ ...form, dni: e.target.value })}
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                required />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-600 mb-1">CUIL</label>
-              <input type="text" value={form.cuil}
-                onChange={e => setForm({ ...form, cuil: e.target.value })}
-                placeholder="20-12345678-9"
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500" />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-600 mb-1">Fecha de nacimiento</label>
-              <input type="date" value={form.fecha_nacimiento}
-                onChange={e => setForm({ ...form, fecha_nacimiento: e.target.value })}
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500" />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-600 mb-1">Fecha de ingreso</label>
-              <input type="date" value={form.fecha_ingreso}
-                onChange={e => setForm({ ...form, fecha_ingreso: e.target.value })}
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                required />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-600 mb-1">Puesto</label>
-              <input type="text" value={form.puesto}
-                onChange={e => setForm({ ...form, puesto: e.target.value })}
-                placeholder="Ej: Operario de limpieza"
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500" />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-600 mb-1">Tipo de contrato</label>
-              <select value={form.tipo_contrato}
-                onChange={e => setForm({ ...form, tipo_contrato: e.target.value })}
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500">
-                <option value="relacion_dependencia">Relacion de dependencia</option>
-                <option value="monotributo">Monotributo</option>
-                <option value="eventual">Eventual</option>
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-600 mb-1">Salario base ($)</label>
-              <input type="number" value={form.salario_base}
-                onChange={e => setForm({ ...form, salario_base: e.target.value })}
-                placeholder="0.00"
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500" />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-600 mb-1">Costo por hora ($)</label>
-              <input type="number" value={form.costo_hora}
-                onChange={e => setForm({ ...form, costo_hora: e.target.value })}
-                placeholder="0.00"
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500" />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-600 mb-1">Telefono</label>
-              <input type="text" value={form.telefono}
-                onChange={e => setForm({ ...form, telefono: e.target.value })}
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500" />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-600 mb-1">Email</label>
-              <input type="email" value={form.email}
-                onChange={e => setForm({ ...form, email: e.target.value })}
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500" />
-            </div>
-
-            <div className="md:col-span-2">
-              <label className="block text-sm font-medium text-gray-600 mb-1">Direccion</label>
-              <input type="text" value={form.direccion}
-                onChange={e => setForm({ ...form, direccion: e.target.value })}
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500" />
-            </div>
-
-            <div className="md:col-span-2">
-              <label className="block text-sm font-medium text-gray-600 mb-1">Observaciones</label>
-              <textarea value={form.observaciones}
-                onChange={e => setForm({ ...form, observaciones: e.target.value })}
-                rows={2}
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500" />
-            </div>
-
-            <div className="md:col-span-2 flex justify-end gap-3">
-              <button type="button" onClick={() => setMostrarForm(false)}
-                className="px-5 py-2 border border-gray-300 rounded-lg text-gray-600 hover:bg-gray-50 transition">
-                Cancelar
-              </button>
-              <button type="submit"
-                className="px-5 py-2 bg-blue-800 hover:bg-blue-900 text-white rounded-lg font-medium transition">
-                Guardar empleado
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '20px' }}>
+              <button type="button" style={s.btnSecundario} onClick={cancelar}>Cancelar</button>
+              <button type="submit" style={s.btnPrimario(c.main)}>
+                {editando ? 'Guardar cambios' : 'Guardar empleado'}
               </button>
             </div>
           </form>
         </div>
       )}
 
-      <div className="mb-4">
-        <input
-          type="text"
-          placeholder="Buscar por nombre, DNI o puesto..."
-          value={busqueda}
-          onChange={e => setBusqueda(e.target.value)}
-          className="w-full md:w-96 border border-gray-300 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-        />
+      <div style={{ marginBottom: '16px' }}>
+        <input style={s.buscador} placeholder=" Buscar por nombre o DNI..."
+          value={busqueda} onChange={e => setBusqueda(e.target.value)}
+          onFocus={e => e.target.style.borderColor = c.main}
+          onBlur={e => e.target.style.borderColor = '#e2e8f0'} />
       </div>
 
-      <div className="bg-white rounded-xl shadow overflow-hidden">
-        {loading ? (
-          <div className="p-10 text-center text-gray-400">Cargando...</div>
-        ) : empleadosFiltrados.length === 0 ? (
-          <div className="p-10 text-center text-gray-400">
-            {busqueda ? 'No se encontraron resultados' : 'No hay empleados registrados aun'}
-          </div>
-        ) : (
-          <table className="w-full text-sm">
-            <thead className="bg-blue-900 text-white">
+      <div style={{ ...s.card, padding: 0, overflow: 'hidden' }}>
+        {loading ? <div style={s.empty}>Cargando...</div>
+        : filtrados.length === 0 ? <div style={s.empty}>No hay empleados registrados</div>
+        : (
+          <table style={s.tabla}>
+            <thead>
               <tr>
-                <th className="px-4 py-3 text-left">Empleado</th>
-                <th className="px-4 py-3 text-left">DNI</th>
-                <th className="px-4 py-3 text-left">Puesto</th>
-                <th className="px-4 py-3 text-left">Contrato</th>
-                <th className="px-4 py-3 text-left">Salario</th>
-                <th className="px-4 py-3 text-left">Costo/hora</th>
-                <th className="px-4 py-3 text-left">Telefono</th>
-                <th className="px-4 py-3 text-center">Acciones</th>
+                {['Empleado', 'DNI', 'Puesto', 'Contrato', 'Salario', 'Costo/hora', 'Teléfono', ''].map(h => (
+                  <th key={h} style={s.tablaCabecera(c.main)}>{h}</th>
+                ))}
               </tr>
             </thead>
             <tbody>
-              {empleadosFiltrados.map((e, i) => (
-                <tr key={e.id} className={i % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
-                  <td className="px-4 py-3 font-medium text-gray-800">
-                    {e.apellido}, {e.nombre}
-                  </td>
-                  <td className="px-4 py-3 text-gray-600">{e.dni}</td>
-                  <td className="px-4 py-3 text-gray-600">{e.puesto || '—'}</td>
-                  <td className="px-4 py-3 text-gray-600 text-xs">{tipoContrato[e.tipo_contrato] || e.tipo_contrato}</td>
-                  <td className="px-4 py-3 text-gray-700">
+              {filtrados.map((e, i) => (
+                <tr key={e.id} style={s.tablaFila(i)}>
+                  <td style={s.tablaCellBold}>{e.apellido}, {e.nombre}</td>
+                  <td style={s.tablaCell}>{e.dni}</td>
+                  <td style={s.tablaCell}>{e.puesto || '—'}</td>
+                  <td style={s.tablaCell}><span style={s.badge('#f0fdf4', '#16a34a')}>{tipoLabel[e.tipo_contrato] || e.tipo_contrato}</span></td>
+                  <td style={{ ...s.tablaCell, color: c.main, fontWeight: '600' }}>
                     {e.salario_base ? Number(e.salario_base).toLocaleString('es-AR', { style: 'currency', currency: 'ARS' }) : '—'}
                   </td>
-                  <td className="px-4 py-3 text-gray-700">
+                  <td style={s.tablaCell}>
                     {e.costo_hora ? Number(e.costo_hora).toLocaleString('es-AR', { style: 'currency', currency: 'ARS' }) : '—'}
                   </td>
-                  <td className="px-4 py-3 text-gray-600">{e.telefono || '—'}</td>
-                  <td className="px-4 py-3 text-center">
-                    <button
-                      onClick={() => darDeBaja(e.id)}
-                      className="text-red-400 hover:text-red-600 transition text-xs">
-                      Dar de baja
-                    </button>
+                  <td style={s.tablaCell}>{e.telefono || '—'}</td>
+                  <td style={s.tablaCell}>
+                    <div style={{ display: 'flex', gap: '6px' }}>
+                      <button style={{ ...s.btnPrimario(c.main), padding: '5px 12px', fontSize: '12px' }} onClick={() => abrirEdicion(e)}><Pencil size={13} style={{ marginRight: 4, verticalAlign: "-2px" }} />Editar</button>
+                      <button style={s.btnPeligro} onClick={() => darDeBaja(e.id)}>Baja</button>
+                    </div>
                   </td>
                 </tr>
               ))}
