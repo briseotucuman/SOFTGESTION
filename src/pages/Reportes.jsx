@@ -2,14 +2,15 @@ import React from 'react'
 import { useEffect, useState } from 'react'
 import { supabase } from '../supabase.js'
 import { s, colores } from '../estilos.js'
+import { TrendingUp } from 'lucide-react'
 
 const c = colores.reportes
 
 function indicadorMargen(margen) {
-  if (margen >= 30) return { color: '#059669', bg: '#d1fae5', label: 'Excelente', emoji: '🟢' }
-  if (margen >= 15) return { color: '#d97706', bg: '#fef3c7', label: 'Ajustado', emoji: '🟡' }
-  if (margen > 0)   return { color: '#dc2626', bg: '#fee2e2', label: 'Bajo', emoji: '🔴' }
-  return { color: '#7c3aed', bg: '#ede9fe', label: 'Pérdida', emoji: '🟣' }
+  if (margen >= 30) return { color: '#059669', bg: '#d1fae5', label: 'Excelente', emoji: '' }
+  if (margen >= 15) return { color: '#d97706', bg: '#fef3c7', label: 'Ajustado', emoji: '' }
+  if (margen > 0)   return { color: '#dc2626', bg: '#fee2e2', label: 'Bajo', emoji: '' }
+  return { color: '#7c3aed', bg: '#ede9fe', label: 'Pérdida', emoji: '' }
 }
 
 
@@ -62,11 +63,11 @@ function MapaLeaflet({ sucursales }) {
         const marker = L.marker([lat, lng]).addTo(map)
         marker.bindPopup(`
           <div style="min-width:180px;font-family:Segoe UI,sans-serif">
-            <p style="margin:0 0 4px;font-weight:800;font-size:14px;color:#0f172a">🏢 ${suc.nombre}</p>
+            <p style="margin:0 0 4px;font-weight:800;font-size:14px;color:#0f172a">${suc.nombre}</p>
             <p style="margin:0 0 4px;font-size:12px;color:#7c3aed;font-weight:600">${suc.clientes?.razon_social || suc.clientes?.nombre_contacto || ''}</p>
-            ${suc.direccion ? `<p style="margin:0 0 2px;font-size:12px;color:#64748b">📍 ${suc.direccion}</p>` : ''}
+            ${suc.direccion ? `<p style="margin:0 0 2px;font-size:12px;color:#64748b">${suc.direccion}</p>` : ''}
             ${suc.localidad ? `<p style="margin:0 0 6px;font-size:12px;color:#64748b">${suc.localidad}${suc.provincia ? ', ' + suc.provincia : ''}</p>` : ''}
-            <a href="https://www.google.com/maps?q=${lat},${lng}" target="_blank" style="font-size:12px;color:#1d4ed8;font-weight:600">Ver en Google Maps →</a>
+            <a href="https://www.google.com/maps?q=${lat},${lng}" target="_blank" style="font-size:12px;color:#1d4ed8;font-weight:600">Ver en Google Maps </a>
           </div>
         `)
       })
@@ -175,7 +176,7 @@ function Reportes() {
     <div style={{ fontFamily: "'Segoe UI', sans-serif" }}>
       <div style={{ ...s.cabecera(c.gradient), alignItems: 'flex-start' }}>
         <div>
-          <h3 style={s.cabeceraTexto}>📈 Reportes y Estadísticas</h3>
+          <h3 style={{ ...s.cabeceraTexto, display:'flex', alignItems:'center', gap:'9px' }}><TrendingUp size={19} /> Reportes y Estadísticas</h3>
           <p style={s.cabeceraSubtexto}>Dashboard ejecutivo · Briseo Limpieza</p>
         </div>
         <input type="month" value={mes} onChange={e => setMes(e.target.value)}
@@ -186,13 +187,13 @@ function Reportes() {
         <>
           {stats.stockBajoMinimo > 0 && (
             <div style={{ background:'#fff1f2', border:'1px solid #fecdd3', borderRadius:'12px', padding:'12px 18px', marginBottom:'16px' }}>
-              <p style={{ margin:0, color:'#dc2626', fontWeight:'600', fontSize:'13px' }}>⚠️ {stats.stockBajoMinimo} insumo(s) bajo stock mínimo</p>
+              <p style={{ margin:0, color:'#dc2626', fontWeight:'600', fontSize:'13px' }}>{stats.stockBajoMinimo} insumo(s) bajo stock mínimo</p>
             </div>
           )}
 
           {/* PESTAÑAS */}
           <div style={{ display:'flex', gap:'10px', marginBottom:'20px' }}>
-            {[['general','📊 General'],['rentabilidad','💹 Rentabilidad por cliente'],['costos','📋 Costos'],['mapa','🗺️ Mapa de servicios']].map(([v,lbl]) => (
+            {[['general','General'],['rentabilidad','Rentabilidad por cliente'],['costos','Costos'],['mapa','Mapa de servicios']].map(([v,lbl]) => (
               <button key={v} onClick={() => setVista(v)} style={vista===v ? s.btnPrimario(c.main) : s.btnSecundario}>{lbl}</button>
             ))}
           </div>
@@ -222,7 +223,7 @@ function Reportes() {
 
               <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'16px' }}>
                 <div style={s.card}>
-                  <h4 style={{ margin:'0 0 16px', color:'#0f172a', fontWeight:'700', fontSize:'14px' }}>🏆 Top clientes por facturación</h4>
+                  <h4 style={{ margin:'0 0 16px', color:'#0f172a', fontWeight:'700', fontSize:'14px' }}>Top clientes por facturación</h4>
                   {rentabilidadClientes.length === 0
                     ? <p style={{ color:'#94a3b8', textAlign:'center', padding:'20px 0', fontSize:'13px' }}>Sin datos este mes</p>
                     : rentabilidadClientes.slice(0,6).map((cl,i) => (
@@ -239,7 +240,7 @@ function Reportes() {
                   }
                 </div>
                 <div style={s.card}>
-                  <h4 style={{ margin:'0 0 16px', color:'#0f172a', fontWeight:'700', fontSize:'14px' }}>💸 Egresos por categoría</h4>
+                  <h4 style={{ margin:'0 0 16px', color:'#0f172a', fontWeight:'700', fontSize:'14px' }}>Egresos por categoría</h4>
                   {gastosPorCategoria.length === 0
                     ? <p style={{ color:'#94a3b8', textAlign:'center', padding:'20px 0', fontSize:'13px' }}>Sin egresos este mes</p>
                     : gastosPorCategoria.map((g,i) => (
@@ -264,7 +265,7 @@ function Reportes() {
             <>
               <div style={{ ...s.card, marginBottom:'16px', background:'#f0fdf4', border:'1px solid #86efac' }}>
                 <p style={{ margin:0, fontSize:'13px', color:'#15803d' }}>
-                  💡 La rentabilidad por cliente se calcula cruzando las <strong>facturas cobradas</strong> del mes con los <strong>costos variables asignados</strong> a cada cliente en el módulo de Costos. Para mayor precisión, cargá los costos variables con el cliente correspondiente.
+                  La rentabilidad por cliente se calcula cruzando las <strong>facturas cobradas</strong> del mes con los <strong>costos variables asignados</strong> a cada cliente en el módulo de Costos. Para mayor precisión, cargá los costos variables con el cliente correspondiente.
                 </p>
               </div>
 
@@ -352,7 +353,7 @@ function Reportes() {
               </div>
 
               <div style={s.card}>
-                <h4 style={{ margin:'0 0 16px', color:'#0f172a', fontWeight:'700', fontSize:'14px' }}>📊 Relación ingresos vs costos totales</h4>
+                <h4 style={{ margin:'0 0 16px', color:'#0f172a', fontWeight:'700', fontSize:'14px' }}>Relación ingresos vs costos totales</h4>
                 {(() => {
                   const totalCostos = stats.totalCostosFijos + stats.totalCostosVariables
                   const gananciaReal = stats.ingresosDelMes - totalCostos
@@ -398,32 +399,31 @@ function Reportes() {
             <>
               <div style={{ ...s.card, marginBottom:'16px', background:'#f0fdf4', border:'1px solid #86efac' }}>
                 <p style={{ margin:0, fontSize:'13px', color:'#15803d' }}>
-                  💡 Se muestran las sucursales con coordenadas cargadas. Para agregar puntos andá a <strong>Clientes → 🏢 Sucursales → Buscar automático</strong>.
+                  Se muestran las sucursales con coordenadas cargadas. Para agregar puntos andá a <strong>Clientes Sucursales Buscar automático</strong>.
                 </p>
               </div>
 
               {sucursalesMapa.length === 0 ? (
-                <div style={s.empty}>No hay sucursales con ubicación cargada. Agregá coordenadas en Clientes → Sucursales.</div>
+                <div style={s.empty}>No hay sucursales con ubicación cargada. Agregá coordenadas en Clientes Sucursales.</div>
               ) : (
                 <>
                   <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:'12px', marginBottom:'20px' }}>
                     {sucursalesMapa.map((suc, i) => (
                       <div key={i} style={{ ...s.card, border:'1.5px solid #e2e8f0' }}>
-                        <p style={{ margin:'0 0 4px', fontWeight:'800', color:'#0f172a', fontSize:'13px' }}>🏢 {suc.nombre}</p>
+                        <p style={{ margin:'0 0 4px', fontWeight:'800', color:'#0f172a', fontSize:'13px' }}>{suc.nombre}</p>
                         <p style={{ margin:'0 0 4px', fontSize:'12px', color:'#7c3aed', fontWeight:'600' }}>{suc.clientes?.razon_social || suc.clientes?.nombre_contacto}</p>
-                        {suc.direccion && <p style={{ margin:'0 0 2px', fontSize:'12px', color:'#64748b' }}>📍 {suc.direccion}</p>}
+                        {suc.direccion && <p style={{ margin:'0 0 2px', fontSize:'12px', color:'#64748b' }}>{suc.direccion}</p>}
                         {suc.localidad && <p style={{ margin:'0 0 6px', fontSize:'12px', color:'#64748b' }}>{suc.localidad}{suc.provincia ? ', ' + suc.provincia : ''}</p>}
                         <a href={`https://www.google.com/maps?q=${suc.latitud},${suc.longitud}`} target="_blank" rel="noreferrer"
                           style={{ fontSize:'12px', color:'#1d4ed8', textDecoration:'none', fontWeight:'600' }}>
-                          Ver en Google Maps →
-                        </a>
+                          Ver en Google Maps                         </a>
                       </div>
                     ))}
                   </div>
 
                   <div style={{ ...s.card, padding:0, overflow:'hidden' }}>
                     <div style={{ padding:'16px 20px', borderBottom:'1px solid #e2e8f0' }}>
-                      <p style={{ margin:0, fontWeight:'700', color:'#0f172a' }}>🗺️ Mapa de sucursales — {sucursalesMapa.length} puntos</p>
+                      <p style={{ margin:0, fontWeight:'700', color:'#0f172a' }}>Mapa de sucursales — {sucursalesMapa.length} puntos</p>
                     </div>
                     <MapaLeaflet sucursales={sucursalesMapa} />
                     <div style={{ padding:'12px 20px', background:'#f8fafc', borderTop:'1px solid #e2e8f0' }}>
