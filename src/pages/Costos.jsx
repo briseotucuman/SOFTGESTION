@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../supabase.js'
 import { s, colores } from '../estilos.js'
+import { ClipboardList, Plus, X } from 'lucide-react'
 
-const c = { main: '#0f766e', light: '#ccfbf1', gradient: 'linear-gradient(135deg, #0f766e, #14b8a6)' }
+const c = colores.costos
 
 function Costos() {
   const [vista, setVista] = useState('fijos')
@@ -101,7 +102,7 @@ function Costos() {
       {/* CABECERA */}
       <div style={s.cabecera(c.gradient)}>
         <div>
-          <h3 style={s.cabeceraTexto}>📋 Costos</h3>
+          <h3 style={{ ...s.cabeceraTexto, display:'flex', alignItems:'center', gap:'9px' }}><ClipboardList size={19} /> Costos</h3>
           <p style={s.cabeceraSubtexto}>Costos fijos y variables del mes</p>
         </div>
         <input type="month" value={mes} onChange={e => setMes(e.target.value)}
@@ -140,7 +141,7 @@ function Costos() {
 
       {/* PESTAÑAS */}
       <div style={{ display: 'flex', gap: '10px', marginBottom: '16px' }}>
-        {[['fijos','🏢 Costos fijos'],['variables','🔄 Costos variables'],['analisis','📊 Análisis por cliente']].map(([v, lbl]) => (
+        {[['fijos','Costos fijos'],['variables','Costos variables'],['analisis','Análisis por cliente']].map(([v, lbl]) => (
           <button key={v} onClick={() => setVista(v)} style={vista === v ? s.btnPrimario(c.main) : s.btnSecundario}>{lbl}</button>
         ))}
       </div>
@@ -150,7 +151,7 @@ function Costos() {
         <>
           <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '14px' }}>
             <button style={s.btnPrimario(c.main)} onClick={() => setMostrarFormFijo(!mostrarFormFijo)}>
-              {mostrarFormFijo ? '✕ Cancelar' : '+ Nuevo costo fijo'}
+              {mostrarFormFijo ? <><X size={14} style={{ marginRight: 5, verticalAlign: '-2px' }} />Cancelar</> : <><Plus size={14} style={{ marginRight: 5, verticalAlign: '-2px' }} />Nuevo costo fijo</>}
             </button>
           </div>
 
@@ -236,7 +237,7 @@ function Costos() {
         <>
           <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '14px' }}>
             <button style={s.btnPrimario(c.main)} onClick={() => setMostrarFormVariable(!mostrarFormVariable)}>
-              {mostrarFormVariable ? '✕ Cancelar' : '+ Nuevo costo variable'}
+              {mostrarFormVariable ? <><X size={14} style={{ marginRight: 5, verticalAlign: '-2px' }} />Cancelar</> : <><Plus size={14} style={{ marginRight: 5, verticalAlign: '-2px' }} />Nuevo costo variable</>}
             </button>
           </div>
 
@@ -329,7 +330,7 @@ function Costos() {
       {vista === 'analisis' && (
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
           <div style={s.card}>
-            <h4 style={{ margin: '0 0 16px', color: '#0f172a', fontWeight: '700', fontSize: '14px' }}>💸 Costos variables por cliente</h4>
+            <h4 style={{ margin: '0 0 16px', color: '#0f172a', fontWeight: '700', fontSize: '14px' }}>Costos variables por cliente</h4>
             {rankingClientes.length === 0
               ? <p style={{ color: '#94a3b8', textAlign: 'center', padding: '20px 0', fontSize: '13px' }}>Sin costos variables asignados este mes</p>
               : rankingClientes.map((r, i) => (
@@ -347,7 +348,7 @@ function Costos() {
           </div>
 
           <div style={s.card}>
-            <h4 style={{ margin: '0 0 16px', color: '#0f172a', fontWeight: '700', fontSize: '14px' }}>🏢 Costos fijos por categoría</h4>
+            <h4 style={{ margin: '0 0 16px', color: '#0f172a', fontWeight: '700', fontSize: '14px' }}>Costos fijos por categoría</h4>
             {Object.keys(fijosPorCategoria).length === 0
               ? <p style={{ color: '#94a3b8', textAlign: 'center', padding: '20px 0', fontSize: '13px' }}>Sin costos fijos cargados este mes</p>
               : Object.entries(fijosPorCategoria).sort((a,b) => b[1]-a[1]).map(([cat, monto], i) => (
