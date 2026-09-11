@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../supabase.js'
 import { s, colores } from '../estilos.js'
+import { HardHat, Pencil, Plus, X } from 'lucide-react'
 
 const c = colores.personal
 
@@ -119,18 +120,18 @@ function Personal() {
     <div style={{ fontFamily: "'Segoe UI', sans-serif" }}>
       <div style={s.cabecera(c.gradient)}>
         <div>
-          <h3 style={s.cabeceraTexto}>👷 Personal</h3>
+          <h3 style={{ ...s.cabeceraTexto, display:'flex', alignItems:'center', gap:'9px' }}><HardHat size={19} /> Personal</h3>
           <p style={s.cabeceraSubtexto}>{empleados.length} empleados activos</p>
         </div>
         <button style={s.btnPrimario('rgba(255,255,255,0.25)')} onClick={() => { if (mostrarForm) { cancelar() } else { setMostrarForm(true) } }}>
-          {mostrarForm ? '✕ Cancelar' : '+ Nuevo empleado'}
+          {mostrarForm ? <><X size={14} style={{ marginRight: 5, verticalAlign: '-2px' }} />Cancelar</> : <><Plus size={14} style={{ marginRight: 5, verticalAlign: '-2px' }} />Nuevo empleado</>}
         </button>
       </div>
 
       {mostrarForm && (
         <div style={s.card}>
           <h4 style={{ margin: '0 0 20px', color: c.main, fontWeight: '700' }}>
-            {editando ? `✏️ Editando — ${editando.apellido}, ${editando.nombre}` : 'Nuevo empleado'}
+            {editando ? <><Pencil size={15} style={{ marginRight: 6, verticalAlign: '-2px' }} />Editando — {editando.apellido}, {editando.nombre}</> : 'Nuevo empleado'}
           </h4>
           <form onSubmit={guardarEmpleado}>
             <div style={s.grid2}>
@@ -221,7 +222,7 @@ function Personal() {
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '20px' }}>
               <button type="button" style={s.btnSecundario} onClick={cancelar}>Cancelar</button>
               <button type="submit" style={s.btnPrimario(c.main)}>
-                {editando ? '💾 Guardar cambios' : 'Guardar empleado'}
+                {editando ? 'Guardar cambios' : 'Guardar empleado'}
               </button>
             </div>
           </form>
@@ -229,7 +230,7 @@ function Personal() {
       )}
 
       <div style={{ marginBottom: '16px' }}>
-        <input style={s.buscador} placeholder="🔍  Buscar por nombre o DNI..."
+        <input style={s.buscador} placeholder=" Buscar por nombre o DNI..."
           value={busqueda} onChange={e => setBusqueda(e.target.value)}
           onFocus={e => e.target.style.borderColor = c.main}
           onBlur={e => e.target.style.borderColor = '#e2e8f0'} />
@@ -263,7 +264,7 @@ function Personal() {
                   <td style={s.tablaCell}>{e.telefono || '—'}</td>
                   <td style={s.tablaCell}>
                     <div style={{ display: 'flex', gap: '6px' }}>
-                      <button style={{ ...s.btnPrimario(c.main), padding: '5px 12px', fontSize: '12px' }} onClick={() => abrirEdicion(e)}>✏️ Editar</button>
+                      <button style={{ ...s.btnPrimario(c.main), padding: '5px 12px', fontSize: '12px' }} onClick={() => abrirEdicion(e)}><Pencil size={13} style={{ marginRight: 4, verticalAlign: "-2px" }} />Editar</button>
                       <button style={s.btnPeligro} onClick={() => darDeBaja(e.id)}>Baja</button>
                     </div>
                   </td>
