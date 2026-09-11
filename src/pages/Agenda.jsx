@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../supabase.js'
 import { s, colores } from '../estilos.js'
+import { CalendarDays, Plus, X } from 'lucide-react'
 
 const c = colores.agenda
 
@@ -183,7 +184,7 @@ function Agenda() {
 
     setMostrarCierre(null)
     cargarDatos()
-    alert(`✅ Orden ${orden.numero_orden} completada. Se registraron los costos automáticamente en el módulo de Costos.`)
+    alert(`Orden ${orden.numero_orden} completada. Se registraron los costos automáticamente en el módulo de Costos.`)
   }
 
   async function cambiarEstado(id, estado) {
@@ -209,11 +210,11 @@ function Agenda() {
     <div style={{ fontFamily: "'Segoe UI', sans-serif" }}>
       <div style={s.cabecera(c.gradient)}>
         <div>
-          <h3 style={s.cabeceraTexto}>📅 Agenda de Servicios</h3>
+          <h3 style={{ ...s.cabeceraTexto, display:'flex', alignItems:'center', gap:'9px' }}><CalendarDays size={19} /> Agenda de Servicios</h3>
           <p style={s.cabeceraSubtexto}>{ordenes.length} órdenes de trabajo</p>
         </div>
         <button style={s.btnPrimario('rgba(255,255,255,0.25)')} onClick={() => setMostrarForm(!mostrarForm)}>
-          {mostrarForm ? '✕ Cancelar' : '+ Nueva orden'}
+          {mostrarForm ? <><X size={14} style={{ marginRight: 5, verticalAlign: '-2px' }} />Cancelar</> : <><Plus size={14} style={{ marginRight: 5, verticalAlign: '-2px' }} />Nueva orden</>}
         </button>
       </div>
 
@@ -302,7 +303,7 @@ function Agenda() {
                   <tr key={o.id} style={s.tablaFila(i)}>
                     <td style={{ ...s.tablaCell, fontFamily: 'monospace', fontSize: '12px', color: '#94a3b8' }}>{o.numero_orden}</td>
                     <td style={s.tablaCellBold}>{o.contratos?.clientes?.razon_social || o.contratos?.clientes?.nombre_contacto}</td>
-                    <td style={s.tablaCell}>{o.sucursales ? <span style={s.badge('#e0f2fe','#0891b2')}>🏢 {o.sucursales.nombre}</span> : <span style={{ color:'#94a3b8', fontSize:'12px' }}>—</span>}</td>
+                    <td style={s.tablaCell}>{o.sucursales ? <span style={s.badge('#e0f2fe','#0891b2')}>{o.sucursales.nombre}</span> : <span style={{ color:'#94a3b8', fontSize:'12px' }}>—</span>}</td>
                     <td style={s.tablaCell}>{o.contratos?.tipos_servicio?.nombre}</td>
                     <td style={s.tablaCell}>{new Date(o.fecha_programada + 'T00:00:00').toLocaleDateString('es-AR')}</td>
                     <td style={s.tablaCell}>{o.hora_inicio || '—'}</td>
@@ -313,13 +314,13 @@ function Agenda() {
                           style={{ ...s.input, padding: '6px 10px', fontSize: '12px', maxWidth: '160px' }}>
                           <option value="programada">Programada</option>
                           <option value="en_curso">En curso</option>
-                          <option value="completada">✅ Completar</option>
+                          <option value="completada">Completar</option>
                           <option value="cancelada">Cancelada</option>
                           <option value="reprogramada">Reprogramada</option>
                         </select>
                       ) : (
                         <span style={{ fontSize: '12px', color: '#94a3b8' }}>
-                          {o.estado === 'completada' ? '✅ Completada' : '❌ Cancelada'}
+                          {o.estado === 'completada' ? 'Completada' : 'Cancelada'}
                         </span>
                       )}
                     </td>
@@ -337,10 +338,10 @@ function Agenda() {
           <div style={{ background:'#fff', borderRadius:'20px', padding:'28px', width:'100%', maxWidth:'600px', maxHeight:'90vh', overflowY:'auto', boxShadow:'0 20px 60px rgba(0,0,0,0.25)' }}>
             <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'20px' }}>
               <div>
-                <h4 style={{ margin:0, fontWeight:'800', color:'#0f172a', fontSize:'16px' }}>✅ Completar orden</h4>
+                <h4 style={{ margin:0, fontWeight:'800', color:'#0f172a', fontSize:'16px' }}>Completar orden</h4>
                 <p style={{ margin:'4px 0 0', fontSize:'13px', color:'#64748b' }}>{mostrarCierre.numero_orden} · {mostrarCierre.contratos?.clientes?.razon_social || mostrarCierre.contratos?.clientes?.nombre_contacto}</p>
               </div>
-              <button onClick={() => setMostrarCierre(null)} style={{ background:'none', border:'none', fontSize:'22px', cursor:'pointer', color:'#94a3b8' }}>✕</button>
+              <button onClick={() => setMostrarCierre(null)} style={{ background:'none', border:'none', fontSize:'22px', cursor:'pointer', color:'#94a3b8' }}><X size={16} /></button>
             </div>
 
             <form onSubmit={completarOrden}>
@@ -348,7 +349,7 @@ function Agenda() {
               {/* HORAS POR EMPLEADO */}
               {Object.keys(horasEmpleados).length > 0 && (
                 <div style={{ background:'#f0fdf4', borderRadius:'12px', padding:'16px', marginBottom:'16px', border:'1px solid #86efac' }}>
-                  <p style={{ ...s.label, color:'#059669', marginBottom:'12px', fontSize:'13px' }}>👷 Horas trabajadas por empleado</p>
+                  <p style={{ ...s.label, color:'#059669', marginBottom:'12px', fontSize:'13px' }}>Horas trabajadas por empleado</p>
                   {Object.entries(horasEmpleados).map(([empId, eo]) => (
                     <div key={empId} style={{ display:'flex', alignItems:'center', gap:'12px', marginBottom:'10px' }}>
                       <span style={{ fontSize:'13px', color:'#374151', fontWeight:'600', minWidth:'160px' }}>{eo.empleados?.apellido}, {eo.empleados?.nombre}</span>
@@ -370,7 +371,7 @@ function Agenda() {
 
               {/* INSUMOS USADOS */}
               <div style={{ background:'#eff6ff', borderRadius:'12px', padding:'16px', marginBottom:'16px', border:'1px solid #93c5fd' }}>
-                <p style={{ ...s.label, color:'#1d4ed8', marginBottom:'12px', fontSize:'13px' }}>🧴 Insumos utilizados</p>
+                <p style={{ ...s.label, color:'#1d4ed8', marginBottom:'12px', fontSize:'13px' }}>Insumos utilizados</p>
                 <div style={{ display:'flex', gap:'10px', marginBottom:'12px' }}>
                   <select style={{ ...s.input, flex:2 }} value={insumoTemp.insumo_id}
                     onChange={e => setInsumoTemp({...insumoTemp, insumo_id: e.target.value})}>
@@ -389,7 +390,7 @@ function Agenda() {
                         <span style={{ color:'#64748b' }}>{ins.cantidad} {ins.unidad}</span>
                         <span style={{ color:'#1d4ed8', fontWeight:'700' }}>{(ins.cantidad * ins.precio_unitario).toLocaleString('es-AR',{style:'currency',currency:'ARS'})}</span>
                         <button type="button" onClick={() => setInsumosUsados(insumosUsados.filter((_,j) => j !== i))}
-                          style={{ background:'none', border:'none', color:'#dc2626', cursor:'pointer', fontSize:'16px' }}>✕</button>
+                          style={{ background:'none', border:'none', color:'#dc2626', cursor:'pointer', fontSize:'16px' }}><X size={16} /></button>
                       </div>
                     ))}
                     <div style={{ display:'flex', justifyContent:'space-between', paddingTop:'10px', fontWeight:'700', color:'#1d4ed8' }}>
@@ -402,7 +403,7 @@ function Agenda() {
 
               {/* RESUMEN COSTOS */}
               <div style={{ background:'#fef3c7', borderRadius:'12px', padding:'16px', marginBottom:'16px', border:'1px solid #fcd34d' }}>
-                <p style={{ ...s.label, color:'#d97706', marginBottom:'10px' }}>💰 Resumen de costos del servicio</p>
+                <p style={{ ...s.label, color:'#d97706', marginBottom:'10px' }}>Resumen de costos del servicio</p>
                 <div style={{ display:'flex', justifyContent:'space-between', fontSize:'13px', marginBottom:'6px' }}>
                   <span style={{ color:'#374151' }}>Mano de obra</span>
                   <span style={{ fontWeight:'600', color:'#059669' }}>{costoTotalHoras().toLocaleString('es-AR',{style:'currency',currency:'ARS'})}</span>
@@ -416,7 +417,7 @@ function Agenda() {
                   <span>{(costoTotalHoras() + costoTotalInsumos()).toLocaleString('es-AR',{style:'currency',currency:'ARS'})}</span>
                 </div>
                 <p style={{ fontSize:'11px', color:'#92400e', margin:'8px 0 0' }}>
-                  ✅ Estos costos se guardarán automáticamente en el módulo de Costos asignados a este cliente.
+                  Estos costos se guardarán automáticamente en el módulo de Costos asignados a este cliente.
                 </p>
               </div>
 
@@ -428,7 +429,7 @@ function Agenda() {
 
               <div style={{ display:'flex', justifyContent:'flex-end', gap:'12px' }}>
                 <button type="button" style={s.btnSecundario} onClick={() => setMostrarCierre(null)}>Cancelar</button>
-                <button type="submit" style={s.btnPrimario('#059669')}>✅ Confirmar y completar orden</button>
+                <button type="submit" style={s.btnPrimario('#059669')}>Confirmar y completar orden</button>
               </div>
             </form>
           </div>
