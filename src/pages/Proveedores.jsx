@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../supabase.js'
 import { s, colores } from '../estilos.js'
+import { Factory, Pencil, Plus, X } from 'lucide-react'
 
-const c = { main: '#b45309', light: '#fef3c7', gradient: 'linear-gradient(135deg, #b45309, #f59e0b)' }
+const c = colores.proveedores
 
 function Proveedores() {
   const [proveedores, setProveedores] = useState([])
@@ -72,17 +73,17 @@ function Proveedores() {
     <div style={{ fontFamily: "'Segoe UI', sans-serif" }}>
       <div style={s.cabecera(c.gradient)}>
         <div>
-          <h3 style={s.cabeceraTexto}>🏭 Proveedores</h3>
+          <h3 style={{ ...s.cabeceraTexto, display:'flex', alignItems:'center', gap:'9px' }}><Factory size={19} /> Proveedores</h3>
           <p style={s.cabeceraSubtexto}>{proveedores.length} proveedores activos</p>
         </div>
         <button style={s.btnPrimario('rgba(255,255,255,0.25)')} onClick={() => { setMostrarForm(!mostrarForm); setEditando(null); setForm({ razon_social:'', cuit:'', nombre_contacto:'', email:'', telefono:'', direccion:'', localidad:'', rubro:'', observaciones:'' }) }}>
-          {mostrarForm ? '✕ Cancelar' : '+ Nuevo proveedor'}
+          {mostrarForm ? <><X size={14} style={{ marginRight: 5, verticalAlign: '-2px' }} />Cancelar</> : <><Plus size={14} style={{ marginRight: 5, verticalAlign: '-2px' }} />Nuevo proveedor</>}
         </button>
       </div>
 
       {mostrarForm && (
         <div style={s.card}>
-          <h4 style={{ margin: '0 0 20px', color: c.main, fontWeight: '700' }}>{editando ? `✏️ Editando — ${editando.razon_social}` : 'Nuevo proveedor'}</h4>
+          <h4 style={{ margin: '0 0 20px', color: c.main, fontWeight: '700' }}>{editando ? <><Pencil size={15} style={{ marginRight: 6, verticalAlign: '-2px' }} />Editando — {editando.razon_social}</> : 'Nuevo proveedor'}</h4>
           <form onSubmit={guardarProveedor}>
             <div style={s.grid2}>
               <div>
@@ -136,14 +137,14 @@ function Proveedores() {
             </div>
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '20px' }}>
               <button type="button" style={s.btnSecundario} onClick={() => { setMostrarForm(false); setEditando(null) }}>Cancelar</button>
-              <button type="submit" style={s.btnPrimario(c.main)}>{editando ? '💾 Guardar cambios' : '+ Crear proveedor'}</button>
+              <button type="submit" style={s.btnPrimario(c.main)}>{editando ? 'Guardar cambios' : '+ Crear proveedor'}</button>
             </div>
           </form>
         </div>
       )}
 
       <div style={{ marginBottom: '16px' }}>
-        <input style={s.buscador} placeholder="🔍  Buscar por nombre, rubro o CUIT..."
+        <input style={s.buscador} placeholder=" Buscar por nombre, rubro o CUIT..."
           value={busqueda} onChange={e => setBusqueda(e.target.value)}
           onFocus={e => e.target.style.borderColor = c.main} onBlur={e => e.target.style.borderColor = '#e2e8f0'} />
       </div>
@@ -172,7 +173,7 @@ function Proveedores() {
                   <td style={s.tablaCell}>{p.localidad || '—'}</td>
                   <td style={s.tablaCell}>
                     <div style={{ display:'flex', gap:'6px' }}>
-                      <button style={{ ...s.btnPrimario(c.main), padding:'5px 12px', fontSize:'12px' }} onClick={() => abrirEdicion(p)}>✏️ Editar</button>
+                      <button style={{ ...s.btnPrimario(c.main), padding:'5px 12px', fontSize:'12px' }} onClick={() => abrirEdicion(p)}><Pencil size={13} style={{ marginRight: 4, verticalAlign: "-2px" }} />Editar</button>
                       <button style={s.btnPeligro} onClick={() => darDeBaja(p.id)}>Baja</button>
                     </div>
                   </td>
