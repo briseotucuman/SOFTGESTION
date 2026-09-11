@@ -1,70 +1,102 @@
-// Estilos compartidos para todos los módulos de Briseo
+// ============================================================
+// Sistema de diseño — SOFTGESTION (Briseo)
+// Identidad: herramienta operativa de precisión. Sin gradientes
+// candy, sin mayúsculas por defecto, un color de marca sólido
+// (verde profundo) y acentos por módulo para orientación rápida.
+// ============================================================
 
+export const paleta = {
+  ink: '#16211D',       // texto principal / superficies oscuras
+  inkSoft: '#3C4A44',   // texto secundario oscuro
+  muted: '#5B685F',     // texto terciario / placeholders
+  paper: '#F3F5F1',     // fondo de la app
+  surface: '#FFFFFF',   // tarjetas
+  line: '#E1E4DE',      // bordes
+  lineStrong: '#C7CCC4',
+  brand: '#1F6F5C',     // marca / acciones primarias
+  brandDark: '#164F42', // hover / variante oscura
+  brandSoft: '#E3EFEA', // fondo tintado de marca
+  warn: '#A8631E',
+  warnSoft: '#F7EADA',
+  danger: '#AC3B2A',
+  dangerSoft: '#FBEAE7',
+  info: '#3D5A73',
+  infoSoft: '#E7EEF3',
+  font: "'IBM Plex Sans', 'Segoe UI', system-ui, sans-serif",
+}
+
+// Acento por módulo: usado en encabezados, headers de tabla,
+// bordes activos y badges — nunca como fondo de página completa.
 export const colores = {
-  clientes:     { main: '#1e90ff', light: '#e0f0ff', gradient: 'linear-gradient(135deg, #1e90ff, #00b4d8)' },
-  contratos:    { main: '#7c3aed', light: '#ede9fe', gradient: 'linear-gradient(135deg, #7c3aed, #a78bfa)' },
-  personal:     { main: '#059669', light: '#d1fae5', gradient: 'linear-gradient(135deg, #059669, #34d399)' },
-  agenda:       { main: '#d97706', light: '#fef3c7', gradient: 'linear-gradient(135deg, #d97706, #fbbf24)' },
-  presupuestos: { main: '#0891b2', light: '#e0f7ff', gradient: 'linear-gradient(135deg, #0891b2, #22d3ee)' },
-  facturacion:  { main: '#dc2626', light: '#fee2e2', gradient: 'linear-gradient(135deg, #dc2626, #f87171)' },
-  insumos:      { main: '#0284c7', light: '#e0f2fe', gradient: 'linear-gradient(135deg, #0284c7, #38bdf8)' },
-  finanzas:     { main: '#16a34a', light: '#dcfce7', gradient: 'linear-gradient(135deg, #16a34a, #4ade80)' },
-  reportes:     { main: '#9333ea', light: '#f3e8ff', gradient: 'linear-gradient(135deg, #9333ea, #c084fc)' },
+  clientes:     { main: '#1F6F5C', light: '#1F6F5C1A', gradient: 'linear-gradient(155deg, #1F6F5C, #164F42)' },
+  contratos:    { main: '#3D5A80', light: '#3D5A801A', gradient: 'linear-gradient(155deg, #3D5A80, #2C4260)' },
+  personal:     { main: '#4C7A3F', light: '#4C7A3F1A', gradient: 'linear-gradient(155deg, #4C7A3F, #395C2E)' },
+  agenda:       { main: '#B5701D', light: '#B5701D1A', gradient: 'linear-gradient(155deg, #B5701D, #8C5716)' },
+  presupuestos: { main: '#2E7C8C', light: '#2E7C8C1A', gradient: 'linear-gradient(155deg, #2E7C8C, #235F6B)' },
+  facturacion:  { main: '#A8412E', light: '#A8412E1A', gradient: 'linear-gradient(155deg, #A8412E, #7E3022)' },
+  insumos:      { main: '#5C6BB0', light: '#5C6BB01A', gradient: 'linear-gradient(155deg, #5C6BB0, #454F87)' },
+  finanzas:     { main: '#2F8F6B', light: '#2F8F6B1A', gradient: 'linear-gradient(155deg, #2F8F6B, #226B4F)' },
+  costos:       { main: '#146B5E', light: '#146B5E1A', gradient: 'linear-gradient(155deg, #146B5E, #0E4E44)' },
+  sueldos:      { main: '#7A5AA6', light: '#7A5AA61A', gradient: 'linear-gradient(155deg, #7A5AA6, #5C4380)' },
+  proveedores:  { main: '#9C6B1D', light: '#9C6B1D1A', gradient: 'linear-gradient(155deg, #9C6B1D, #785316)' },
+  reportes:     { main: '#8C4B5E', light: '#8C4B5E1A', gradient: 'linear-gradient(155deg, #8C4B5E, #6B3948)' },
+  usuarios:     { main: '#46707D', light: '#46707D1A', gradient: 'linear-gradient(155deg, #46707D, #35555F)' },
+  danger: { main: '#AC3B2A', light: '#FBEAE7', gradient: '#AC3B2A' },
+  warning:{ main: '#A8631E', light: '#F7EADA', gradient: '#A8631E' },
+  info:   { main: '#3D5A73', light: '#E7EEF3', gradient: '#3D5A73' },
 }
 
 export const s = {
-  // Cabecera del módulo
-  cabecera: (gradient) => ({
-    background: gradient,
-    borderRadius: '16px',
-    padding: '20px 24px',
-    marginBottom: '24px',
+  cabecera: (fondo) => ({
+    background: fondo,
+    borderRadius: '12px',
+    padding: '18px 22px',
+    marginBottom: '20px',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'space-between',
-    boxShadow: '0 4px 16px rgba(0,0,0,0.1)'
+    boxShadow: '0 1px 2px rgba(22,33,29,0.08)'
   }),
   cabeceraTexto: {
     color: '#ffffff',
     margin: 0,
-    fontSize: '20px',
-    fontWeight: '800'
+    fontSize: '18px',
+    fontWeight: '700',
+    letterSpacing: '-0.01em'
   },
   cabeceraSubtexto: {
-    color: 'rgba(255,255,255,0.8)',
-    margin: '4px 0 0',
+    color: 'rgba(255,255,255,0.78)',
+    margin: '3px 0 0',
     fontSize: '13px'
   },
 
-  // Botón primario
   btnPrimario: (color) => ({
     background: color,
     color: '#ffffff',
     border: 'none',
-    borderRadius: '10px',
-    padding: '10px 20px',
-    fontWeight: '700',
+    borderRadius: '8px',
+    padding: '10px 18px',
+    fontWeight: '600',
     fontSize: '14px',
     cursor: 'pointer',
-    boxShadow: `0 4px 12px ${color}55`,
-    transition: 'all 0.2s',
+    transition: 'filter 0.15s',
     whiteSpace: 'nowrap'
   }),
   btnSecundario: {
     background: '#ffffff',
-    color: '#64748b',
-    border: '1.5px solid #e2e8f0',
-    borderRadius: '10px',
-    padding: '10px 20px',
+    color: '#3C4A44',
+    border: '1.5px solid #E1E4DE',
+    borderRadius: '8px',
+    padding: '10px 18px',
     fontWeight: '600',
     fontSize: '14px',
     cursor: 'pointer',
-    transition: 'all 0.2s'
+    transition: 'border-color 0.15s'
   },
   btnPeligro: {
-    background: '#fff1f2',
-    color: '#ef4444',
-    border: '1px solid #fecdd3',
+    background: '#FBEAE7',
+    color: '#AC3B2A',
+    border: '1px solid #AC3B2A33',
     borderRadius: '8px',
     padding: '6px 12px',
     fontWeight: '600',
@@ -72,49 +104,45 @@ export const s = {
     cursor: 'pointer'
   },
 
-  // Formulario
   card: {
-    background: '#ffffff',
-    borderRadius: '16px',
-    padding: '24px',
-    marginBottom: '20px',
-    boxShadow: '0 2px 12px rgba(0,0,0,0.06)',
-    border: '1px solid #f1f5f9'
+    background: '#FFFFFF',
+    borderRadius: '12px',
+    padding: '22px',
+    marginBottom: '18px',
+    boxShadow: '0 1px 2px rgba(22,33,29,0.06)',
+    border: '1px solid #E1E4DE'
   },
   label: {
     display: 'block',
-    color: '#374151',
-    fontSize: '12px',
-    fontWeight: '700',
-    marginBottom: '6px',
-    textTransform: 'uppercase',
-    letterSpacing: '0.4px'
+    color: '#3C4A44',
+    fontSize: '12.5px',
+    fontWeight: '600',
+    marginBottom: '6px'
   },
   input: {
     width: '100%',
-    padding: '11px 14px',
+    padding: '10px 13px',
     boxSizing: 'border-box',
-    background: '#f8fafc',
-    border: '1.5px solid #e2e8f0',
-    borderRadius: '10px',
-    color: '#0f172a',
+    background: '#F3F5F1',
+    border: '1.5px solid #E1E4DE',
+    borderRadius: '8px',
+    color: '#16211D',
     fontSize: '14px',
     outline: 'none',
-    transition: 'border-color 0.2s',
-    fontFamily: "'Segoe UI', sans-serif"
+    transition: 'border-color 0.15s',
+    fontFamily: "'IBM Plex Sans', 'Segoe UI', system-ui, sans-serif"
   },
   grid2: {
     display: 'grid',
     gridTemplateColumns: '1fr 1fr',
-    gap: '16px'
+    gap: '14px'
   },
   grid3: {
     display: 'grid',
     gridTemplateColumns: '1fr 1fr 1fr',
-    gap: '16px'
+    gap: '14px'
   },
 
-  // Tabla
   tabla: {
     width: '100%',
     borderCollapse: 'separate',
@@ -124,59 +152,54 @@ export const s = {
   tablaCabecera: (color) => ({
     background: color,
     color: '#ffffff',
-    padding: '12px 16px',
+    padding: '11px 15px',
     textAlign: 'left',
-    fontWeight: '700',
-    fontSize: '12px',
-    textTransform: 'uppercase',
-    letterSpacing: '0.4px'
+    fontWeight: '600',
+    fontSize: '12px'
   }),
   tablaFila: (i) => ({
-    background: i % 2 === 0 ? '#ffffff' : '#f8fafc',
+    background: i % 2 === 0 ? '#FFFFFF' : '#F3F5F1',
     transition: 'background 0.15s'
   }),
   tablaCell: {
-    padding: '13px 16px',
-    color: '#374151',
-    borderBottom: '1px solid #f1f5f9'
+    padding: '12px 15px',
+    color: '#3C4A44',
+    borderBottom: '1px solid #E1E4DE'
   },
   tablaCellBold: {
-    padding: '13px 16px',
-    color: '#0f172a',
+    padding: '12px 15px',
+    color: '#16211D',
     fontWeight: '600',
-    borderBottom: '1px solid #f1f5f9'
+    borderBottom: '1px solid #E1E4DE'
   },
 
-  // Badge de estado
   badge: (bg, color) => ({
     background: bg,
     color: color,
-    padding: '4px 10px',
-    borderRadius: '20px',
-    fontSize: '11px',
-    fontWeight: '700',
+    padding: '3px 10px',
+    borderRadius: '6px',
+    fontSize: '11.5px',
+    fontWeight: '600',
     display: 'inline-block'
   }),
 
-  // Buscador
   buscador: {
     width: '100%',
     maxWidth: '320px',
-    padding: '10px 16px',
-    background: '#ffffff',
-    border: '1.5px solid #e2e8f0',
-    borderRadius: '10px',
+    padding: '9px 14px',
+    background: '#FFFFFF',
+    border: '1.5px solid #E1E4DE',
+    borderRadius: '8px',
     fontSize: '14px',
     outline: 'none',
-    color: '#0f172a',
-    fontFamily: "'Segoe UI', sans-serif"
+    color: '#16211D',
+    fontFamily: "'IBM Plex Sans', 'Segoe UI', system-ui, sans-serif"
   },
 
-  // Empty state
   empty: {
     padding: '48px',
     textAlign: 'center',
-    color: '#94a3b8',
+    color: '#5B685F',
     fontSize: '14px'
   }
 }
