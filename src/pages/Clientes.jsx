@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../supabase.js'
 import { s, colores } from '../estilos.js'
+import { Pencil, Plus, Users, X } from 'lucide-react'
 
 const c = colores.clientes
 
@@ -182,11 +183,11 @@ function Clientes() {
     <div style={{ fontFamily: "'Segoe UI', sans-serif" }}>
       <div style={s.cabecera(c.gradient)}>
         <div>
-          <h3 style={s.cabeceraTexto}>👥 Clientes</h3>
+          <h3 style={{ ...s.cabeceraTexto, display:'flex', alignItems:'center', gap:'9px' }}><Users size={19} /> Clientes</h3>
           <p style={s.cabeceraSubtexto}>{clientes.length} clientes activos</p>
         </div>
         <button style={s.btnPrimario('rgba(255,255,255,0.25)')} onClick={mostrarForm ? () => { setMostrarForm(false); setEditando(null) } : abrirNuevo}>
-          {mostrarForm ? '✕ Cancelar' : '+ Nuevo cliente'}
+          {mostrarForm ? <><X size={14} style={{ marginRight: 5, verticalAlign: '-2px' }} />Cancelar</> : <><Plus size={14} style={{ marginRight: 5, verticalAlign: '-2px' }} />Nuevo cliente</>}
         </button>
       </div>
 
@@ -194,7 +195,7 @@ function Clientes() {
       {mostrarForm && (
         <div style={s.card}>
           <h4 style={{ margin: '0 0 20px', color: c.main, fontWeight: '700' }}>
-            {editando ? `✏️ Editando — ${editando.razon_social || editando.nombre_contacto}` : 'Nuevo cliente'}
+            {editando ? <><Pencil size={15} style={{ marginRight: 6, verticalAlign: '-2px' }} />Editando — {editando.razon_social || editando.nombre_contacto}</> : 'Nuevo cliente'}
           </h4>
           <form onSubmit={guardarCliente}>
             <div style={s.grid2}>
@@ -242,7 +243,7 @@ function Clientes() {
             </div>
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '20px' }}>
               <button type="button" style={s.btnSecundario} onClick={() => { setMostrarForm(false); setEditando(null) }}>Cancelar</button>
-              <button type="submit" style={s.btnPrimario(c.main)}>{editando ? '💾 Guardar cambios' : '+ Crear cliente'}</button>
+              <button type="submit" style={s.btnPrimario(c.main)}>{editando ? 'Guardar cambios' : '+ Crear cliente'}</button>
             </div>
           </form>
         </div>
@@ -250,7 +251,7 @@ function Clientes() {
 
       {/* BUSCADOR */}
       <div style={{ marginBottom: '16px' }}>
-        <input style={s.buscador} placeholder="🔍  Buscar por nombre, razón social o CUIT..."
+        <input style={s.buscador} placeholder=" Buscar por nombre, razón social o CUIT..."
           value={busqueda} onChange={e => setBusqueda(e.target.value)} />
       </div>
 
@@ -279,12 +280,12 @@ function Clientes() {
                     <td style={s.tablaCell}>
                       <button style={{ ...s.btnPrimario('#0891b2'), padding: '5px 12px', fontSize: '12px' }}
                         onClick={() => abrirSucursales(cl)}>
-                        🏢 Sucursales
+                        Sucursales
                       </button>
                     </td>
                     <td style={s.tablaCell}>
                       <div style={{ display: 'flex', gap: '6px' }}>
-                        <button style={{ ...s.btnPrimario(c.main), padding: '5px 10px', fontSize: '12px' }} onClick={() => abrirEdicion(cl)}>✏️</button>
+                        <button style={{ ...s.btnPrimario(c.main), padding: '5px 10px', fontSize: '12px' }} onClick={() => abrirEdicion(cl)}><Pencil size={14} /></button>
                         <button style={s.btnPeligro} onClick={() => darDeBaja(cl.id)}>Baja</button>
                       </div>
                     </td>
@@ -305,15 +306,15 @@ function Clientes() {
             <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'20px' }}>
               <div>
                 <h4 style={{ margin:0, fontWeight:'800', color:'#0f172a', fontSize:'16px' }}>
-                  🏢 Sucursales — {verSucursales.razon_social || verSucursales.nombre_contacto}
+                  Sucursales — {verSucursales.razon_social || verSucursales.nombre_contacto}
                 </h4>
                 <p style={{ margin:'4px 0 0', fontSize:'13px', color:'#64748b' }}>{sucursales.length} sucursales activas</p>
               </div>
               <div style={{ display:'flex', gap:'10px' }}>
                 <button style={s.btnPrimario('#0891b2')} onClick={() => { setMostrarFormSucursal(!mostrarFormSucursal); setEditandoSucursal(null); setFormSucursal({ nombre:'', direccion:'', localidad:'', provincia:'', contacto_nombre:'', contacto_telefono:'', contacto_email:'', observaciones:'', latitud:'', longitud:'' }) }}>
-                  {mostrarFormSucursal ? '✕ Cancelar' : '+ Nueva sucursal'}
+                  {mostrarFormSucursal ? <><X size={14} style={{ marginRight: 5, verticalAlign: '-2px' }} />Cancelar</> : <><Plus size={14} style={{ marginRight: 5, verticalAlign: '-2px' }} />Nueva sucursal</>}
                 </button>
-                <button onClick={() => { setVerSucursales(null); setMostrarFormSucursal(false) }} style={{ background:'none', border:'none', fontSize:'22px', cursor:'pointer', color:'#94a3b8' }}>✕</button>
+                <button onClick={() => { setVerSucursales(null); setMostrarFormSucursal(false) }} style={{ background:'none', border:'none', fontSize:'22px', cursor:'pointer', color:'#94a3b8' }}><X size={16} /></button>
               </div>
             </div>
 
@@ -321,7 +322,7 @@ function Clientes() {
             {mostrarFormSucursal && (
               <div style={{ background:'#f0f9ff', borderRadius:'14px', padding:'20px', marginBottom:'20px', border:'1px solid #bae6fd' }}>
                 <h5 style={{ margin:'0 0 16px', color:'#0891b2', fontWeight:'700' }}>
-                  {editandoSucursal ? `✏️ Editando — ${editandoSucursal.nombre}` : 'Nueva sucursal'}
+                  {editandoSucursal ? <><Pencil size={15} style={{ marginRight: 6, verticalAlign: '-2px' }} />Editando — {editandoSucursal.nombre}</> : 'Nueva sucursal'}
                 </h5>
                 <form onSubmit={guardarSucursal}>
                   <div style={s.grid2}>
@@ -361,7 +362,7 @@ function Clientes() {
 
                   {/* COORDENADAS */}
                   <div style={{ background:'#f0fdf4', borderRadius:'12px', padding:'14px', margin:'14px 0', border:'1px solid #86efac' }}>
-                    <p style={{ ...s.label, color:'#059669', marginBottom:'10px' }}>📍 Ubicación en mapa</p>
+                    <p style={{ ...s.label, color:'#059669', marginBottom:'10px' }}>Ubicación en mapa</p>
                     <div style={{ display:'flex', gap:'10px', alignItems:'flex-end' }}>
                       <div style={{ flex:1 }}>
                         <label style={s.label}>Latitud</label>
@@ -373,20 +374,20 @@ function Clientes() {
                       </div>
                       <div>
                         <button type="button" style={{ ...s.btnPrimario('#059669'), whiteSpace:'nowrap' }} onClick={buscarCoordenadas} disabled={buscandoCoords}>
-                          {buscandoCoords ? '⏳ Buscando...' : '🔍 Buscar automático'}
+                          {buscandoCoords ? '⏳ Buscando...' : 'Buscar automático'}
                         </button>
                       </div>
                     </div>
                     {formSucursal.latitud && formSucursal.longitud && (
                       <p style={{ margin:'8px 0 0', fontSize:'12px', color:'#059669' }}>
-                        ✅ Coordenadas cargadas — este punto aparecerá en el mapa de Reportes
+                        Coordenadas cargadas — este punto aparecerá en el mapa de Reportes
                       </p>
                     )}
                   </div>
 
                   <div style={{ display:'flex', justifyContent:'flex-end', gap:'10px', marginTop:'16px' }}>
                     <button type="button" style={s.btnSecundario} onClick={() => { setMostrarFormSucursal(false); setEditandoSucursal(null) }}>Cancelar</button>
-                    <button type="submit" style={s.btnPrimario('#0891b2')}>{editandoSucursal ? '💾 Guardar cambios' : '+ Crear sucursal'}</button>
+                    <button type="submit" style={s.btnPrimario('#0891b2')}>{editandoSucursal ? 'Guardar cambios' : '+ Crear sucursal'}</button>
                   </div>
                 </form>
               </div>
@@ -404,19 +405,19 @@ function Clientes() {
                     <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start' }}>
                       <div style={{ flex:1 }}>
                         <p style={{ margin:'0 0 6px', fontWeight:'800', color:'#0f172a', fontSize:'14px' }}>
-                          🏢 {suc.nombre}
+                          {suc.nombre}
                         </p>
                         <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'4px' }}>
-                          {suc.direccion && <p style={{ margin:0, fontSize:'12px', color:'#64748b' }}>📍 {suc.direccion}{suc.localidad ? ', ' + suc.localidad : ''}</p>}
-                          {suc.contacto_nombre && <p style={{ margin:0, fontSize:'12px', color:'#64748b' }}>👤 {suc.contacto_nombre}</p>}
-                          {suc.contacto_telefono && <p style={{ margin:0, fontSize:'12px', color:'#64748b' }}>📞 {suc.contacto_telefono}</p>}
-                          {suc.contacto_email && <p style={{ margin:0, fontSize:'12px', color:'#64748b' }}>✉️ {suc.contacto_email}</p>}
-                          {suc.latitud && suc.longitud && <p style={{ margin:0, fontSize:'12px', color:'#059669', fontWeight:'600' }}>📍 {suc.latitud}, {suc.longitud}</p>}
+                          {suc.direccion && <p style={{ margin:0, fontSize:'12px', color:'#64748b' }}>{suc.direccion}{suc.localidad ? ', ' + suc.localidad : ''}</p>}
+                          {suc.contacto_nombre && <p style={{ margin:0, fontSize:'12px', color:'#64748b' }}>{suc.contacto_nombre}</p>}
+                          {suc.contacto_telefono && <p style={{ margin:0, fontSize:'12px', color:'#64748b' }}>{suc.contacto_telefono}</p>}
+                          {suc.contacto_email && <p style={{ margin:0, fontSize:'12px', color:'#64748b' }}>{suc.contacto_email}</p>}
+                          {suc.latitud && suc.longitud && <p style={{ margin:0, fontSize:'12px', color:'#059669', fontWeight:'600' }}>{suc.latitud}, {suc.longitud}</p>}
                         </div>
                         {suc.observaciones && <p style={{ margin:'6px 0 0', fontSize:'12px', color:'#94a3b8', fontStyle:'italic' }}>{suc.observaciones}</p>}
                       </div>
                       <div style={{ display:'flex', gap:'6px', marginLeft:'12px' }}>
-                        <button style={{ ...s.btnPrimario('#0891b2'), padding:'5px 10px', fontSize:'12px' }} onClick={() => abrirEditarSucursal(suc)}>✏️ Editar</button>
+                        <button style={{ ...s.btnPrimario('#0891b2'), padding:'5px 10px', fontSize:'12px' }} onClick={() => abrirEditarSucursal(suc)}><Pencil size={13} style={{ marginRight: 4, verticalAlign: "-2px" }} />Editar</button>
                         <button style={s.btnPeligro} onClick={() => darDeBajaSucursal(suc.id)}>Baja</button>
                       </div>
                     </div>
