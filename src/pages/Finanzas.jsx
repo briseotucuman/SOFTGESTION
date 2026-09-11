@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../supabase.js'
 import { s, colores } from '../estilos.js'
+import { BarChart3, Pencil, Plus, Trash2, X } from 'lucide-react'
 
 const c = colores.finanzas
 
@@ -140,13 +141,13 @@ function Finanzas() {
     <div style={{ fontFamily: "'Segoe UI', sans-serif" }}>
       <div style={s.cabecera(c.gradient)}>
         <div>
-          <h3 style={s.cabeceraTexto}>📊 Finanzas</h3>
+          <h3 style={{ ...s.cabeceraTexto, display:'flex', alignItems:'center', gap:'9px' }}><BarChart3 size={19} /> Finanzas</h3>
           <p style={s.cabeceraSubtexto}>{movimientos.length} movimientos registrados</p>
         </div>
         <div style={{ display: 'flex', gap: '10px' }}>
           <button style={{ ...s.btnPrimario('rgba(255,255,255,0.2)'), border: '1px solid rgba(255,255,255,0.4)' }} onClick={() => setMostrarCuenta(true)}>+ Cuenta</button>
           <button style={s.btnPrimario('rgba(255,255,255,0.25)')} onClick={() => { if (mostrarForm) { cancelar() } else { setMostrarForm(true) } }}>
-            {mostrarForm ? '✕ Cancelar' : '+ Movimiento'}
+            {mostrarForm ? <><X size={14} style={{ marginRight: 5, verticalAlign: '-2px' }} />Cancelar</> : <><Plus size={14} style={{ marginRight: 5, verticalAlign: '-2px' }} />Movimiento</>}
           </button>
         </div>
       </div>
@@ -175,7 +176,7 @@ function Finanzas() {
       {mostrarForm && (
         <div style={s.card}>
           <h4 style={{ margin: '0 0 20px', color: c.main, fontWeight: '700' }}>
-            {editando ? '✏️ Editando movimiento' : 'Nuevo movimiento'}
+            {editando ? <><Pencil size={15} style={{ marginRight: 6, verticalAlign: '-2px' }} />Editando movimiento</> : 'Nuevo movimiento'}
           </h4>
           <form onSubmit={guardarMovimiento}>
             <div style={s.grid2}>
@@ -239,7 +240,7 @@ function Finanzas() {
             </div>
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '20px' }}>
               <button type="button" style={s.btnSecundario} onClick={cancelar}>Cancelar</button>
-              <button type="submit" style={s.btnPrimario(c.main)}>{editando ? '💾 Guardar cambios' : 'Guardar movimiento'}</button>
+              <button type="submit" style={s.btnPrimario(c.main)}>{editando ? 'Guardar cambios' : 'Guardar movimiento'}</button>
             </div>
           </form>
         </div>
@@ -251,7 +252,7 @@ function Finanzas() {
           <div style={{ background: '#fff', borderRadius: '20px', padding: '28px', width: '100%', maxWidth: '400px', boxShadow: '0 20px 60px rgba(0,0,0,0.2)' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
               <h4 style={{ margin: 0, fontWeight: '700', color: '#0f172a' }}>Nueva cuenta bancaria</h4>
-              <button onClick={() => setMostrarCuenta(false)} style={{ background: 'none', border: 'none', fontSize: '20px', cursor: 'pointer', color: '#94a3b8' }}>✕</button>
+              <button onClick={() => setMostrarCuenta(false)} style={{ background: 'none', border: 'none', fontSize: '20px', cursor: 'pointer', color: '#94a3b8' }}><X size={16} /></button>
             </div>
             <form onSubmit={guardarCuenta}>
               <div style={s.grid2}>
@@ -312,8 +313,8 @@ function Finanzas() {
                   </td>
                   <td style={s.tablaCell}>
                     <div style={{ display: 'flex', gap: '6px' }}>
-                      <button style={{ ...s.btnPrimario(c.main), padding: '5px 10px', fontSize: '12px' }} onClick={() => abrirEdicion(m)}>✏️</button>
-                      <button style={s.btnPeligro} onClick={() => eliminarMovimiento(m.id)}>🗑️</button>
+                      <button style={{ ...s.btnPrimario(c.main), padding: '5px 10px', fontSize: '12px' }} onClick={() => abrirEdicion(m)}><Pencil size={14} /></button>
+                      <button style={s.btnPeligro} onClick={() => eliminarMovimiento(m.id)}><Trash2 size={14} /></button>
                     </div>
                   </td>
                 </tr>
