@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../supabase.js'
 import { s, colores } from '../estilos.js'
+import { FileText, Pencil, Plus, X } from 'lucide-react'
 
 const c = colores.contratos
 
@@ -122,18 +123,18 @@ function Contratos() {
     <div style={{ fontFamily: "'Segoe UI', sans-serif" }}>
       <div style={s.cabecera(c.gradient)}>
         <div>
-          <h3 style={s.cabeceraTexto}>📄 Contratos</h3>
+          <h3 style={{ ...s.cabeceraTexto, display:'flex', alignItems:'center', gap:'9px' }}><FileText size={19} /> Contratos</h3>
           <p style={s.cabeceraSubtexto}>{contratos.length} contratos · {contratos.filter(ct=>ct.tipo_facturacion==='por_hora').length} por hora</p>
         </div>
         <button style={s.btnPrimario('rgba(255,255,255,0.25)')} onClick={mostrarForm ? cancelar : abrirNuevo}>
-          {mostrarForm ? '✕ Cancelar' : '+ Nuevo contrato'}
+          {mostrarForm ? <><X size={14} style={{ marginRight: 5, verticalAlign: '-2px' }} />Cancelar</> : <><Plus size={14} style={{ marginRight: 5, verticalAlign: '-2px' }} />Nuevo contrato</>}
         </button>
       </div>
 
       {mostrarForm && (
         <div style={s.card}>
           <h4 style={{ margin: '0 0 20px', color: c.main, fontWeight: '700' }}>
-            {editando ? `✏️ Editando — ${editando.numero_contrato}` : 'Nuevo contrato'}
+            {editando ? <><Pencil size={15} style={{ marginRight: 6, verticalAlign: '-2px' }} />Editando — {editando.numero_contrato}</> : 'Nuevo contrato'}
           </h4>
           <form onSubmit={guardarContrato}>
             <div style={s.grid2}>
@@ -196,7 +197,7 @@ function Contratos() {
               <div style={{ gridColumn: '1 / -1' }}>
                 <label style={s.label}>Tipo de facturación</label>
                 <div style={{ display: 'flex', gap: '12px' }}>
-                  {[['precio_fijo','💰 Precio fijo mensual'],['por_hora','⏱ Por hora trabajada']].map(([val, lbl]) => (
+                  {[['precio_fijo','Precio fijo mensual'],['por_hora','⏱ Por hora trabajada']].map(([val, lbl]) => (
                     <button key={val} type="button"
                       onClick={() => setForm({...form, tipo_facturacion: val})}
                       style={{ flex:1, padding:'14px', borderRadius:'12px', border:'2px solid', borderColor: form.tipo_facturacion===val ? c.main : '#e2e8f0', background: form.tipo_facturacion===val ? c.light : '#f8fafc', color: form.tipo_facturacion===val ? c.main : '#64748b', fontWeight:'700', fontSize:'14px', cursor:'pointer', transition:'all 0.2s' }}>
@@ -252,7 +253,7 @@ function Contratos() {
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '20px' }}>
               <button type="button" style={s.btnSecundario} onClick={cancelar}>Cancelar</button>
               <button type="submit" style={s.btnPrimario(c.main)}>
-                {editando ? '💾 Guardar cambios' : '+ Crear contrato'}
+                {editando ? 'Guardar cambios' : '+ Crear contrato'}
               </button>
             </div>
           </form>
@@ -292,7 +293,7 @@ function Contratos() {
                     <td style={s.tablaCell}>
                       <button style={{ ...s.btnPrimario(c.main), padding: '6px 14px', fontSize: '12px' }}
                         onClick={() => abrirEdicion(ct)}>
-                        ✏️ Editar
+                        <Pencil size={13} style={{ marginRight: 4, verticalAlign: "-2px" }} />Editar
                       </button>
                     </td>
                   </tr>
