@@ -19,8 +19,11 @@ function App() {
   }, [])
 
   if (loading) return (
-    <div className="min-h-screen bg-blue-900 flex items-center justify-center">
-      <p className="text-white text-xl">Cargando...</p>
+    <div style={{
+      minHeight: '100vh', background: '#16211D',
+      display: 'flex', alignItems: 'center', justifyContent: 'center'
+    }}>
+      <p style={{ color: 'rgba(255,255,255,0.85)', fontSize: '15px', fontWeight: 500 }}>Cargando…</p>
     </div>
   )
 
