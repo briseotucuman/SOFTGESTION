@@ -1,13 +1,14 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../supabase.js'
 import { s, colores } from '../estilos.js'
+import { Plus, Wallet, X } from 'lucide-react'
 
 const c = colores.presupuestos
 
 function indicadorMargen(margen) {
-  if (margen >= 30) return { color: '#059669', bg: '#d1fae5', label: '✅ Margen excelente', emoji: '🟢' }
-  if (margen >= 15) return { color: '#d97706', bg: '#fef3c7', label: '⚠️ Margen ajustado', emoji: '🟡' }
-  return { color: '#dc2626', bg: '#fee2e2', label: '🔴 Margen bajo', emoji: '🔴' }
+  if (margen >= 30) return { color: '#059669', bg: '#d1fae5', label: 'Margen excelente', emoji: '' }
+  if (margen >= 15) return { color: '#d97706', bg: '#fef3c7', label: 'Margen ajustado', emoji: '' }
+  return { color: '#dc2626', bg: '#fee2e2', label: 'Margen bajo', emoji: '' }
 }
 
 function Presupuestos() {
@@ -87,11 +88,11 @@ function Presupuestos() {
     <div style={{ fontFamily: "'Segoe UI', sans-serif" }}>
       <div style={s.cabecera(c.gradient)}>
         <div>
-          <h3 style={s.cabeceraTexto}>💰 Presupuestos</h3>
+          <h3 style={{ ...s.cabeceraTexto, display:'flex', alignItems:'center', gap:'9px' }}><Wallet size={19} /> Presupuestos</h3>
           <p style={s.cabeceraSubtexto}>{presupuestos.length} presupuestos registrados</p>
         </div>
         <button style={s.btnPrimario('rgba(255,255,255,0.25)')} onClick={() => setMostrarForm(!mostrarForm)}>
-          {mostrarForm ? '✕ Cancelar' : '+ Nuevo presupuesto'}
+          {mostrarForm ? <><X size={14} style={{ marginRight: 5, verticalAlign: '-2px' }} />Cancelar</> : <><Plus size={14} style={{ marginRight: 5, verticalAlign: '-2px' }} />Nuevo presupuesto</>}
         </button>
       </div>
 
@@ -130,13 +131,13 @@ function Presupuestos() {
 
             {/* DESGLOSE DE COSTOS */}
             <div style={{ background: '#f8fafc', borderRadius: '12px', padding: '18px', margin: '16px 0', border: '1px solid #e2e8f0' }}>
-              <p style={{ ...s.label, marginBottom: '14px', color: '#475569', fontSize: '13px' }}>📋 Desglose de costos</p>
+              <p style={{ ...s.label, marginBottom: '14px', color: '#475569', fontSize: '13px' }}>Desglose de costos</p>
               <div style={s.grid2}>
                 {[
-                  ['👷 Mano de obra', 'costo_mano_obra'],
-                  ['🧴 Insumos', 'costo_insumos'],
-                  ['🚗 Traslado', 'costo_traslado'],
-                  ['📦 Otros costos', 'otros_costos']
+                  ['Mano de obra', 'costo_mano_obra'],
+                  ['Insumos', 'costo_insumos'],
+                  ['Traslado', 'costo_traslado'],
+                  ['Otros costos', 'otros_costos']
                 ].map(([lbl, key]) => (
                   <div key={key}>
                     <label style={{ ...s.label, fontSize: '11px' }}>{lbl} ($)</label>
@@ -152,7 +153,7 @@ function Presupuestos() {
             <div style={{ background: hayCostos ? ind.bg : '#f8fafc', borderRadius: '14px', padding: '20px', margin: '0 0 16px', border: `2px solid ${hayCostos ? ind.color : '#e2e8f0'}`, transition: 'all 0.3s' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
                 <p style={{ margin: 0, fontWeight: '700', fontSize: '14px', color: hayCostos ? ind.color : '#94a3b8' }}>
-                  {hayCostos ? ind.label : '💡 Completá los costos para ver la rentabilidad'}
+                  {hayCostos ? ind.label : 'Completá los costos para ver la rentabilidad'}
                 </p>
                 {hayCostos && <span style={{ fontSize: '24px' }}>{ind.emoji}</span>}
               </div>
