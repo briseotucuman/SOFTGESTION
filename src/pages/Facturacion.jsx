@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../supabase.js'
 import { s, colores } from '../estilos.js'
+import { Pencil, Plus, Receipt, X } from 'lucide-react'
 
 const c = colores.facturacion
 
@@ -100,7 +101,7 @@ function Facturacion()  {
       observaciones: `Facturación por horas — ${resumen.totalHoras}hs × $${resumen.valorHora}/h | ${detalle}`
     }])
     if (error) { alert('Error: ' + error.message); return }
-    alert(`✅ Factura generada para ${resumen.cliente.razon_social || resumen.cliente.nombre_contacto}`)
+    alert(`Factura generada para ${resumen.cliente.razon_social || resumen.cliente.nombre_contacto}`)
     cargarDatos()
   }
 
@@ -202,7 +203,7 @@ function Facturacion()  {
     <div style={{ fontFamily: "'Segoe UI', sans-serif" }}>
       <div style={s.cabecera(c.gradient)}>
         <div>
-          <h3 style={s.cabeceraTexto}>🧾 Facturación</h3>
+          <h3 style={{ ...s.cabeceraTexto, display:'flex', alignItems:'center', gap:'9px' }}><Receipt size={19} /> Facturación</h3>
           <p style={s.cabeceraSubtexto}>{facturas.length} facturas · {contratosHora.length} contratos por hora</p>
         </div>
         <div style={{ display: 'flex', gap: '10px' }}>
@@ -213,7 +214,7 @@ function Facturacion()  {
             </button>
           )}
           <button style={s.btnPrimario('rgba(255,255,255,0.25)')} onClick={() => { if (mostrarForm) { cancelar() } else { setMostrarForm(true); setMostrarGenerador(false) } }}>
-            {mostrarForm ? '✕ Cancelar' : '+ Factura manual'}
+            {mostrarForm ? <><X size={14} style={{ marginRight: 5, verticalAlign: '-2px' }} />Cancelar</> : <><Plus size={14} style={{ marginRight: 5, verticalAlign: '-2px' }} />Factura manual</>}
           </button>
         </div>
       </div>
@@ -246,7 +247,7 @@ function Facturacion()  {
             </div>
             <div style={{ alignSelf: 'flex-end' }}>
               <button style={s.btnPrimario('#d97706')} onClick={calcularResumenHoras} disabled={loadingResumen}>
-                {loadingResumen ? 'Calculando...' : '🔍 Calcular horas'}
+                {loadingResumen ? 'Calculando...' : 'Calcular horas'}
               </button>
             </div>
           </div>
@@ -262,7 +263,7 @@ function Facturacion()  {
                   <p style={{ margin: '0 0 4px', fontWeight: '800', color: '#0f172a', fontSize: '15px' }}>{r.cliente.razon_social || r.cliente.nombre_contacto}</p>
                   <p style={{ margin: 0, fontSize: '12px', color: '#64748b' }}>{r.contrato.numero_contrato}</p>
                 </div>
-                <button style={s.btnPrimario('#d97706')} onClick={() => generarFacturaDesdeHoras(r)}>🧾 Generar factura</button>
+                <button style={s.btnPrimario('#d97706')} onClick={() => generarFacturaDesdeHoras(r)}>Generar factura</button>
               </div>
               <div style={{ background: 'white', borderRadius: '10px', padding: '12px', marginBottom: '12px' }}>
                 <p style={{ ...s.label, marginBottom: '8px', color: '#d97706' }}>Detalle de servicios</p>
@@ -298,7 +299,7 @@ function Facturacion()  {
       {mostrarForm && (
         <div style={s.card}>
           <h4 style={{ margin: '0 0 20px', color: c.main, fontWeight: '700' }}>
-            {editando ? `✏️ Editando — ${editando.numero_factura}` : 'Nueva factura manual'}
+            {editando ? <><Pencil size={15} style={{ marginRight: 6, verticalAlign: '-2px' }} />Editando — {editando.numero_factura}</> : 'Nueva factura manual'}
           </h4>
           <form onSubmit={guardarFactura}>
             <div style={s.grid2}>
@@ -359,7 +360,7 @@ function Facturacion()  {
             </div>
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '20px' }}>
               <button type="button" style={s.btnSecundario} onClick={cancelar}>Cancelar</button>
-              <button type="submit" style={s.btnPrimario(c.main)}>{editando ? '💾 Guardar cambios' : 'Emitir factura'}</button>
+              <button type="submit" style={s.btnPrimario(c.main)}>{editando ? 'Guardar cambios' : 'Emitir factura'}</button>
             </div>
           </form>
         </div>
@@ -371,7 +372,7 @@ function Facturacion()  {
           <div style={{ background: '#fff', borderRadius: '20px', padding: '28px', width: '100%', maxWidth: '480px', boxShadow: '0 20px 60px rgba(0,0,0,0.2)' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
               <h4 style={{ margin: 0, color: '#0f172a', fontWeight: '700' }}>Pagos — {mostrarPagos.numero_factura}</h4>
-              <button onClick={() => setMostrarPagos(null)} style={{ background: 'none', border: 'none', fontSize: '20px', cursor: 'pointer', color: '#94a3b8' }}>✕</button>
+              <button onClick={() => setMostrarPagos(null)} style={{ background: 'none', border: 'none', fontSize: '20px', cursor: 'pointer', color: '#94a3b8' }}><X size={16} /></button>
             </div>
             <div style={{ background: '#f8fafc', borderRadius: '10px', padding: '14px', marginBottom: '16px', fontSize: '13px' }}>
               <p style={{ margin: '0 0 4px', color: '#64748b' }}>Total: <strong style={{ color: '#0f172a' }}>{Number(mostrarPagos.total).toLocaleString('es-AR', { style: 'currency', currency: 'ARS' })}</strong></p>
@@ -435,7 +436,7 @@ function Facturacion()  {
                     <td style={s.tablaCellBold}>{f.clientes?.razon_social || f.clientes?.nombre_contacto}</td>
                     <td style={s.tablaCell}>
                       <span style={s.badge(esPorHora ? '#fef3c7' : '#dbeafe', esPorHora ? '#d97706' : '#1d4ed8')}>
-                        {esPorHora ? '⏱ Por hora' : '💰 Fijo'}
+                        {esPorHora ? '⏱ Por hora' : 'Fijo'}
                       </span>
                     </td>
                     <td style={s.tablaCell}>{new Date(f.fecha_emision).toLocaleDateString('es-AR')}</td>
@@ -444,8 +445,8 @@ function Facturacion()  {
                     <td style={s.tablaCell}><span style={s.badge(ec.bg, ec.color)}>{f.estado}</span></td>
                     <td style={s.tablaCell}>
                       <div style={{ display: 'flex', gap: '6px' }}>
-                        <button onClick={() => verPagos(f)} style={{ ...s.btnPrimario('#059669'), padding: '5px 10px', fontSize: '12px' }}>💰 Pagos</button>
-                        <button onClick={() => abrirEdicion(f)} style={{ ...s.btnPrimario(c.main), padding: '5px 10px', fontSize: '12px' }}>✏️</button>
+                        <button onClick={() => verPagos(f)} style={{ ...s.btnPrimario('#059669'), padding: '5px 10px', fontSize: '12px' }}>Pagos</button>
+                        <button onClick={() => abrirEdicion(f)} style={{ ...s.btnPrimario(c.main), padding: '5px 10px', fontSize: '12px' }}><Pencil size={14} /></button>
                         {f.estado !== 'anulada' && (
                           <button onClick={() => anularFactura(f.id)} style={{ ...s.btnPeligro, padding: '5px 10px', fontSize: '12px' }}>Anular</button>
                         )}
