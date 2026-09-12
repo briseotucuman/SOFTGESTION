@@ -14,7 +14,8 @@ function Facturacion()  {
   const [mostrarGenerador, setMostrarGenerador] = useState(false)
   const [editando, setEditando] = useState(null)
   const [pagos, setPagos] = useState([])
-  const [formPago, setFormPago] = useState({ monto: '', medio_pago: 'transferencia', referencia: '' })
+  const [cuentas, setCuentas] = useState([])
+  const [formPago, setFormPago] = useState({ monto: '', medio_pago: 'transferencia', referencia: '', cuenta_id: '' })
   const [form, setForm] = useState({ contrato_id: '', periodo_desde: '', periodo_hasta: '', fecha_vencimiento: '', subtotal: '', impuestos: '0', observaciones: '', estado: 'emitida' })
 
   const [contratosHora, setContratosHora] = useState([])
@@ -26,11 +27,13 @@ function Facturacion()  {
 
   async function cargarDatos() {
     setLoading(true)
-    const [{ data: facts }, { data: conts }] = await Promise.all([
+    const [{ data: facts }, { data: conts }, { data: cuentasData }] = await Promise.all([
       supabase.from('facturas').select(`*, clientes(razon_social,nombre_contacto), contratos(numero_contrato, tipo_facturacion, valor_hora)`).order('creado_en', { ascending: false }),
-      supabase.from('contratos').select(`id, numero_contrato, precio_acordado, tipo_facturacion, valor_hora, clientes(id,razon_social,nombre_contacto)`).eq('estado', 'activo')
+      supabase.from('contratos').select(`id, numero_contrato, precio_acordado, tipo_facturacion, valor_hora, clientes(id,razon_social,nombre_contacto)`).eq('estado', 'activo'),
+      supabase.from('cuentas_bancarias').select('*').eq('activa', true)
     ])
     if (facts) setFacturas(facts)
+    if (cuentasData) setCuentas(cuentasData)
     if (conts) {
       setContratos(conts)
       setContratosHora(conts.filter(ct => ct.tipo_facturacion === 'por_hora'))
@@ -170,19 +173,41 @@ function Facturacion()  {
     if (data) setPagos(data)
   }
 
+  const FORMA_PAGO_LABEL = { transferencia: 'Transferencia', efectivo: 'Efectivo', cheque: 'Cheque', tarjeta: 'Tarjeta' }
+
+  async function ajustarSaldo(cuenta_id, delta) {
+    if (!cuenta_id) return
+    const { data } = await supabase.from('cuentas_bancarias').select('saldo').eq('id', cuenta_id).single()
+    if (data) await supabase.from('cuentas_bancarias').update({ saldo: Number(data.saldo) + delta }).eq('id', cuenta_id)
+  }
+
   async function registrarPago(e) {
     e.preventDefault()
+    const monto = parseFloat(formPago.monto)
     await supabase.from('pagos').insert([{
       factura_id: mostrarPagos.id,
       fecha_pago: new Date().toISOString().split('T')[0],
-      monto: parseFloat(formPago.monto),
+      monto,
       medio_pago: formPago.medio_pago,
-      referencia: formPago.referencia
+      referencia: formPago.referencia,
+      cuenta_id: formPago.cuenta_id || null
     }])
-    const totalPagado = pagos.reduce((acc, p) => acc + Number(p.monto), 0) + parseFloat(formPago.monto)
+    await supabase.from('movimientos_financieros').insert([{
+      fecha: new Date().toISOString().split('T')[0],
+      tipo: 'ingreso',
+      categoria: 'Cobranzas',
+      descripcion: `Cobro factura ${mostrarPagos.numero_factura}`,
+      monto,
+      cuenta_id: formPago.cuenta_id || null,
+      comprobante: formPago.referencia,
+      forma_pago: FORMA_PAGO_LABEL[formPago.medio_pago] || formPago.medio_pago,
+      factura_id: mostrarPagos.id
+    }])
+    await ajustarSaldo(formPago.cuenta_id, monto)
+    const totalPagado = pagos.reduce((acc, p) => acc + Number(p.monto), 0) + monto
     const nuevoEstado = totalPagado >= mostrarPagos.total ? 'pagada' : 'parcial'
     await supabase.from('facturas').update({ estado: nuevoEstado }).eq('id', mostrarPagos.id)
-    setFormPago({ monto: '', medio_pago: 'transferencia', referencia: '' })
+    setFormPago({ monto: '', medio_pago: 'transferencia', referencia: '', cuenta_id: '' })
     verPagos(mostrarPagos)
     cargarDatos()
   }
@@ -382,7 +407,7 @@ function Facturacion()  {
             {pagos.map(p => (
               <div key={p.id} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid #f1f5f9', fontSize: '13px' }}>
                 <span style={{ color: '#64748b' }}>{new Date(p.fecha_pago).toLocaleDateString('es-AR')}</span>
-                <span style={{ color: '#64748b', textTransform: 'capitalize' }}>{p.medio_pago}</span>
+                <span style={{ color: '#64748b', textTransform: 'capitalize' }}>{p.medio_pago}{p.cuenta_id ? ` · ${cuentas.find(ct => ct.id === p.cuenta_id)?.banco || ''}` : ''}</span>
                 <strong style={{ color: '#059669' }}>{Number(p.monto).toLocaleString('es-AR', { style: 'currency', currency: 'ARS' })}</strong>
               </div>
             ))}
@@ -399,6 +424,13 @@ function Facturacion()  {
                     <option value="efectivo">Efectivo</option>
                     <option value="cheque">Cheque</option>
                     <option value="tarjeta">Tarjeta</option>
+                  </select>
+                </div>
+                <div style={{ gridColumn: '1 / -1' }}>
+                  <label style={s.label}>Cuenta / caja que recibe el pago</label>
+                  <select style={s.input} value={formPago.cuenta_id} onChange={e => setFormPago({...formPago, cuenta_id: e.target.value})} required>
+                    <option value="">Seleccionar cuenta</option>
+                    {cuentas.map(ct => <option key={ct.id} value={ct.id}>{ct.banco} — {ct.tipo}</option>)}
                   </select>
                 </div>
                 <div style={{ gridColumn: '1 / -1' }}>
