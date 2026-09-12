@@ -44,6 +44,17 @@ function Finanzas() {
     setLoading(false)
   }
 
+  // Ajusta el saldo de una cuenta bancaria en +/- delta (positivo = entra plata, negativo = sale)
+  async function ajustarSaldo(cuenta_id, delta) {
+    if (!cuenta_id || !delta) return
+    const { data } = await supabase.from('cuentas_bancarias').select('saldo').eq('id', cuenta_id).single()
+    if (data) await supabase.from('cuentas_bancarias').update({ saldo: Number(data.saldo) + delta }).eq('id', cuenta_id)
+  }
+
+  function efectoEnSaldo(tipo, monto) {
+    return tipo === 'ingreso' ? Number(monto) : -Number(monto)
+  }
+
   function abrirEdicion(m) {
     setEditando(m)
     setForm({
@@ -67,33 +78,7 @@ function Finanzas() {
     setForm({ fecha: new Date().toISOString().split('T')[0], tipo: 'ingreso', categoria: '', descripcion: '', monto: '', cuenta_id: '', comprobante: '', forma_pago: 'Efectivo', factura_id: '' })
   }
 
-
-  const CATEGORIAS = { ingreso: ['Cobranzas', 'Otro ingreso'], egreso: ['Insumos', 'Servicios', 'Haberes', 'Impuestos', 'Alquileres', 'Socios', 'Marketing', 'Otro egreso'] }
-  const FORMAS_PAGO = ['Efectivo', 'Transferencia', 'Cheque', 'Tarjeta', 'Otro']
-
-  function abrirEdicion(m) {
-    setEditando(m)
-    setForm({
-      fecha: m.fecha || new Date().toISOString().split('T')[0],
-      tipo: m.tipo || 'ingreso',
-      categoria: m.categoria || '',
-      descripcion: m.descripcion || '',
-      monto: m.monto || '',
-      cuenta_id: m.cuenta_id || '',
-      comprobante: m.comprobante || '',
-      forma_pago: m.forma_pago || 'Efectivo'
-    })
-    setMostrarForm(true)
-    window.scrollTo({ top: 0, behavior: 'smooth' })
-  }
-
-  function cancelarFin() {
-    setMostrarForm(false)
-    setEditando(null)
-    setForm({ fecha: new Date().toISOString().split('T')[0], tipo: 'ingreso', categoria: '', descripcion: '', monto: '', cuenta_id: '', comprobante: '', forma_pago: 'Efectivo' })
-  }
-
-    async function guardarMovimiento(e) {
+  async function guardarMovimiento(e) {
     e.preventDefault()
     const datos = {
       ...form,
@@ -102,11 +87,15 @@ function Finanzas() {
       factura_id: form.factura_id || null
     }
     if (editando) {
+      // Revierte el efecto viejo sobre la cuenta anterior, luego aplica el nuevo
+      if (editando.cuenta_id) await ajustarSaldo(editando.cuenta_id, -efectoEnSaldo(editando.tipo, editando.monto))
       const { error } = await supabase.from('movimientos_financieros').update(datos).eq('id', editando.id)
       if (error) { alert('Error: ' + error.message); return }
+      if (datos.cuenta_id) await ajustarSaldo(datos.cuenta_id, efectoEnSaldo(datos.tipo, datos.monto))
     } else {
       const { error } = await supabase.from('movimientos_financieros').insert([datos])
       if (error) { alert('Error: ' + error.message); return }
+      if (datos.cuenta_id) await ajustarSaldo(datos.cuenta_id, efectoEnSaldo(datos.tipo, datos.monto))
       // Si es cobranza asociada a factura, marcar factura como cobrada
       if (form.categoria === 'Cobranzas' && form.factura_id) {
         await supabase.from('facturas').update({ estado: 'cobrada' }).eq('id', form.factura_id)
@@ -116,9 +105,10 @@ function Finanzas() {
     cargarDatos()
   }
 
-  async function eliminarMovimiento(id) {
+  async function eliminarMovimiento(m) {
     if (!confirm('¿Eliminar este movimiento?')) return
-    await supabase.from('movimientos_financieros').delete().eq('id', id)
+    if (m.cuenta_id) await ajustarSaldo(m.cuenta_id, -efectoEnSaldo(m.tipo, m.monto))
+    await supabase.from('movimientos_financieros').delete().eq('id', m.id)
     cargarDatos()
   }
 
@@ -138,7 +128,7 @@ function Finanzas() {
   const saldoTotal = cuentas.reduce((a, ct) => a + Number(ct.saldo), 0)
 
   return (
-    <div style={{ fontFamily: "'Segoe UI', sans-serif" }}>
+    <div>
       <div style={s.cabecera(c.gradient)}>
         <div>
           <h3 style={{ ...s.cabeceraTexto, display:'flex', alignItems:'center', gap:'9px' }}><BarChart3 size={19} /> Finanzas</h3>
@@ -182,8 +172,7 @@ function Finanzas() {
             <div style={s.grid2}>
               <div>
                 <label style={s.label}>Fecha</label>
-                <input type="date" style={s.input} value={form.fecha} onChange={e => setForm({...form, fecha: e.target.value})} required
-                  onFocus={e => e.target.style.borderColor = c.main} onBlur={e => e.target.style.borderColor = '#e2e8f0'} />
+                <input type="date" style={s.input} value={form.fecha} onChange={e => setForm({...form, fecha: e.target.value})} required />
               </div>
               <div>
                 <label style={s.label}>Tipo</label>
@@ -207,21 +196,18 @@ function Finanzas() {
               </div>
               <div>
                 <label style={s.label}>Monto ($)</label>
-                <input type="number" style={s.input} value={form.monto} onChange={e => setForm({...form, monto: e.target.value})} required
-                  onFocus={e => e.target.style.borderColor = c.main} onBlur={e => e.target.style.borderColor = '#e2e8f0'} />
+                <input type="number" style={s.input} value={form.monto} onChange={e => setForm({...form, monto: e.target.value})} required />
               </div>
               <div>
                 <label style={s.label}>Cuenta bancaria</label>
-                <select style={s.input} value={form.cuenta_id} onChange={e => setForm({...form, cuenta_id: e.target.value})}>
-                  <option value="">Sin cuenta</option>
+                <select style={s.input} value={form.cuenta_id} onChange={e => setForm({...form, cuenta_id: e.target.value})} required>
+                  <option value="">Seleccionar cuenta</option>
                   {cuentas.map(ct => <option key={ct.id} value={ct.id}>{ct.banco} — {ct.tipo}</option>)}
                 </select>
               </div>
               <div>
                 <label style={s.label}>Comprobante</label>
-                <input style={s.input} value={form.comprobante} onChange={e => setForm({...form, comprobante: e.target.value})}
-                  placeholder="Nro. factura, recibo..."
-                  onFocus={e => e.target.style.borderColor = c.main} onBlur={e => e.target.style.borderColor = '#e2e8f0'} />
+                <input style={s.input} value={form.comprobante} onChange={e => setForm({...form, comprobante: e.target.value})} placeholder="Nro. factura, recibo..." />
               </div>
               {form.tipo === 'ingreso' && form.categoria === 'Cobranzas' && (
                 <div>
@@ -234,8 +220,7 @@ function Finanzas() {
               )}
               <div style={{ gridColumn: '1 / -1' }}>
                 <label style={s.label}>Descripción</label>
-                <input style={s.input} value={form.descripcion} onChange={e => setForm({...form, descripcion: e.target.value})}
-                  onFocus={e => e.target.style.borderColor = c.main} onBlur={e => e.target.style.borderColor = '#e2e8f0'} />
+                <input style={s.input} value={form.descripcion} onChange={e => setForm({...form, descripcion: e.target.value})} />
               </div>
             </div>
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '20px' }}>
@@ -258,8 +243,7 @@ function Finanzas() {
               <div style={s.grid2}>
                 <div style={{ gridColumn: '1 / -1' }}>
                   <label style={s.label}>Banco / Descripción</label>
-                  <input style={s.input} value={formCuenta.banco} onChange={e => setFormCuenta({...formCuenta, banco: e.target.value})} required
-                    onFocus={e => e.target.style.borderColor = c.main} onBlur={e => e.target.style.borderColor = '#e2e8f0'} />
+                  <input style={s.input} value={formCuenta.banco} onChange={e => setFormCuenta({...formCuenta, banco: e.target.value})} required />
                 </div>
                 <div>
                   <label style={s.label}>Tipo</label>
@@ -271,8 +255,7 @@ function Finanzas() {
                 </div>
                 <div>
                   <label style={s.label}>Saldo inicial ($)</label>
-                  <input type="number" style={s.input} value={formCuenta.saldo} onChange={e => setFormCuenta({...formCuenta, saldo: e.target.value})}
-                    onFocus={e => e.target.style.borderColor = c.main} onBlur={e => e.target.style.borderColor = '#e2e8f0'} />
+                  <input type="number" style={s.input} value={formCuenta.saldo} onChange={e => setFormCuenta({...formCuenta, saldo: e.target.value})} />
                 </div>
               </div>
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '16px' }}>
@@ -283,6 +266,16 @@ function Finanzas() {
           </div>
         </div>
       )}
+
+      {/* CUENTAS */}
+      <div style={{ display: 'grid', gridTemplateColumns: `repeat(${Math.max(cuentas.length,1)}, 1fr)`, gap: '14px', marginBottom: '20px' }}>
+        {cuentas.map(ct => (
+          <div key={ct.id} style={s.card}>
+            <p style={{ ...s.label, color: '#64748b' }}>{ct.banco} · {ct.tipo.replace('_',' ')}</p>
+            <p style={{ fontSize: '18px', fontWeight: '800', color: '#0f172a', margin: 0 }}>{Number(ct.saldo).toLocaleString('es-AR', { style: 'currency', currency: 'ARS' })}</p>
+          </div>
+        ))}
+      </div>
 
       {/* FILTRO MES */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '16px', marginBottom: '16px' }}>
@@ -297,7 +290,7 @@ function Finanzas() {
         : (
           <table style={s.tabla}>
             <thead>
-              <tr>{['Fecha','Tipo','Categoría','Descripción','Forma de pago','Comprobante','Monto',''].map(h => <th key={h} style={s.tablaCabecera(c.main)}>{h}</th>)}</tr>
+              <tr>{['Fecha','Tipo','Categoría','Descripción','Cuenta','Forma de pago','Comprobante','Monto',''].map(h => <th key={h} style={s.tablaCabecera(c.main)}>{h}</th>)}</tr>
             </thead>
             <tbody>
               {movMes.map((m, i) => (
@@ -306,6 +299,7 @@ function Finanzas() {
                   <td style={s.tablaCell}><span style={s.badge(m.tipo === 'ingreso' ? '#d1fae5' : '#fee2e2', m.tipo === 'ingreso' ? '#059669' : '#dc2626')}>{m.tipo}</span></td>
                   <td style={s.tablaCell}>{m.categoria || '—'}</td>
                   <td style={s.tablaCell}>{m.descripcion || '—'}</td>
+                  <td style={{ ...s.tablaCell, fontSize: '12px' }}>{cuentas.find(ct => ct.id === m.cuenta_id)?.banco || '—'}</td>
                   <td style={s.tablaCell}>{m.forma_pago || '—'}</td>
                   <td style={{ ...s.tablaCell, fontSize: '12px', color: '#94a3b8' }}>{m.comprobante || '—'}</td>
                   <td style={{ ...s.tablaCellBold, textAlign: 'right', color: m.tipo === 'ingreso' ? '#059669' : '#dc2626' }}>
@@ -314,7 +308,7 @@ function Finanzas() {
                   <td style={s.tablaCell}>
                     <div style={{ display: 'flex', gap: '6px' }}>
                       <button style={{ ...s.btnPrimario(c.main), padding: '5px 10px', fontSize: '12px' }} onClick={() => abrirEdicion(m)}><Pencil size={14} /></button>
-                      <button style={s.btnPeligro} onClick={() => eliminarMovimiento(m.id)}><Trash2 size={14} /></button>
+                      <button style={s.btnPeligro} onClick={() => eliminarMovimiento(m)}><Trash2 size={14} /></button>
                     </div>
                   </td>
                 </tr>
