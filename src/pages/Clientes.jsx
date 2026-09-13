@@ -7,6 +7,7 @@ const c = colores.clientes
 
 function Clientes() {
   const [clientes, setClientes] = useState([])
+  const [tiposCliente, setTiposCliente] = useState([])
   const [loading, setLoading] = useState(true)
   const [mostrarForm, setMostrarForm] = useState(false)
   const [editando, setEditando] = useState(null)
@@ -17,7 +18,7 @@ function Clientes() {
   const [busqueda, setBusqueda] = useState('')
   const [form, setForm] = useState({
     razon_social: '', nombre_contacto: '', email: '', telefono: '',
-    direccion: '', localidad: '', cuit: '', tipo_cliente: 'empresa', observaciones: ''
+    direccion: '', localidad: '', cuit: '', tipo_cliente_id: '', observaciones: ''
   })
   const [formSucursal, setFormSucursal] = useState({
     nombre: '', direccion: '', localidad: '', provincia: '',
@@ -29,8 +30,12 @@ function Clientes() {
 
   async function cargarClientes() {
     setLoading(true)
-    const { data } = await supabase.from('clientes').select('*').eq('activo', true).order('razon_social')
+    const [{ data }, { data: tc }] = await Promise.all([
+      supabase.from('clientes').select('*').eq('activo', true).order('razon_social'),
+      supabase.from('tipos_cliente').select('*').eq('activo', true).order('nombre')
+    ])
     if (data) setClientes(data)
+    if (tc) setTiposCliente(tc)
     setLoading(false)
   }
 
@@ -41,7 +46,7 @@ function Clientes() {
 
   function abrirNuevo() {
     setEditando(null)
-    setForm({ razon_social:'', nombre_contacto:'', email:'', telefono:'', direccion:'', localidad:'', cuit:'', tipo_cliente:'empresa', observaciones:'' })
+    setForm({ razon_social:'', nombre_contacto:'', email:'', telefono:'', direccion:'', localidad:'', cuit:'', tipo_cliente_id:'', observaciones:'' })
     setMostrarForm(true)
   }
 
@@ -55,7 +60,7 @@ function Clientes() {
       direccion: cliente.direccion || '',
       localidad: cliente.localidad || '',
       cuit: cliente.cuit || '',
-      tipo_cliente: cliente.tipo_cliente || 'empresa',
+      tipo_cliente_id: cliente.tipo_cliente_id || '',
       observaciones: cliente.observaciones || ''
     })
     setMostrarForm(true)
@@ -158,12 +163,6 @@ function Clientes() {
     (cl.cuit||'').includes(busqueda)
   )
 
-  const tipoColor = {
-    empresa:   { bg: '#dbeafe', color: '#1d4ed8' },
-    industrial:{ bg: '#ede9fe', color: '#7c3aed' },
-    hogar:     { bg: '#d1fae5', color: '#059669' },
-    post_obra: { bg: '#fef3c7', color: '#d97706' },
-  }
 
   const inp = (key) => ({
     onFocus: e => e.target.style.borderColor = c.main,
@@ -205,11 +204,9 @@ function Clientes() {
               </div>
               <div>
                 <label style={s.label}>Tipo de cliente</label>
-                <select style={s.input} value={form.tipo_cliente} onChange={e => setForm({...form, tipo_cliente: e.target.value})}>
-                  <option value="empresa">Empresa</option>
-                  <option value="industrial">Industrial</option>
-                  <option value="hogar">Hogar</option>
-                  <option value="post_obra">Post obra</option>
+                <select style={s.input} value={form.tipo_cliente_id} onChange={e => setForm({...form, tipo_cliente_id: e.target.value})}>
+                  <option value="">Sin clasificar</option>
+                  {tiposCliente.map(t => <option key={t.id} value={t.id}>{t.nombre}</option>)}
                 </select>
               </div>
               <div>
@@ -268,7 +265,7 @@ function Clientes() {
             </thead>
             <tbody>
               {filtrados.map((cl, i) => {
-                const tc = tipoColor[cl.tipo_cliente] || { bg: '#f1f5f9', color: '#64748b' }
+                const nombreTipo = tiposCliente.find(t => t.id === cl.tipo_cliente_id)?.nombre
                 return (
                   <tr key={cl.id} style={s.tablaFila(i)}>
                     <td style={s.tablaCellBold}>{cl.razon_social || cl.nombre_contacto}</td>
@@ -276,7 +273,7 @@ function Clientes() {
                     <td style={s.tablaCell}>{cl.nombre_contacto || '—'}</td>
                     <td style={s.tablaCell}>{cl.telefono || '—'}</td>
                     <td style={s.tablaCell}>{cl.localidad || '—'}</td>
-                    <td style={s.tablaCell}><span style={s.badge(tc.bg, tc.color)}>{cl.tipo_cliente}</span></td>
+                    <td style={s.tablaCell}>{nombreTipo ? <span style={s.badge(colores.clientes.light, colores.clientes.main)}>{nombreTipo}</span> : <span style={{color:"#94a3b8"}}>—</span>}</td>
                     <td style={s.tablaCell}>
                       <button style={{ ...s.btnPrimario('#0891b2'), padding: '5px 12px', fontSize: '12px' }}
                         onClick={() => abrirSucursales(cl)}>
