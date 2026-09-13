@@ -1,8 +1,8 @@
 import React from 'react'
 import { useEffect, useState } from 'react'
 import { supabase } from '../supabase.js'
-import { s, colores } from '../estilos.js'
-import { TrendingUp } from 'lucide-react'
+import { s, colores, paleta } from '../estilos.js'
+import { TrendingUp, X, History } from 'lucide-react'
 
 const c = colores.reportes
 
@@ -11,6 +11,45 @@ function indicadorMargen(margen) {
   if (margen >= 15) return { color: '#d97706', bg: '#fef3c7', label: 'Ajustado', emoji: '' }
   if (margen > 0)   return { color: '#dc2626', bg: '#fee2e2', label: 'Bajo', emoji: '' }
   return { color: '#7c3aed', bg: '#ede9fe', label: 'Pérdida', emoji: '' }
+}
+
+function ultimosNMeses(mesFinal, n) {
+  const [y, m] = mesFinal.split('-').map(Number)
+  const meses = []
+  for (let i = n - 1; i >= 0; i--) {
+    const d = new Date(y, m - 1 - i, 1)
+    meses.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`)
+  }
+  return meses
+}
+function nombreMes(mesStr) {
+  const [y, m] = mesStr.split('-').map(Number)
+  return new Date(y, m - 1, 1).toLocaleDateString('es-AR', { month: 'short', year: '2-digit' })
+}
+
+// Mini gráfico de barras comparando dos series por mes (sin dependencias externas)
+function GraficoBarras({ meses, serieA, serieB, labelA, labelB, colorA, colorB, formatoMoneda = true }) {
+  const max = Math.max(...serieA, ...serieB, 1)
+  const fmt = (v) => formatoMoneda ? v.toLocaleString('es-AR', { style: 'currency', currency: 'ARS', maximumFractionDigits: 0 }) : v
+  return (
+    <div>
+      <div style={{ display: 'flex', gap: '14px', marginBottom: '12px', fontSize: '12px' }}>
+        <span style={{ display: 'flex', alignItems: 'center', gap: '5px', color: paleta.inkSoft }}><span style={{ width: 9, height: 9, borderRadius: 2, background: colorA, display: 'inline-block' }} />{labelA}</span>
+        <span style={{ display: 'flex', alignItems: 'center', gap: '5px', color: paleta.inkSoft }}><span style={{ width: 9, height: 9, borderRadius: 2, background: colorB, display: 'inline-block' }} />{labelB}</span>
+      </div>
+      <div style={{ display: 'flex', alignItems: 'flex-end', gap: '14px', height: '160px' }}>
+        {meses.map((mesStr, i) => (
+          <div key={mesStr} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px' }}>
+            <div style={{ display: 'flex', alignItems: 'flex-end', gap: '3px', height: '120px', width: '100%', justifyContent: 'center' }}>
+              <div title={fmt(serieA[i])} style={{ width: '38%', maxWidth: '22px', height: `${Math.max(2, (serieA[i] / max) * 120)}px`, background: colorA, borderRadius: '3px 3px 0 0' }} />
+              <div title={fmt(serieB[i])} style={{ width: '38%', maxWidth: '22px', height: `${Math.max(2, (serieB[i] / max) * 120)}px`, background: colorB, borderRadius: '3px 3px 0 0' }} />
+            </div>
+            <span style={{ fontSize: '11px', color: paleta.muted, textTransform: 'capitalize' }}>{nombreMes(mesStr)}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
 }
 
 
@@ -97,6 +136,9 @@ function Reportes() {
   const [stats, setStats] = useState({ totalClientes:0, totalContratos:0, totalEmpleados:0, serviciosDelMes:0, ingresosDelMes:0, egresosDelMes:0, facturasPendientes:0, montoFacturasPendientes:0, stockBajoMinimo:0, totalCostosFijos:0, totalCostosVariables:0 })
   const [rentabilidadClientes, setRentabilidadClientes] = useState([])
   const [gastosPorCategoria, setGastosPorCategoria] = useState([])
+  const [evolucionGeneral, setEvolucionGeneral] = useState(null)
+  const [clienteEvolucion, setClienteEvolucion] = useState(null)
+  const [evolucionClienteData, setEvolucionClienteData] = useState(null)
   const [loading, setLoading] = useState(true)
   const [mes, setMes] = useState(new Date().toISOString().slice(0, 7))
 
@@ -167,6 +209,48 @@ function Reportes() {
     setRentabilidadClientes(rentabilidad)
     setGastosPorCategoria(Object.entries(gastos).map(([categoria,monto])=>({categoria,monto})).sort((a,b)=>b.monto-a.monto))
     setLoading(false)
+    cargarEvolucionGeneral()
+  }
+
+  async function cargarEvolucionGeneral() {
+    const meses = ultimosNMeses(mes, 6)
+    const { data } = await supabase.from('movimientos_financieros').select('fecha,tipo,monto')
+      .gte('fecha', meses[0] + '-01')
+      .lte('fecha', mes + '-' + new Date(+mes.split('-')[0], +mes.split('-')[1], 0).getDate())
+    const porMes = {}
+    meses.forEach(m => { porMes[m] = { ingresos: 0, egresos: 0 } })
+    ;(data || []).forEach(mv => {
+      const key = mv.fecha.slice(0, 7)
+      if (!porMes[key]) return
+      if (mv.tipo === 'ingreso') porMes[key].ingresos += Number(mv.monto)
+      else porMes[key].egresos += Number(mv.monto)
+    })
+    setEvolucionGeneral({
+      meses,
+      ingresos: meses.map(m => porMes[m].ingresos),
+      egresos: meses.map(m => porMes[m].egresos),
+    })
+  }
+
+  async function verEvolucionCliente(clienteId, nombre) {
+    setClienteEvolucion({ id: clienteId, nombre })
+    setEvolucionClienteData(null)
+    const meses = ultimosNMeses(mes, 6)
+    const desde = meses[0] + '-01'
+    const hasta = mes + '-' + new Date(+mes.split('-')[0], +mes.split('-')[1], 0).getDate()
+    const [{ data: fact }, { data: cv }] = await Promise.all([
+      supabase.from('facturas').select('total,fecha_emision,estado').eq('cliente_id', clienteId).in('estado', ['pagada','parcial']).gte('fecha_emision', desde).lte('fecha_emision', hasta),
+      supabase.from('costos_variables').select('monto,fecha').eq('cliente_id', clienteId).gte('fecha', desde).lte('fecha', hasta),
+    ])
+    const porMes = {}
+    meses.forEach(m => { porMes[m] = { ingresos: 0, costos: 0 } })
+    ;(fact || []).forEach(f => { const k = f.fecha_emision.slice(0,7); if (porMes[k]) porMes[k].ingresos += Number(f.total) })
+    ;(cv || []).forEach(c => { const k = c.fecha.slice(0,7); if (porMes[k]) porMes[k].costos += Number(c.monto) })
+    setEvolucionClienteData({
+      meses,
+      ingresos: meses.map(m => porMes[m].ingresos),
+      costos: meses.map(m => porMes[m].costos),
+    })
   }
 
   const balance = stats.ingresosDelMes - stats.egresosDelMes
@@ -269,6 +353,13 @@ function Reportes() {
                 </p>
               </div>
 
+              {evolucionGeneral && (
+                <div style={{ ...s.card, marginBottom: '20px' }}>
+                  <p style={{ ...s.label, marginBottom: '14px', display:'flex', alignItems:'center', gap:'6px' }}><History size={13} /> Evolución general — últimos 6 meses</p>
+                  <GraficoBarras meses={evolucionGeneral.meses} serieA={evolucionGeneral.ingresos} serieB={evolucionGeneral.egresos} labelA="Ingresos" labelB="Egresos" colorA="#059669" colorB="#dc2626" />
+                </div>
+              )}
+
               {rentabilidadClientes.length === 0 ? (
                 <div style={s.empty}>Sin datos para este mes. Cargá facturas y costos variables para ver la rentabilidad.</div>
               ) : (
@@ -299,7 +390,7 @@ function Reportes() {
                   <div style={{ ...s.card, padding:0, overflow:'hidden' }}>
                     <table style={s.tabla}>
                       <thead>
-                        <tr>{['Cliente','Ingresos','Costos asignados','Ganancia bruta','Margen','Estado'].map(h => (
+                        <tr>{['Cliente','Ingresos','Costos asignados','Ganancia bruta','Margen','Estado',''].map(h => (
                           <th key={h} style={s.tablaCabecera(c.main)}>{h}</th>
                         ))}</tr>
                       </thead>
@@ -323,6 +414,9 @@ function Reportes() {
                                 </div>
                               </td>
                               <td style={s.tablaCell}><span style={s.badge(ind.bg, ind.color)}>{ind.label}</span></td>
+                              <td style={s.tablaCell}>
+                                <button style={{ ...s.btnSecundario, padding:'6px 12px', fontSize:'12px' }} onClick={() => verEvolucionCliente(cl.id, cl.nombre)}>Evolución</button>
+                              </td>
                             </tr>
                           )
                         })}
@@ -436,6 +530,23 @@ function Reportes() {
           )}
 
         </>
+      )}
+
+      {clienteEvolucion && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 60, padding: '20px' }}>
+          <div style={{ background: '#fff', borderRadius: '20px', padding: '26px', width: '100%', maxWidth: '560px', boxShadow: '0 20px 60px rgba(0,0,0,0.25)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '18px' }}>
+              <h4 style={{ margin: 0, fontWeight: '700', color: paleta.ink }}>Evolución — {clienteEvolucion.nombre}</h4>
+              <button onClick={() => setClienteEvolucion(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: paleta.muted }}><X size={16} /></button>
+            </div>
+            {!evolucionClienteData ? <div style={s.empty}>Cargando…</div> : (
+              <>
+                <GraficoBarras meses={evolucionClienteData.meses} serieA={evolucionClienteData.ingresos} serieB={evolucionClienteData.costos} labelA="Ingresos" labelB="Costos asignados" colorA="#059669" colorB="#dc2626" />
+                <p style={{ marginTop: '16px', fontSize: '12px', color: paleta.muted }}>Últimos 6 meses hasta {nombreMes(mes)}. Los meses sin facturas cobradas ni costos asignados aparecen en cero.</p>
+              </>
+            )}
+          </div>
+        </div>
       )}
     </div>
   )
