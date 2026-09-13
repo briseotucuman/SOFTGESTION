@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../supabase.js'
 import { s, colores } from '../estilos.js'
+import FichaCliente from './FichaCliente.jsx'
 import { Pencil, Plus, Users, X } from 'lucide-react'
 
 const c = colores.clientes
@@ -12,6 +13,7 @@ function Clientes() {
   const [mostrarForm, setMostrarForm] = useState(false)
   const [editando, setEditando] = useState(null)
   const [verSucursales, setVerSucursales] = useState(null)
+  const [fichaAbierta, setFichaAbierta] = useState(null)
   const [sucursales, setSucursales] = useState([])
   const [mostrarFormSucursal, setMostrarFormSucursal] = useState(false)
   const [editandoSucursal, setEditandoSucursal] = useState(null)
@@ -259,8 +261,8 @@ function Clientes() {
         : (
           <table style={s.tabla}>
             <thead>
-              <tr>{['Cliente','CUIT','Contacto','Teléfono','Localidad','Tipo','Sucursales',''].map(h => (
-                <th key={h} style={s.tablaCabecera(c.main)}>{h}</th>
+              <tr>{['Cliente','CUIT','Contacto','Teléfono','Localidad','Tipo','Sucursales','',''].map((h,idx) => (
+                <th key={idx} style={s.tablaCabecera(c.main)}>{h}</th>
               ))}</tr>
             </thead>
             <tbody>
@@ -281,6 +283,12 @@ function Clientes() {
                       </button>
                     </td>
                     <td style={s.tablaCell}>
+                      <button style={{ ...s.btnPrimario(colores.reportes.main), padding: '5px 12px', fontSize: '12px' }}
+                        onClick={() => setFichaAbierta(cl)}>
+                        Ver ficha
+                      </button>
+                    </td>
+                    <td style={s.tablaCell}>
                       <div style={{ display: 'flex', gap: '6px' }}>
                         <button style={{ ...s.btnPrimario(c.main), padding: '5px 10px', fontSize: '12px' }} onClick={() => abrirEdicion(cl)}><Pencil size={14} /></button>
                         <button style={s.btnPeligro} onClick={() => darDeBaja(cl.id)}>Baja</button>
@@ -293,6 +301,8 @@ function Clientes() {
           </table>
         )}
       </div>
+
+      {fichaAbierta && <FichaCliente cliente={fichaAbierta} onClose={() => setFichaAbierta(null)} />}
 
       {/* MODAL SUCURSALES */}
       {verSucursales && (
