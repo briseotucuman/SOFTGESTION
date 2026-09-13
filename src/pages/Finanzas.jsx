@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../supabase.js'
-import { s, colores } from '../estilos.js'
-import { BarChart3, Pencil, Plus, Trash2, X } from 'lucide-react'
+import { s, colores, paleta } from '../estilos.js'
+import { BarChart3, Pencil, Plus, Trash2, X, TrendingDown, TrendingUp, Wallet2, ArrowRightLeft } from 'lucide-react'
 
 const c = colores.finanzas
 
@@ -9,10 +9,19 @@ const CATEGORIAS = {
   ingreso: ['Cobranzas', 'Otro ingreso'],
   egreso: ['Insumos', 'Servicios', 'Haberes', 'Impuestos', 'Alquileres', 'Socios', 'Marketing', 'Otro egreso']
 }
-
+const CATEGORIAS_COMPRA = ['Insumos', 'Servicios', 'Alquiler', 'Impuestos', 'Mantenimiento', 'Otro']
 const FORMAS_PAGO = ['Efectivo', 'Transferencia', 'Cheque', 'Tarjeta', 'Otro']
 
+const ESTADO_COLOR = {
+  pendiente: { bg: '#fef3c7', color: '#d97706' },
+  parcial:   { bg: '#dbeafe', color: '#1d4ed8' },
+  pagada:    { bg: '#d1fae5', color: '#059669' },
+  vencida:   { bg: '#fee2e2', color: '#dc2626' },
+  anulada:   { bg: '#f1f5f9', color: '#64748b' },
+}
+
 function Finanzas() {
+  const [vista, setVista] = useState('movimientos') // movimientos | por-pagar
   const [movimientos, setMovimientos] = useState([])
   const [cuentas, setCuentas] = useState([])
   const [facturas, setFacturas] = useState([])
@@ -29,18 +38,60 @@ function Finanzas() {
   })
   const [formCuenta, setFormCuenta] = useState({ banco: '', tipo: 'caja_ahorro', numero: '', cbu: '', saldo: '0' })
 
+  // ---- Cuentas por pagar ----
+  const [facturasCompra, setFacturasCompra] = useState([])
+  const [pagosCompra, setPagosCompra] = useState([])
+  const [proveedores, setProveedores] = useState([])
+  const [clientes, setClientes] = useState([])
+  const [mostrarFormCompra, setMostrarFormCompra] = useState(false)
+  const [formCompra, setFormCompra] = useState({ proveedor_id: '', cliente_id: '', numero_factura: '', fecha_emision: new Date().toISOString().split('T')[0], fecha_vencimiento: '', categoria: 'Insumos', total: '', observaciones: '' })
+  const [pagandoFactura, setPagandoFactura] = useState(null)
+  const [formPagoCompra, setFormPagoCompra] = useState({ monto: '', medio_pago: 'transferencia', cuenta_id: '', referencia: '' })
+
+  // ---- Indicador de flujo (cobrar/pagar) ----
+  const [porCobrar, setPorCobrar] = useState(0)
+  const [porPagar, setPorPagar] = useState(0)
+
   useEffect(() => { cargarDatos() }, [])
 
   async function cargarDatos() {
     setLoading(true)
-    const [{ data: movData }, { data: cuentasData }, { data: facturasData }] = await Promise.all([
+    const [
+      { data: movData }, { data: cuentasData }, { data: facturasData },
+      { data: factCompraData }, { data: pagosCompraData }, { data: provData }, { data: cliData },
+      { data: factVentaTodas }, { data: pagosVentaData }
+    ] = await Promise.all([
       supabase.from('movimientos_financieros').select('*').order('fecha', { ascending: false }),
       supabase.from('cuentas_bancarias').select('*').eq('activa', true),
-      supabase.from('facturas').select('id, numero_factura, clientes(razon_social), total, estado').eq('estado', 'emitida').order('fecha_emision', { ascending: false })
+      supabase.from('facturas').select('id, numero_factura, clientes(razon_social), total, estado').eq('estado', 'emitida').order('fecha_emision', { ascending: false }),
+      supabase.from('facturas_compra').select('*, proveedores(razon_social), clientes(razon_social,nombre_contacto)').order('fecha_emision', { ascending: false }),
+      supabase.from('pagos_compra').select('*'),
+      supabase.from('proveedores').select('id, razon_social').eq('activo', true),
+      supabase.from('clientes').select('id, razon_social, nombre_contacto').eq('activo', true),
+      supabase.from('facturas').select('id,total').in('estado', ['pendiente','parcial','vencida']),
+      supabase.from('pagos').select('factura_id,monto'),
     ])
     if (movData) setMovimientos(movData)
     if (cuentasData) setCuentas(cuentasData)
     if (facturasData) setFacturas(facturasData)
+    if (factCompraData) setFacturasCompra(factCompraData)
+    if (pagosCompraData) setPagosCompra(pagosCompraData)
+    if (provData) setProveedores(provData)
+    if (cliData) setClientes(cliData)
+
+    // Por cobrar: total facturado pendiente/parcial/vencida, neto de lo ya cobrado
+    const pagadoPorFacturaVenta = {}
+    ;(pagosVentaData || []).forEach(p => { pagadoPorFacturaVenta[p.factura_id] = (pagadoPorFacturaVenta[p.factura_id] || 0) + Number(p.monto) })
+    const cobrar = (factVentaTodas || []).reduce((acc, f) => acc + Math.max(0, Number(f.total) - (pagadoPorFacturaVenta[f.id] || 0)), 0)
+    setPorCobrar(cobrar)
+
+    // Por pagar: total facturas de compra pendiente/parcial/vencida, neto de lo ya pagado
+    const pagadoPorFacturaCompra = {}
+    ;(pagosCompraData || []).forEach(p => { pagadoPorFacturaCompra[p.factura_compra_id] = (pagadoPorFacturaCompra[p.factura_compra_id] || 0) + Number(p.monto) })
+    const pendientesCompra = (factCompraData || []).filter(f => f.estado !== 'pagada' && f.estado !== 'anulada')
+    const pagar = pendientesCompra.reduce((acc, f) => acc + Math.max(0, Number(f.total) - (pagadoPorFacturaCompra[f.id] || 0)), 0)
+    setPorPagar(pagar)
+
     setLoading(false)
   }
 
@@ -55,39 +106,33 @@ function Finanzas() {
     return tipo === 'ingreso' ? Number(monto) : -Number(monto)
   }
 
+  function saldoPendiente(factura) {
+    const pagado = pagosCompra.filter(p => p.factura_compra_id === factura.id).reduce((a, p) => a + Number(p.monto), 0)
+    return Math.max(0, Number(factura.total) - pagado)
+  }
+
+  // ---------- Movimientos ----------
   function abrirEdicion(m) {
     setEditando(m)
     setForm({
       fecha: m.fecha || new Date().toISOString().split('T')[0],
-      tipo: m.tipo || 'ingreso',
-      categoria: m.categoria || '',
-      descripcion: m.descripcion || '',
-      monto: m.monto || '',
-      cuenta_id: m.cuenta_id || '',
-      comprobante: m.comprobante || '',
-      forma_pago: m.forma_pago || 'Efectivo',
-      factura_id: m.factura_id || ''
+      tipo: m.tipo || 'ingreso', categoria: m.categoria || '', descripcion: m.descripcion || '',
+      monto: m.monto || '', cuenta_id: m.cuenta_id || '', comprobante: m.comprobante || '',
+      forma_pago: m.forma_pago || 'Efectivo', factura_id: m.factura_id || ''
     })
     setMostrarForm(true)
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }
 
   function cancelar() {
-    setMostrarForm(false)
-    setEditando(null)
+    setMostrarForm(false); setEditando(null)
     setForm({ fecha: new Date().toISOString().split('T')[0], tipo: 'ingreso', categoria: '', descripcion: '', monto: '', cuenta_id: '', comprobante: '', forma_pago: 'Efectivo', factura_id: '' })
   }
 
   async function guardarMovimiento(e) {
     e.preventDefault()
-    const datos = {
-      ...form,
-      monto: parseFloat(form.monto),
-      cuenta_id: form.cuenta_id || null,
-      factura_id: form.factura_id || null
-    }
+    const datos = { ...form, monto: parseFloat(form.monto), cuenta_id: form.cuenta_id || null, factura_id: form.factura_id || null }
     if (editando) {
-      // Revierte el efecto viejo sobre la cuenta anterior, luego aplica el nuevo
       if (editando.cuenta_id) await ajustarSaldo(editando.cuenta_id, -efectoEnSaldo(editando.tipo, editando.monto))
       const { error } = await supabase.from('movimientos_financieros').update(datos).eq('id', editando.id)
       if (error) { alert('Error: ' + error.message); return }
@@ -96,13 +141,11 @@ function Finanzas() {
       const { error } = await supabase.from('movimientos_financieros').insert([datos])
       if (error) { alert('Error: ' + error.message); return }
       if (datos.cuenta_id) await ajustarSaldo(datos.cuenta_id, efectoEnSaldo(datos.tipo, datos.monto))
-      // Si es cobranza asociada a factura, marcar factura como cobrada
       if (form.categoria === 'Cobranzas' && form.factura_id) {
         await supabase.from('facturas').update({ estado: 'cobrada' }).eq('id', form.factura_id)
       }
     }
-    cancelar()
-    cargarDatos()
+    cancelar(); cargarDatos()
   }
 
   async function eliminarMovimiento(m) {
@@ -121,28 +164,107 @@ function Finanzas() {
     cargarDatos()
   }
 
+  // ---------- Cuentas por pagar ----------
+  async function guardarFacturaCompra(e) {
+    e.preventDefault()
+    const { error } = await supabase.from('facturas_compra').insert([{
+      ...formCompra,
+      proveedor_id: formCompra.proveedor_id || null,
+      cliente_id: formCompra.cliente_id || null,
+      total: parseFloat(formCompra.total) || 0,
+      subtotal: parseFloat(formCompra.total) || 0,
+      fecha_vencimiento: formCompra.fecha_vencimiento || null,
+      estado: 'pendiente'
+    }])
+    if (error) { alert('Error: ' + error.message); return }
+    setMostrarFormCompra(false)
+    setFormCompra({ proveedor_id: '', cliente_id: '', numero_factura: '', fecha_emision: new Date().toISOString().split('T')[0], fecha_vencimiento: '', categoria: 'Insumos', total: '', observaciones: '' })
+    cargarDatos()
+  }
+
+  function abrirPago(factura) {
+    setPagandoFactura(factura)
+    setFormPagoCompra({ monto: saldoPendiente(factura).toFixed(2), medio_pago: 'transferencia', cuenta_id: '', referencia: '' })
+  }
+
+  async function registrarPagoCompra(e) {
+    e.preventDefault()
+    const monto = parseFloat(formPagoCompra.monto)
+    if (!formPagoCompra.cuenta_id) { alert('Elegí de qué cuenta sale el pago'); return }
+    await supabase.from('pagos_compra').insert([{
+      factura_compra_id: pagandoFactura.id, monto,
+      medio_pago: formPagoCompra.medio_pago, cuenta_id: formPagoCompra.cuenta_id, referencia: formPagoCompra.referencia
+    }])
+    await supabase.from('movimientos_financieros').insert([{
+      fecha: new Date().toISOString().split('T')[0], tipo: 'egreso',
+      categoria: pagandoFactura.categoria || 'Otro egreso',
+      descripcion: `Pago factura ${pagandoFactura.numero_factura || 's/n'} — ${pagandoFactura.proveedores?.razon_social || ''}`,
+      monto, cuenta_id: formPagoCompra.cuenta_id, comprobante: formPagoCompra.referencia,
+      forma_pago: formPagoCompra.medio_pago.charAt(0).toUpperCase() + formPagoCompra.medio_pago.slice(1)
+    }])
+    await ajustarSaldo(formPagoCompra.cuenta_id, -monto)
+    const totalPagado = pagosCompra.filter(p => p.factura_compra_id === pagandoFactura.id).reduce((a, p) => a + Number(p.monto), 0) + monto
+    const nuevoEstado = totalPagado >= Number(pagandoFactura.total) ? 'pagada' : 'parcial'
+    await supabase.from('facturas_compra').update({ estado: nuevoEstado }).eq('id', pagandoFactura.id)
+    setPagandoFactura(null)
+    cargarDatos()
+  }
+
   const movMes = movimientos.filter(m => m.fecha && m.fecha.startsWith(filtroMes))
   const totalIngresos = movMes.filter(m => m.tipo === 'ingreso').reduce((a, m) => a + Number(m.monto), 0)
   const totalEgresos = movMes.filter(m => m.tipo === 'egreso').reduce((a, m) => a + Number(m.monto), 0)
   const balance = totalIngresos - totalEgresos
   const saldoTotal = cuentas.reduce((a, ct) => a + Number(ct.saldo), 0)
+  const flujoProyectado = porCobrar - porPagar
 
   return (
     <div>
       <div style={s.cabecera(c.gradient)}>
         <div>
           <h3 style={{ ...s.cabeceraTexto, display:'flex', alignItems:'center', gap:'9px' }}><BarChart3 size={19} /> Finanzas</h3>
-          <p style={s.cabeceraSubtexto}>{movimientos.length} movimientos registrados</p>
+          <p style={s.cabeceraSubtexto}>{movimientos.length} movimientos · {facturasCompra.filter(f=>f.estado!=='pagada'&&f.estado!=='anulada').length} facturas de compra pendientes</p>
         </div>
         <div style={{ display: 'flex', gap: '10px' }}>
           <button style={{ ...s.btnPrimario('rgba(255,255,255,0.2)'), border: '1px solid rgba(255,255,255,0.4)' }} onClick={() => setMostrarCuenta(true)}>+ Cuenta</button>
-          <button style={s.btnPrimario('rgba(255,255,255,0.25)')} onClick={() => { if (mostrarForm) { cancelar() } else { setMostrarForm(true) } }}>
-            {mostrarForm ? <><X size={14} style={{ marginRight: 5, verticalAlign: '-2px' }} />Cancelar</> : <><Plus size={14} style={{ marginRight: 5, verticalAlign: '-2px' }} />Movimiento</>}
-          </button>
+          {vista === 'movimientos' && (
+            <button style={s.btnPrimario('rgba(255,255,255,0.25)')} onClick={() => { if (mostrarForm) { cancelar() } else { setMostrarForm(true) } }}>
+              {mostrarForm ? <><X size={14} style={{ marginRight: 5, verticalAlign: '-2px' }} />Cancelar</> : <><Plus size={14} style={{ marginRight: 5, verticalAlign: '-2px' }} />Movimiento</>}
+            </button>
+          )}
+          {vista === 'por-pagar' && (
+            <button style={s.btnPrimario('rgba(255,255,255,0.25)')} onClick={() => setMostrarFormCompra(!mostrarFormCompra)}>
+              {mostrarFormCompra ? <><X size={14} style={{ marginRight: 5, verticalAlign: '-2px' }} />Cancelar</> : <><Plus size={14} style={{ marginRight: 5, verticalAlign: '-2px' }} />Factura de compra</>}
+            </button>
+          )}
         </div>
       </div>
 
-      {/* RESUMEN */}
+      {/* INDICADOR DE FLUJO */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: '14px', marginBottom: '14px' }}>
+        <div style={{ ...s.card, background: '#eff6ff', display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <div style={{ width: 38, height: 38, borderRadius: 10, background: '#dbeafe', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}><TrendingUp size={18} color="#1d4ed8" /></div>
+          <div>
+            <p style={{ ...s.label, color: '#1d4ed8', margin: 0 }}>Por cobrar</p>
+            <p style={{ fontSize: '19px', fontWeight: '800', color: '#1d4ed8', margin: 0 }}>{porCobrar.toLocaleString('es-AR', { style: 'currency', currency: 'ARS' })}</p>
+          </div>
+        </div>
+        <div style={{ ...s.card, background: '#fff7ed', display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <div style={{ width: 38, height: 38, borderRadius: 10, background: '#fed7aa', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}><TrendingDown size={18} color="#c2410c" /></div>
+          <div>
+            <p style={{ ...s.label, color: '#c2410c', margin: 0 }}>Por pagar</p>
+            <p style={{ fontSize: '19px', fontWeight: '800', color: '#c2410c', margin: 0 }}>{porPagar.toLocaleString('es-AR', { style: 'currency', currency: 'ARS' })}</p>
+          </div>
+        </div>
+        <div style={{ ...s.card, background: flujoProyectado >= 0 ? '#f0fdf4' : '#fef2f2', display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <div style={{ width: 38, height: 38, borderRadius: 10, background: flujoProyectado >= 0 ? '#bbf7d0' : '#fecaca', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}><ArrowRightLeft size={18} color={flujoProyectado >= 0 ? '#15803d' : '#b91c1c'} /></div>
+          <div>
+            <p style={{ ...s.label, color: flujoProyectado >= 0 ? '#15803d' : '#b91c1c', margin: 0 }}>Flujo proyectado (cobrar − pagar)</p>
+            <p style={{ fontSize: '19px', fontWeight: '800', color: flujoProyectado >= 0 ? '#15803d' : '#b91c1c', margin: 0 }}>{flujoProyectado.toLocaleString('es-AR', { style: 'currency', currency: 'ARS' })}</p>
+          </div>
+        </div>
+      </div>
+
+      {/* RESUMEN DEL MES */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: '14px', marginBottom: '20px' }}>
         <div style={{ ...s.card, background: '#f0fdf4' }}>
           <p style={{ ...s.label, color: '#059669' }}>Ingresos del mes</p>
@@ -162,18 +284,22 @@ function Finanzas() {
         </div>
       </div>
 
+      <div style={{ display: 'flex', gap: '10px', marginBottom: '16px' }}>
+        <button onClick={() => setVista('movimientos')} style={vista === 'movimientos' ? s.btnPrimario(c.main) : s.btnSecundario}>Movimientos</button>
+        <button onClick={() => setVista('por-pagar')} style={vista === 'por-pagar' ? s.btnPrimario(c.main) : s.btnSecundario}>
+          <Wallet2 size={13} style={{ marginRight: 5, verticalAlign: '-2px' }} />Cuentas por pagar
+        </button>
+      </div>
+
       {/* FORM MOVIMIENTO */}
-      {mostrarForm && (
+      {vista === 'movimientos' && mostrarForm && (
         <div style={s.card}>
           <h4 style={{ margin: '0 0 20px', color: c.main, fontWeight: '700' }}>
             {editando ? <><Pencil size={15} style={{ marginRight: 6, verticalAlign: '-2px' }} />Editando movimiento</> : 'Nuevo movimiento'}
           </h4>
           <form onSubmit={guardarMovimiento}>
             <div style={s.grid2}>
-              <div>
-                <label style={s.label}>Fecha</label>
-                <input type="date" style={s.input} value={form.fecha} onChange={e => setForm({...form, fecha: e.target.value})} required />
-              </div>
+              <div><label style={s.label}>Fecha</label><input type="date" style={s.input} value={form.fecha} onChange={e => setForm({...form, fecha: e.target.value})} required /></div>
               <div>
                 <label style={s.label}>Tipo</label>
                 <select style={s.input} value={form.tipo} onChange={e => setForm({...form, tipo: e.target.value, categoria: '', factura_id: ''})}>
@@ -194,10 +320,7 @@ function Finanzas() {
                   {FORMAS_PAGO.map(f => <option key={f} value={f}>{f}</option>)}
                 </select>
               </div>
-              <div>
-                <label style={s.label}>Monto ($)</label>
-                <input type="number" style={s.input} value={form.monto} onChange={e => setForm({...form, monto: e.target.value})} required />
-              </div>
+              <div><label style={s.label}>Monto ($)</label><input type="number" style={s.input} value={form.monto} onChange={e => setForm({...form, monto: e.target.value})} required /></div>
               <div>
                 <label style={s.label}>Cuenta bancaria</label>
                 <select style={s.input} value={form.cuenta_id} onChange={e => setForm({...form, cuenta_id: e.target.value})} required>
@@ -205,10 +328,7 @@ function Finanzas() {
                   {cuentas.map(ct => <option key={ct.id} value={ct.id}>{ct.banco} — {ct.tipo}</option>)}
                 </select>
               </div>
-              <div>
-                <label style={s.label}>Comprobante</label>
-                <input style={s.input} value={form.comprobante} onChange={e => setForm({...form, comprobante: e.target.value})} placeholder="Nro. factura, recibo..." />
-              </div>
+              <div><label style={s.label}>Comprobante</label><input style={s.input} value={form.comprobante} onChange={e => setForm({...form, comprobante: e.target.value})} placeholder="Nro. factura, recibo..." /></div>
               {form.tipo === 'ingreso' && form.categoria === 'Cobranzas' && (
                 <div>
                   <label style={s.label}>Asociar a factura</label>
@@ -218,10 +338,7 @@ function Finanzas() {
                   </select>
                 </div>
               )}
-              <div style={{ gridColumn: '1 / -1' }}>
-                <label style={s.label}>Descripción</label>
-                <input style={s.input} value={form.descripcion} onChange={e => setForm({...form, descripcion: e.target.value})} />
-              </div>
+              <div style={{ gridColumn: '1 / -1' }}><label style={s.label}>Descripción</label><input style={s.input} value={form.descripcion} onChange={e => setForm({...form, descripcion: e.target.value})} /></div>
             </div>
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '20px' }}>
               <button type="button" style={s.btnSecundario} onClick={cancelar}>Cancelar</button>
@@ -231,20 +348,98 @@ function Finanzas() {
         </div>
       )}
 
+      {/* FORM NUEVA FACTURA DE COMPRA */}
+      {vista === 'por-pagar' && mostrarFormCompra && (
+        <div style={s.card}>
+          <h4 style={{ margin: '0 0 20px', color: c.main, fontWeight: '700' }}>Nueva factura de compra</h4>
+          <form onSubmit={guardarFacturaCompra}>
+            <div style={s.grid2}>
+              <div>
+                <label style={s.label}>Proveedor</label>
+                <select style={s.input} value={formCompra.proveedor_id} onChange={e => setFormCompra({...formCompra, proveedor_id: e.target.value})}>
+                  <option value="">Sin especificar</option>
+                  {proveedores.map(p => <option key={p.id} value={p.id}>{p.razon_social}</option>)}
+                </select>
+              </div>
+              <div><label style={s.label}>Nº de factura</label><input style={s.input} value={formCompra.numero_factura} onChange={e => setFormCompra({...formCompra, numero_factura: e.target.value})} /></div>
+              <div><label style={s.label}>Fecha de emisión</label><input type="date" style={s.input} value={formCompra.fecha_emision} onChange={e => setFormCompra({...formCompra, fecha_emision: e.target.value})} required /></div>
+              <div><label style={s.label}>Fecha de vencimiento</label><input type="date" style={s.input} value={formCompra.fecha_vencimiento} onChange={e => setFormCompra({...formCompra, fecha_vencimiento: e.target.value})} /></div>
+              <div>
+                <label style={s.label}>Categoría</label>
+                <select style={s.input} value={formCompra.categoria} onChange={e => setFormCompra({...formCompra, categoria: e.target.value})}>
+                  {CATEGORIAS_COMPRA.map(cat => <option key={cat} value={cat}>{cat}</option>)}
+                </select>
+              </div>
+              <div>
+                <label style={s.label}>Imputar a cliente (opcional)</label>
+                <select style={s.input} value={formCompra.cliente_id} onChange={e => setFormCompra({...formCompra, cliente_id: e.target.value})}>
+                  <option value="">Sin asignar</option>
+                  {clientes.map(cl => <option key={cl.id} value={cl.id}>{cl.razon_social || cl.nombre_contacto}</option>)}
+                </select>
+              </div>
+              <div><label style={s.label}>Total ($)</label><input type="number" style={s.input} value={formCompra.total} onChange={e => setFormCompra({...formCompra, total: e.target.value})} required /></div>
+              <div style={{ gridColumn: '1 / -1' }}><label style={s.label}>Observaciones</label><input style={s.input} value={formCompra.observaciones} onChange={e => setFormCompra({...formCompra, observaciones: e.target.value})} /></div>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '20px' }}>
+              <button type="button" style={s.btnSecundario} onClick={() => setMostrarFormCompra(false)}>Cancelar</button>
+              <button type="submit" style={s.btnPrimario(c.main)}>Guardar factura</button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {/* MODAL REGISTRAR PAGO DE COMPRA */}
+      {pagandoFactura && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50 }}>
+          <div style={{ background: '#fff', borderRadius: '20px', padding: '28px', width: '100%', maxWidth: '420px', boxShadow: '0 20px 60px rgba(0,0,0,0.2)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+              <h4 style={{ margin: 0, fontWeight: '700', color: '#0f172a' }}>Registrar pago</h4>
+              <button onClick={() => setPagandoFactura(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8' }}><X size={16} /></button>
+            </div>
+            <p style={{ margin: '0 0 18px', fontSize: '13px', color: '#64748b' }}>
+              {pagandoFactura.numero_factura || 's/n'} — {pagandoFactura.proveedores?.razon_social || 'Sin proveedor'} · Saldo pendiente: <strong>{saldoPendiente(pagandoFactura).toLocaleString('es-AR', { style: 'currency', currency: 'ARS' })}</strong>
+            </p>
+            <form onSubmit={registrarPagoCompra}>
+              <div style={s.grid2}>
+                <div><label style={s.label}>Monto ($)</label><input type="number" style={s.input} value={formPagoCompra.monto} onChange={e => setFormPagoCompra({...formPagoCompra, monto: e.target.value})} required /></div>
+                <div>
+                  <label style={s.label}>Medio de pago</label>
+                  <select style={s.input} value={formPagoCompra.medio_pago} onChange={e => setFormPagoCompra({...formPagoCompra, medio_pago: e.target.value})}>
+                    <option value="transferencia">Transferencia</option>
+                    <option value="efectivo">Efectivo</option>
+                    <option value="cheque">Cheque</option>
+                    <option value="tarjeta">Tarjeta</option>
+                  </select>
+                </div>
+                <div style={{ gridColumn: '1 / -1' }}>
+                  <label style={s.label}>Cuenta que paga</label>
+                  <select style={s.input} value={formPagoCompra.cuenta_id} onChange={e => setFormPagoCompra({...formPagoCompra, cuenta_id: e.target.value})} required>
+                    <option value="">Seleccionar cuenta</option>
+                    {cuentas.map(ct => <option key={ct.id} value={ct.id}>{ct.banco} — {ct.tipo}</option>)}
+                  </select>
+                </div>
+                <div style={{ gridColumn: '1 / -1' }}><label style={s.label}>Referencia</label><input style={s.input} value={formPagoCompra.referencia} onChange={e => setFormPagoCompra({...formPagoCompra, referencia: e.target.value})} /></div>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '18px' }}>
+                <button type="button" style={s.btnSecundario} onClick={() => setPagandoFactura(null)}>Cancelar</button>
+                <button type="submit" style={s.btnPrimario(c.main)}>Confirmar pago</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
       {/* MODAL CUENTA */}
       {mostrarCuenta && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50 }}>
           <div style={{ background: '#fff', borderRadius: '20px', padding: '28px', width: '100%', maxWidth: '400px', boxShadow: '0 20px 60px rgba(0,0,0,0.2)' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
               <h4 style={{ margin: 0, fontWeight: '700', color: '#0f172a' }}>Nueva cuenta bancaria</h4>
-              <button onClick={() => setMostrarCuenta(false)} style={{ background: 'none', border: 'none', fontSize: '20px', cursor: 'pointer', color: '#94a3b8' }}><X size={16} /></button>
+              <button onClick={() => setMostrarCuenta(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8' }}><X size={16} /></button>
             </div>
             <form onSubmit={guardarCuenta}>
               <div style={s.grid2}>
-                <div style={{ gridColumn: '1 / -1' }}>
-                  <label style={s.label}>Banco / Descripción</label>
-                  <input style={s.input} value={formCuenta.banco} onChange={e => setFormCuenta({...formCuenta, banco: e.target.value})} required />
-                </div>
+                <div style={{ gridColumn: '1 / -1' }}><label style={s.label}>Banco / Descripción</label><input style={s.input} value={formCuenta.banco} onChange={e => setFormCuenta({...formCuenta, banco: e.target.value})} required /></div>
                 <div>
                   <label style={s.label}>Tipo</label>
                   <select style={s.input} value={formCuenta.tipo} onChange={e => setFormCuenta({...formCuenta, tipo: e.target.value})}>
@@ -253,10 +448,7 @@ function Finanzas() {
                     <option value="caja_chica">Caja chica</option>
                   </select>
                 </div>
-                <div>
-                  <label style={s.label}>Saldo inicial ($)</label>
-                  <input type="number" style={s.input} value={formCuenta.saldo} onChange={e => setFormCuenta({...formCuenta, saldo: e.target.value})} />
-                </div>
+                <div><label style={s.label}>Saldo inicial ($)</label><input type="number" style={s.input} value={formCuenta.saldo} onChange={e => setFormCuenta({...formCuenta, saldo: e.target.value})} /></div>
               </div>
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '16px' }}>
                 <button type="button" style={s.btnSecundario} onClick={() => setMostrarCuenta(false)}>Cancelar</button>
@@ -277,46 +469,81 @@ function Finanzas() {
         ))}
       </div>
 
-      {/* FILTRO MES */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '16px', marginBottom: '16px' }}>
-        <input type="month" style={{ ...s.buscador, maxWidth: '200px' }} value={filtroMes} onChange={e => setFiltroMes(e.target.value)} />
-        <span style={{ color: '#64748b', fontSize: '13px' }}>{movMes.length} movimientos este mes</span>
-      </div>
+      {/* VISTA MOVIMIENTOS */}
+      {vista === 'movimientos' && (
+        <>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '16px', marginBottom: '16px' }}>
+            <input type="month" style={{ ...s.buscador, maxWidth: '200px' }} value={filtroMes} onChange={e => setFiltroMes(e.target.value)} />
+            <span style={{ color: '#64748b', fontSize: '13px' }}>{movMes.length} movimientos este mes</span>
+          </div>
+          <div style={{ ...s.card, padding: 0, overflow: 'hidden' }}>
+            {loading ? <div style={s.empty}>Cargando...</div>
+            : movMes.length === 0 ? <div style={s.empty}>No hay movimientos este mes</div>
+            : (
+              <table style={s.tabla}>
+                <thead><tr>{['Fecha','Tipo','Categoría','Descripción','Cuenta','Forma de pago','Comprobante','Monto',''].map(h => <th key={h} style={s.tablaCabecera(c.main)}>{h}</th>)}</tr></thead>
+                <tbody>
+                  {movMes.map((m, i) => (
+                    <tr key={m.id} style={s.tablaFila(i)}>
+                      <td style={s.tablaCell}>{new Date(m.fecha + 'T00:00:00').toLocaleDateString('es-AR')}</td>
+                      <td style={s.tablaCell}><span style={s.badge(m.tipo === 'ingreso' ? '#d1fae5' : '#fee2e2', m.tipo === 'ingreso' ? '#059669' : '#dc2626')}>{m.tipo}</span></td>
+                      <td style={s.tablaCell}>{m.categoria || '—'}</td>
+                      <td style={s.tablaCell}>{m.descripcion || '—'}</td>
+                      <td style={{ ...s.tablaCell, fontSize: '12px' }}>{cuentas.find(ct => ct.id === m.cuenta_id)?.banco || '—'}</td>
+                      <td style={s.tablaCell}>{m.forma_pago || '—'}</td>
+                      <td style={{ ...s.tablaCell, fontSize: '12px', color: '#94a3b8' }}>{m.comprobante || '—'}</td>
+                      <td style={{ ...s.tablaCellBold, textAlign: 'right', color: m.tipo === 'ingreso' ? '#059669' : '#dc2626' }}>{m.tipo === 'ingreso' ? '+' : '-'}{Number(m.monto).toLocaleString('es-AR', { style: 'currency', currency: 'ARS' })}</td>
+                      <td style={s.tablaCell}>
+                        <div style={{ display: 'flex', gap: '6px' }}>
+                          <button style={{ ...s.btnPrimario(c.main), padding: '5px 10px', fontSize: '12px' }} onClick={() => abrirEdicion(m)}><Pencil size={14} /></button>
+                          <button style={s.btnPeligro} onClick={() => eliminarMovimiento(m)}><Trash2 size={14} /></button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
+        </>
+      )}
 
-      {/* TABLA */}
-      <div style={{ ...s.card, padding: 0, overflow: 'hidden' }}>
-        {loading ? <div style={s.empty}>Cargando...</div>
-        : movMes.length === 0 ? <div style={s.empty}>No hay movimientos este mes</div>
-        : (
-          <table style={s.tabla}>
-            <thead>
-              <tr>{['Fecha','Tipo','Categoría','Descripción','Cuenta','Forma de pago','Comprobante','Monto',''].map(h => <th key={h} style={s.tablaCabecera(c.main)}>{h}</th>)}</tr>
-            </thead>
-            <tbody>
-              {movMes.map((m, i) => (
-                <tr key={m.id} style={s.tablaFila(i)}>
-                  <td style={s.tablaCell}>{new Date(m.fecha + 'T00:00:00').toLocaleDateString('es-AR')}</td>
-                  <td style={s.tablaCell}><span style={s.badge(m.tipo === 'ingreso' ? '#d1fae5' : '#fee2e2', m.tipo === 'ingreso' ? '#059669' : '#dc2626')}>{m.tipo}</span></td>
-                  <td style={s.tablaCell}>{m.categoria || '—'}</td>
-                  <td style={s.tablaCell}>{m.descripcion || '—'}</td>
-                  <td style={{ ...s.tablaCell, fontSize: '12px' }}>{cuentas.find(ct => ct.id === m.cuenta_id)?.banco || '—'}</td>
-                  <td style={s.tablaCell}>{m.forma_pago || '—'}</td>
-                  <td style={{ ...s.tablaCell, fontSize: '12px', color: '#94a3b8' }}>{m.comprobante || '—'}</td>
-                  <td style={{ ...s.tablaCellBold, textAlign: 'right', color: m.tipo === 'ingreso' ? '#059669' : '#dc2626' }}>
-                    {m.tipo === 'ingreso' ? '+' : '-'}{Number(m.monto).toLocaleString('es-AR', { style: 'currency', currency: 'ARS' })}
-                  </td>
-                  <td style={s.tablaCell}>
-                    <div style={{ display: 'flex', gap: '6px' }}>
-                      <button style={{ ...s.btnPrimario(c.main), padding: '5px 10px', fontSize: '12px' }} onClick={() => abrirEdicion(m)}><Pencil size={14} /></button>
-                      <button style={s.btnPeligro} onClick={() => eliminarMovimiento(m)}><Trash2 size={14} /></button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </div>
+      {/* VISTA CUENTAS POR PAGAR */}
+      {vista === 'por-pagar' && (
+        <div style={{ ...s.card, padding: 0, overflow: 'hidden' }}>
+          {loading ? <div style={s.empty}>Cargando...</div>
+          : facturasCompra.length === 0 ? <div style={s.empty}>No hay facturas de compra registradas</div>
+          : (
+            <table style={s.tabla}>
+              <thead><tr>{['Proveedor','Nº factura','Categoría','Cliente imputado','Emisión','Vencimiento','Total','Saldo','Estado',''].map(h => <th key={h} style={s.tablaCabecera(c.main)}>{h}</th>)}</tr></thead>
+              <tbody>
+                {facturasCompra.map((f, i) => {
+                  const ec = ESTADO_COLOR[f.estado] || ESTADO_COLOR.pendiente
+                  const saldo = saldoPendiente(f)
+                  return (
+                    <tr key={f.id} style={s.tablaFila(i)}>
+                      <td style={s.tablaCellBold}>{f.proveedores?.razon_social || '—'}</td>
+                      <td style={{ ...s.tablaCell, fontSize: '12px', color: '#94a3b8' }}>{f.numero_factura || '—'}</td>
+                      <td style={s.tablaCell}>{f.categoria}</td>
+                      <td style={{ ...s.tablaCell, fontSize: '12px' }}>{f.clientes?.razon_social || f.clientes?.nombre_contacto || '—'}</td>
+                      <td style={s.tablaCell}>{f.fecha_emision ? new Date(f.fecha_emision + 'T00:00:00').toLocaleDateString('es-AR') : '—'}</td>
+                      <td style={s.tablaCell}>{f.fecha_vencimiento ? new Date(f.fecha_vencimiento + 'T00:00:00').toLocaleDateString('es-AR') : '—'}</td>
+                      <td style={s.tablaCell}>{Number(f.total).toLocaleString('es-AR', { style: 'currency', currency: 'ARS' })}</td>
+                      <td style={{ ...s.tablaCellBold, color: saldo > 0 ? '#dc2626' : '#059669' }}>{saldo.toLocaleString('es-AR', { style: 'currency', currency: 'ARS' })}</td>
+                      <td style={s.tablaCell}><span style={s.badge(ec.bg, ec.color)}>{f.estado}</span></td>
+                      <td style={s.tablaCell}>
+                        {f.estado !== 'pagada' && f.estado !== 'anulada' && (
+                          <button style={{ ...s.btnPrimario(c.main), padding: '6px 12px', fontSize: '12px' }} onClick={() => abrirPago(f)}>Registrar pago</button>
+                        )}
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          )}
+        </div>
+      )}
     </div>
   )
 }
