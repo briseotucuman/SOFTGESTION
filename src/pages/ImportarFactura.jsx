@@ -241,6 +241,21 @@ function ImportarFactura({ onImportado }) {
       })
       if (e5) throw e5
 
+      const { error: e6 } = await supabase.from('facturas_compra').insert({
+        proveedor_id: provId || null,
+        cliente_id: clienteId || null,
+        numero_factura: numeroFactura,
+        fecha_emision: fecha,
+        fecha_vencimiento: fecha,
+        concepto: `Insumos — ${proveedorTexto}`,
+        categoria: 'Insumos',
+        subtotal: subtotalDetectado || totalItems,
+        total: totalDetectado || totalItems,
+        estado: 'pendiente',
+        observaciones: observacionesTexto
+      })
+      if (e6) throw e6
+
       setEstado('listo')
       if (onImportado) onImportado()
     } catch (err) {
@@ -370,7 +385,7 @@ function ImportarFactura({ onImportado }) {
         <div style={{ textAlign: 'center', padding: '30px 0' }}>
           <CheckCircle2 size={30} color={c.main} style={{ marginBottom: '10px' }} />
           <p style={{ color: paleta.ink, fontWeight: '700', fontSize: '15px', marginBottom: '6px' }}>Factura importada</p>
-          <p style={{ color: paleta.muted, fontSize: '13px', marginBottom: '18px' }}>Se actualizó el stock de {items.length} insumo(s) y se registró el costo.</p>
+          <p style={{ color: paleta.muted, fontSize: '13px', marginBottom: '18px' }}>Se actualizó el stock de {items.length} insumo(s) y quedó registrada como pendiente de pago en Finanzas.</p>
           <button style={s.btnPrimario(c.main)} onClick={reiniciar}><FileUp size={14} style={{ marginRight: 5, verticalAlign: '-2px' }} />Importar otra factura</button>
         </div>
       )}
