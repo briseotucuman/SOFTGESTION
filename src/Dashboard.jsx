@@ -4,9 +4,10 @@ import { colores, paleta } from './estilos.js'
 import {
   Home, Users, FileText, HardHat, CalendarDays, Wallet, Receipt, Package,
   BarChart3, ClipboardList, Briefcase, Factory, TrendingUp, UserCog,
-  Bell, CheckCircle2, LogOut, ChevronLeft, ChevronRight, RefreshCw, ArrowRight
+  Bell, CheckCircle2, LogOut, ChevronLeft, ChevronRight, RefreshCw, ArrowRight, Radar
 } from 'lucide-react'
 import Clientes from './pages/Clientes.jsx'
+import CRM from './pages/CRM.jsx'
 import Contratos from './pages/Contratos.jsx'
 import Personal from './pages/Personal.jsx'
 import Agenda from './pages/Agenda.jsx'
@@ -28,6 +29,7 @@ const GRUPOS_MENU = [
     label: 'Operación',
     items: [
       { id: 'clientes',    icon: Users,       label: 'Clientes' },
+      { id: 'crm',         icon: Radar,       label: 'CRM' },
       { id: 'contratos',   icon: FileText,    label: 'Contratos' },
       { id: 'agenda',      icon: CalendarDays,label: 'Agenda' },
       { id: 'personal',    icon: HardHat,     label: 'Personal' },
@@ -58,6 +60,7 @@ const TODOS_LOS_ITEMS = GRUPOS_MENU.flatMap(g => g.items)
 
 const ACCESOS_RAPIDOS = [
   { id: 'clientes',     icon: Users,        label: 'Clientes' },
+  { id: 'crm',          icon: Radar,        label: 'CRM' },
   { id: 'contratos',    icon: FileText,     label: 'Contratos' },
   { id: 'agenda',       icon: CalendarDays, label: 'Agenda' },
   { id: 'personal',     icon: HardHat,      label: 'Personal' },
@@ -335,6 +338,7 @@ function Dashboard({ user }) {
             </div>
           )}
           {seccionActiva === 'clientes' && <Clientes />}
+          {seccionActiva === 'crm' && <CRM />}
           {seccionActiva === 'contratos' && <Contratos />}
           {seccionActiva === 'personal' && <Personal />}
           {seccionActiva === 'agenda' && <Agenda />}
