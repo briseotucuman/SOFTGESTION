@@ -21,7 +21,7 @@ const ESTADO_COLOR = {
 }
 
 function Finanzas() {
-  const [vista, setVista] = useState('movimientos') // movimientos | por-pagar
+  const [vista, setVista] = useState('movimientos') // movimientos | por-pagar | proyeccion
   const [movimientos, setMovimientos] = useState([])
   const [cuentas, setCuentas] = useState([])
   const [facturas, setFacturas] = useState([])
@@ -51,8 +51,53 @@ function Finanzas() {
   // ---- Indicador de flujo (cobrar/pagar) ----
   const [porCobrar, setPorCobrar] = useState(0)
   const [porPagar, setPorPagar] = useState(0)
+  const [proyeccion, setProyeccion] = useState(null)
 
   useEffect(() => { cargarDatos() }, [])
+  useEffect(() => { if (vista === 'proyeccion' && !proyeccion) cargarProyeccion() }, [vista])
+
+  const BUCKETS = [
+    { id: 'vencido', label: 'Vencido', desde: -99999, hasta: -1 },
+    { id: 'b30', label: '0-30 días', desde: 0, hasta: 30 },
+    { id: 'b60', label: '31-60 días', desde: 31, hasta: 60 },
+    { id: 'b90', label: '61-90 días', desde: 61, hasta: 90 },
+    { id: 'mas90', label: '+90 días', desde: 91, hasta: 99999 },
+    { id: 'sinfecha', label: 'Sin fecha', desde: null, hasta: null },
+  ]
+
+  async function cargarProyeccion() {
+    const hoy = new Date(); hoy.setHours(0,0,0,0)
+    const [{ data: fact }, { data: pagosV }, { data: factC }, { data: pagosC }, { data: cf }] = await Promise.all([
+      supabase.from('facturas').select('id,total,fecha_vencimiento').in('estado', ['pendiente','parcial','vencida']),
+      supabase.from('pagos').select('factura_id,monto'),
+      supabase.from('facturas_compra').select('id,total,fecha_vencimiento').neq('estado','pagada').neq('estado','anulada'),
+      supabase.from('pagos_compra').select('factura_compra_id,monto'),
+      supabase.from('costos_fijos').select('monto').eq('activo', true).eq('mes', new Date().toISOString().slice(0,7)),
+    ])
+    const pagadoV = {}; (pagosV||[]).forEach(p => { pagadoV[p.factura_id] = (pagadoV[p.factura_id]||0) + Number(p.monto) })
+    const pagadoC = {}; (pagosC||[]).forEach(p => { pagadoC[p.factura_compra_id] = (pagadoC[p.factura_compra_id]||0) + Number(p.monto) })
+
+    function bucketDe(fechaVenc) {
+      if (!fechaVenc) return 'sinfecha'
+      const dias = Math.floor((new Date(fechaVenc + 'T00:00:00') - hoy) / (1000*60*60*24))
+      const b = BUCKETS.find(bk => bk.desde !== null && dias >= bk.desde && dias <= bk.hasta)
+      return b ? b.id : 'mas90'
+    }
+
+    const porBucket = {}
+    BUCKETS.forEach(b => { porBucket[b.id] = { cobrar: 0, pagar: 0 } })
+    ;(fact||[]).forEach(f => {
+      const saldo = Number(f.total) - (pagadoV[f.id]||0)
+      if (saldo > 0) porBucket[bucketDe(f.fecha_vencimiento)].cobrar += saldo
+    })
+    ;(factC||[]).forEach(f => {
+      const saldo = Number(f.total) - (pagadoC[f.id]||0)
+      if (saldo > 0) porBucket[bucketDe(f.fecha_vencimiento)].pagar += saldo
+    })
+
+    const costoFijoMensual = (cf||[]).reduce((a,x) => a + Number(x.monto), 0)
+    setProyeccion({ buckets: BUCKETS.map(b => ({ ...b, ...porBucket[b.id] })), costoFijoMensual })
+  }
 
   async function cargarDatos() {
     setLoading(true)
@@ -288,6 +333,9 @@ function Finanzas() {
         <button onClick={() => setVista('movimientos')} style={vista === 'movimientos' ? s.btnPrimario(c.main) : s.btnSecundario}>Movimientos</button>
         <button onClick={() => setVista('por-pagar')} style={vista === 'por-pagar' ? s.btnPrimario(c.main) : s.btnSecundario}>
           <Wallet2 size={13} style={{ marginRight: 5, verticalAlign: '-2px' }} />Cuentas por pagar
+        </button>
+        <button onClick={() => setVista('proyeccion')} style={vista === 'proyeccion' ? s.btnPrimario(c.main) : s.btnSecundario}>
+          <TrendingUp size={13} style={{ marginRight: 5, verticalAlign: '-2px' }} />Proyección de caja
         </button>
       </div>
 
@@ -541,6 +589,48 @@ function Finanzas() {
                 })}
               </tbody>
             </table>
+          )}
+        </div>
+      )}
+
+      {/* VISTA PROYECCIÓN DE CAJA */}
+      {vista === 'proyeccion' && (
+        <div>
+          {!proyeccion ? <div style={s.empty}>Calculando…</div> : (
+            <>
+              <div style={{ ...s.card, background: '#eff6ff', marginBottom: '18px' }}>
+                <p style={{ margin: 0, fontSize: '13px', color: '#1d4ed8' }}>
+                  Proyecta el saldo disponible sumando <strong>lo que hoy tenés en cuentas</strong> ({saldoTotal.toLocaleString('es-AR',{style:'currency',currency:'ARS'})}) más lo que se espera cobrar, menos lo que se espera pagar, según la fecha de vencimiento de cada factura.
+                  {proyeccion.costoFijoMensual > 0 && <> No incluye costos fijos recurrentes (alquiler, sueldos, etc.) — estos rondan <strong>{proyeccion.costoFijoMensual.toLocaleString('es-AR',{style:'currency',currency:'ARS'})}/mes</strong> adicionales según lo cargado en Costos.</>}
+                </p>
+              </div>
+
+              <div style={{ ...s.card, padding: 0, overflow: 'hidden' }}>
+                <table style={s.tabla}>
+                  <thead><tr>{['Período','Por cobrar','Por pagar','Neto del período','Saldo proyectado acumulado'].map(h => <th key={h} style={s.tablaCabecera(c.main)}>{h}</th>)}</tr></thead>
+                  <tbody>
+                    {(() => {
+                      let acumulado = saldoTotal
+                      return proyeccion.buckets.map((b, i) => {
+                        const neto = b.cobrar - b.pagar
+                        if (b.id !== 'sinfecha') acumulado += neto
+                        return (
+                          <tr key={b.id} style={s.tablaFila(i)}>
+                            <td style={s.tablaCellBold}>{b.label}</td>
+                            <td style={{ ...s.tablaCell, color: '#059669' }}>{b.cobrar.toLocaleString('es-AR',{style:'currency',currency:'ARS'})}</td>
+                            <td style={{ ...s.tablaCell, color: '#dc2626' }}>{b.pagar.toLocaleString('es-AR',{style:'currency',currency:'ARS'})}</td>
+                            <td style={{ ...s.tablaCellBold, color: neto >= 0 ? '#059669' : '#dc2626' }}>{neto >= 0 ? '+' : ''}{neto.toLocaleString('es-AR',{style:'currency',currency:'ARS'})}</td>
+                            <td style={{ ...s.tablaCellBold, color: b.id === 'sinfecha' ? '#94a3b8' : (acumulado >= 0 ? paleta.ink : '#dc2626') }}>
+                              {b.id === 'sinfecha' ? '—' : acumulado.toLocaleString('es-AR',{style:'currency',currency:'ARS'})}
+                            </td>
+                          </tr>
+                        )
+                      })
+                    })()}
+                  </tbody>
+                </table>
+              </div>
+            </>
           )}
         </div>
       )}
