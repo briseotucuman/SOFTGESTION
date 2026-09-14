@@ -60,6 +60,11 @@ function Finanzas() {
   const [porPagar, setPorPagar] = useState(0)
   const [proyeccion, setProyeccion] = useState(null)
 
+  // ---- Estado de cuenta ----
+  const [cuentaEstadoId, setCuentaEstadoId] = useState('')
+  const [rangoDesde, setRangoDesde] = useState(new Date().toISOString().slice(0,7) + '-01')
+  const [rangoHasta, setRangoHasta] = useState(new Date().toISOString().split('T')[0])
+
   useEffect(() => { cargarDatos() }, [])
   useEffect(() => { if (vista === 'proyeccion' && !proyeccion) cargarProyeccion() }, [vista])
 
@@ -187,6 +192,30 @@ function Finanzas() {
   function saldoPendienteVenta(factura) {
     const pagado = pagosVenta.filter(p => p.factura_id === factura.id).reduce((a, p) => a + Number(p.monto), 0)
     return Math.max(0, Number(factura.total) - pagado)
+  }
+
+  // Reconstruye el saldo corrido de una cuenta a partir de su historial completo de movimientos
+  // (el saldo actual guardado es el punto de llegada; se reconstruye hacia atrás y luego hacia adelante)
+  function calcularEstadoCuenta(cuentaId, desde, hasta) {
+    const cuenta = cuentas.find(ct => ct.id === cuentaId)
+    if (!cuenta) return null
+    const delCuenta = movimientos
+      .filter(m => m.cuenta_id === cuentaId)
+      .slice()
+      .sort((a, b) => a.fecha === b.fecha ? new Date(a.creado_en) - new Date(b.creado_en) : new Date(a.fecha) - new Date(b.fecha))
+    const sumaDeltas = delCuenta.reduce((acc, m) => acc + (m.tipo === 'ingreso' ? Number(m.monto) : -Number(m.monto)), 0)
+    let saldoCorrido = Number(cuenta.saldo) - sumaDeltas // saldo antes del primer movimiento jamás registrado
+    const filas = delCuenta.map(m => {
+      const delta = m.tipo === 'ingreso' ? Number(m.monto) : -Number(m.monto)
+      saldoCorrido += delta
+      return { ...m, saldoCorrido }
+    })
+    const enRango = filas.filter(f => f.fecha >= desde && f.fecha <= hasta)
+    const saldoInicial = enRango.length > 0
+      ? enRango[0].saldoCorrido - (enRango[0].tipo === 'ingreso' ? Number(enRango[0].monto) : -Number(enRango[0].monto))
+      : (filas.filter(f => f.fecha < desde).slice(-1)[0]?.saldoCorrido ?? Number(cuenta.saldo) - sumaDeltas)
+    const saldoFinal = enRango.length > 0 ? enRango[enRango.length - 1].saldoCorrido : saldoInicial
+    return { cuenta, filas: enRango, saldoInicial, saldoFinal }
   }
 
   // ---------- Movimientos ----------
@@ -398,6 +427,9 @@ function Finanzas() {
         </button>
         <button onClick={() => setVista('por-pagar')} style={vista === 'por-pagar' ? s.btnPrimario(c.main) : s.btnSecundario}>
           <Wallet2 size={13} style={{ marginRight: 5, verticalAlign: '-2px' }} />Cuentas por pagar
+        </button>
+        <button onClick={() => setVista('estado-cuenta')} style={vista === 'estado-cuenta' ? s.btnPrimario(c.main) : s.btnSecundario}>
+          <ArrowRightLeft size={13} style={{ marginRight: 5, verticalAlign: '-2px' }} />Estado de cuenta
         </button>
         <button onClick={() => setVista('proyeccion')} style={vista === 'proyeccion' ? s.btnPrimario(c.main) : s.btnSecundario}>
           <BarChart3 size={13} style={{ marginRight: 5, verticalAlign: '-2px' }} />Proyección de caja
@@ -757,6 +789,75 @@ function Finanzas() {
         </div>
       )}
 
+      {/* VISTA ESTADO DE CUENTA */}
+      {vista === 'estado-cuenta' && (() => {
+        const cuentaActivaId = cuentaEstadoId || cuentas[0]?.id || ''
+        const estado = cuentaActivaId ? calcularEstadoCuenta(cuentaActivaId, rangoDesde, rangoHasta) : null
+        const totalIng = estado ? estado.filas.filter(f=>f.tipo==='ingreso').reduce((a,f)=>a+Number(f.monto),0) : 0
+        const totalEgr = estado ? estado.filas.filter(f=>f.tipo==='egreso').reduce((a,f)=>a+Number(f.monto),0) : 0
+        return (
+          <div>
+            {cuentas.length === 0 ? <div style={s.empty}>Todavía no hay cuentas cargadas.</div> : (
+              <>
+                <div style={{ display: 'flex', gap: '12px', alignItems: 'flex-end', marginBottom: '18px', flexWrap: 'wrap' }}>
+                  <div>
+                    <label style={s.label}>Cuenta</label>
+                    <select style={s.input} value={cuentaActivaId} onChange={e => setCuentaEstadoId(e.target.value)}>
+                      {cuentas.map(ct => <option key={ct.id} value={ct.id}>{ct.banco} — {ct.tipo}</option>)}
+                    </select>
+                  </div>
+                  <div><label style={s.label}>Desde</label><input type="date" style={s.input} value={rangoDesde} onChange={e => setRangoDesde(e.target.value)} /></div>
+                  <div><label style={s.label}>Hasta</label><input type="date" style={s.input} value={rangoHasta} onChange={e => setRangoHasta(e.target.value)} /></div>
+                </div>
+
+                {estado && (
+                  <>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: '14px', marginBottom: '18px' }}>
+                      <div style={s.card}>
+                        <p style={{ ...s.label, color: '#64748b' }}>Saldo al inicio del período</p>
+                        <p style={{ fontSize: '18px', fontWeight: '800', color: '#0f172a', margin: 0 }}>{estado.saldoInicial.toLocaleString('es-AR',{style:'currency',currency:'ARS'})}</p>
+                      </div>
+                      <div style={{ ...s.card, background: '#f0fdf4' }}>
+                        <p style={{ ...s.label, color: '#059669' }}>Ingresos del período</p>
+                        <p style={{ fontSize: '18px', fontWeight: '800', color: '#059669', margin: 0 }}>{totalIng.toLocaleString('es-AR',{style:'currency',currency:'ARS'})}</p>
+                      </div>
+                      <div style={{ ...s.card, background: '#fff1f2' }}>
+                        <p style={{ ...s.label, color: '#dc2626' }}>Egresos del período</p>
+                        <p style={{ fontSize: '18px', fontWeight: '800', color: '#dc2626', margin: 0 }}>{totalEgr.toLocaleString('es-AR',{style:'currency',currency:'ARS'})}</p>
+                      </div>
+                      <div style={{ ...s.card, background: c.main, border: 'none' }}>
+                        <p style={{ ...s.label, color: 'rgba(255,255,255,0.85)' }}>Saldo al final del período</p>
+                        <p style={{ fontSize: '18px', fontWeight: '800', color: '#fff', margin: 0 }}>{estado.saldoFinal.toLocaleString('es-AR',{style:'currency',currency:'ARS'})}</p>
+                      </div>
+                    </div>
+
+                    <div style={{ ...s.card, padding: 0, overflow: 'hidden' }}>
+                      {estado.filas.length === 0 ? <div style={s.empty}>Sin movimientos en este período.</div> : (
+                        <table style={s.tabla}>
+                          <thead><tr>{['Fecha','Descripción','Categoría','Ingreso','Egreso','Saldo'].map(h => <th key={h} style={s.tablaCabecera(c.main)}>{h}</th>)}</tr></thead>
+                          <tbody>
+                            {estado.filas.map((f,i) => (
+                              <tr key={f.id} style={s.tablaFila(i)}>
+                                <td style={s.tablaCell}>{new Date(f.fecha + 'T00:00:00').toLocaleDateString('es-AR')}</td>
+                                <td style={s.tablaCell}>{f.descripcion || f.categoria || '—'}</td>
+                                <td style={{ ...s.tablaCell, fontSize:'12px' }}>{f.categoria || '—'}</td>
+                                <td style={{ ...s.tablaCell, color:'#059669', fontWeight:'600' }}>{f.tipo==='ingreso' ? Number(f.monto).toLocaleString('es-AR',{style:'currency',currency:'ARS'}) : ''}</td>
+                                <td style={{ ...s.tablaCell, color:'#dc2626', fontWeight:'600' }}>{f.tipo==='egreso' ? Number(f.monto).toLocaleString('es-AR',{style:'currency',currency:'ARS'}) : ''}</td>
+                                <td style={s.tablaCellBold}>{f.saldoCorrido.toLocaleString('es-AR',{style:'currency',currency:'ARS'})}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      )}
+                    </div>
+                  </>
+                )}
+              </>
+            )}
+          </div>
+        )
+      })()}
+
       {/* VISTA PROYECCIÓN DE CAJA */}
       {vista === 'proyeccion' && (
         <div>
@@ -766,6 +867,21 @@ function Finanzas() {
                 <p style={{ margin: 0, fontSize: '13px', color: '#1d4ed8' }}>
                   Proyecta el saldo disponible sumando <strong>lo que hoy tenés en cuentas</strong> ({saldoTotal.toLocaleString('es-AR',{style:'currency',currency:'ARS'})}) más lo que se espera cobrar, menos lo que se espera pagar, según la fecha de vencimiento de cada factura.
                   {proyeccion.costoFijoMensual > 0 && <> No incluye costos fijos recurrentes (alquiler, sueldos, etc.) — estos rondan <strong>{proyeccion.costoFijoMensual.toLocaleString('es-AR',{style:'currency',currency:'ARS'})}/mes</strong> adicionales según lo cargado en Costos.</>}
+                </p>
+              </div>
+
+              <div style={{ marginBottom: '18px' }}>
+                <p style={{ ...s.label, marginBottom: '10px' }}>Punto de partida — saldo actual por cuenta</p>
+                <div style={{ display: 'grid', gridTemplateColumns: `repeat(${Math.max(cuentas.length,1)}, 1fr)`, gap: '12px' }}>
+                  {cuentas.map(ct => (
+                    <div key={ct.id} style={{ ...s.card, margin: 0, padding: '12px 14px' }}>
+                      <p style={{ ...s.label, color: '#64748b', margin: '0 0 4px' }}>{ct.banco} · {ct.tipo.replace('_',' ')}</p>
+                      <p style={{ fontSize: '15px', fontWeight: '800', color: '#0f172a', margin: 0 }}>{Number(ct.saldo).toLocaleString('es-AR',{style:'currency',currency:'ARS'})}</p>
+                    </div>
+                  ))}
+                </div>
+                <p style={{ fontSize: '11.5px', color: paleta.muted, marginTop: '8px' }}>
+                  La proyección de abajo es a nivel consolidado: una factura pendiente todavía no tiene asignada una cuenta específica (eso se define recién al registrar el cobro o el pago), así que no es posible proyectar el saldo futuro cuenta por cuenta — sí el punto de partida de cada una.
                 </p>
               </div>
 
