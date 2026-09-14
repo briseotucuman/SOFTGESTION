@@ -21,10 +21,12 @@ const ESTADO_COLOR = {
 }
 
 function Finanzas() {
-  const [vista, setVista] = useState('movimientos') // movimientos | por-pagar | proyeccion
+  const [vista, setVista] = useState('movimientos') // movimientos | por-cobrar | por-pagar | proyeccion
   const [movimientos, setMovimientos] = useState([])
   const [cuentas, setCuentas] = useState([])
   const [facturas, setFacturas] = useState([])
+  const [facturasCobrarTodas, setFacturasCobrarTodas] = useState([])
+  const [pagosVenta, setPagosVenta] = useState([])
   const [loading, setLoading] = useState(true)
   const [mostrarForm, setMostrarForm] = useState(false)
   const [mostrarCuenta, setMostrarCuenta] = useState(false)
@@ -47,6 +49,11 @@ function Finanzas() {
   const [formCompra, setFormCompra] = useState({ proveedor_id: '', cliente_id: '', numero_factura: '', fecha_emision: new Date().toISOString().split('T')[0], fecha_vencimiento: '', categoria: 'Insumos', total: '', observaciones: '' })
   const [pagandoFactura, setPagandoFactura] = useState(null)
   const [formPagoCompra, setFormPagoCompra] = useState({ monto: '', medio_pago: 'transferencia', cuenta_id: '', referencia: '' })
+
+  // ---- Cuentas por cobrar ----
+  const [cobrandoFactura, setCobrandoFactura] = useState(null)
+  const [formCobro, setFormCobro] = useState({ monto: '', medio_pago: 'transferencia', cuenta_id: '', referencia: '' })
+  const [diasCobroPago, setDiasCobroPago] = useState({ diasCobro: null, diasPago: null })
 
   // ---- Indicador de flujo (cobrar/pagar) ----
   const [porCobrar, setPorCobrar] = useState(0)
@@ -113,8 +120,8 @@ function Finanzas() {
       supabase.from('pagos_compra').select('*'),
       supabase.from('proveedores').select('id, razon_social').eq('activo', true),
       supabase.from('clientes').select('id, razon_social, nombre_contacto').eq('activo', true),
-      supabase.from('facturas').select('id,total').in('estado', ['pendiente','parcial','vencida']),
-      supabase.from('pagos').select('factura_id,monto'),
+      supabase.from('facturas').select('id,numero_factura,total,estado,fecha_emision,fecha_vencimiento,clientes(razon_social,nombre_contacto)').order('fecha_emision', { ascending: false }),
+      supabase.from('pagos').select('*, facturas(fecha_emision)'),
     ])
     if (movData) setMovimientos(movData)
     if (cuentasData) setCuentas(cuentasData)
@@ -123,11 +130,14 @@ function Finanzas() {
     if (pagosCompraData) setPagosCompra(pagosCompraData)
     if (provData) setProveedores(provData)
     if (cliData) setClientes(cliData)
+    if (factVentaTodas) setFacturasCobrarTodas(factVentaTodas)
+    if (pagosVentaData) setPagosVenta(pagosVentaData)
 
     // Por cobrar: total facturado pendiente/parcial/vencida, neto de lo ya cobrado
     const pagadoPorFacturaVenta = {}
     ;(pagosVentaData || []).forEach(p => { pagadoPorFacturaVenta[p.factura_id] = (pagadoPorFacturaVenta[p.factura_id] || 0) + Number(p.monto) })
-    const cobrar = (factVentaTodas || []).reduce((acc, f) => acc + Math.max(0, Number(f.total) - (pagadoPorFacturaVenta[f.id] || 0)), 0)
+    const facturasVentaPendientes = (factVentaTodas || []).filter(f => ['pendiente','parcial','vencida'].includes(f.estado))
+    const cobrar = facturasVentaPendientes.reduce((acc, f) => acc + Math.max(0, Number(f.total) - (pagadoPorFacturaVenta[f.id] || 0)), 0)
     setPorCobrar(cobrar)
 
     // Por pagar: total facturas de compra pendiente/parcial/vencida, neto de lo ya pagado
@@ -136,6 +146,24 @@ function Finanzas() {
     const pendientesCompra = (factCompraData || []).filter(f => f.estado !== 'pagada' && f.estado !== 'anulada')
     const pagar = pendientesCompra.reduce((acc, f) => acc + Math.max(0, Number(f.total) - (pagadoPorFacturaCompra[f.id] || 0)), 0)
     setPorPagar(pagar)
+
+    // Días de cobro (DSO real): promedio de días entre emisión de la factura y cada cobro registrado
+    const diffs = (pagosVentaData || [])
+      .filter(p => p.facturas?.fecha_emision && p.fecha_pago)
+      .map(p => Math.round((new Date(p.fecha_pago) - new Date(p.facturas.fecha_emision)) / (1000*60*60*24)))
+      .filter(d => d >= 0)
+    const diasCobro = diffs.length > 0 ? diffs.reduce((a,d)=>a+d,0) / diffs.length : null
+
+    // Días de pago (DPO real): promedio de días entre emisión de la factura de compra y cada pago registrado
+    const factCompraPorId = {}
+    ;(factCompraData || []).forEach(f => { factCompraPorId[f.id] = f })
+    const diffsPago = (pagosCompraData || [])
+      .filter(p => factCompraPorId[p.factura_compra_id]?.fecha_emision && p.fecha_pago)
+      .map(p => Math.round((new Date(p.fecha_pago) - new Date(factCompraPorId[p.factura_compra_id].fecha_emision)) / (1000*60*60*24)))
+      .filter(d => d >= 0)
+    const diasPago = diffsPago.length > 0 ? diffsPago.reduce((a,d)=>a+d,0) / diffsPago.length : null
+
+    setDiasCobroPago({ diasCobro, diasPago, muestraCobro: diffs.length, muestraPago: diffsPago.length })
 
     setLoading(false)
   }
@@ -153,6 +181,11 @@ function Finanzas() {
 
   function saldoPendiente(factura) {
     const pagado = pagosCompra.filter(p => p.factura_compra_id === factura.id).reduce((a, p) => a + Number(p.monto), 0)
+    return Math.max(0, Number(factura.total) - pagado)
+  }
+
+  function saldoPendienteVenta(factura) {
+    const pagado = pagosVenta.filter(p => p.factura_id === factura.id).reduce((a, p) => a + Number(p.monto), 0)
     return Math.max(0, Number(factura.total) - pagado)
   }
 
@@ -255,6 +288,35 @@ function Finanzas() {
     cargarDatos()
   }
 
+  // ---------- Cuentas por cobrar ----------
+  function abrirCobro(factura) {
+    setCobrandoFactura(factura)
+    setFormCobro({ monto: saldoPendienteVenta(factura).toFixed(2), medio_pago: 'transferencia', cuenta_id: '', referencia: '' })
+  }
+
+  async function registrarCobro(e) {
+    e.preventDefault()
+    const monto = parseFloat(formCobro.monto)
+    if (!formCobro.cuenta_id) { alert('Elegí a qué cuenta entra el cobro'); return }
+    await supabase.from('pagos').insert([{
+      factura_id: cobrandoFactura.id, fecha_pago: new Date().toISOString().split('T')[0], monto,
+      medio_pago: formCobro.medio_pago, cuenta_id: formCobro.cuenta_id, referencia: formCobro.referencia
+    }])
+    await supabase.from('movimientos_financieros').insert([{
+      fecha: new Date().toISOString().split('T')[0], tipo: 'ingreso', categoria: 'Cobranzas',
+      descripcion: `Cobro factura ${cobrandoFactura.numero_factura || 's/n'} — ${cobrandoFactura.clientes?.razon_social || cobrandoFactura.clientes?.nombre_contacto || ''}`,
+      monto, cuenta_id: formCobro.cuenta_id, comprobante: formCobro.referencia,
+      forma_pago: formCobro.medio_pago.charAt(0).toUpperCase() + formCobro.medio_pago.slice(1),
+      factura_id: cobrandoFactura.id
+    }])
+    await ajustarSaldo(formCobro.cuenta_id, monto)
+    const totalCobrado = pagosVenta.filter(p => p.factura_id === cobrandoFactura.id).reduce((a, p) => a + Number(p.monto), 0) + monto
+    const nuevoEstado = totalCobrado >= Number(cobrandoFactura.total) ? 'cobrada' : 'parcial'
+    await supabase.from('facturas').update({ estado: nuevoEstado }).eq('id', cobrandoFactura.id)
+    setCobrandoFactura(null)
+    cargarDatos()
+  }
+
   const movMes = movimientos.filter(m => m.fecha && m.fecha.startsWith(filtroMes))
   const totalIngresos = movMes.filter(m => m.tipo === 'ingreso').reduce((a, m) => a + Number(m.monto), 0)
   const totalEgresos = movMes.filter(m => m.tipo === 'egreso').reduce((a, m) => a + Number(m.monto), 0)
@@ -331,11 +393,14 @@ function Finanzas() {
 
       <div style={{ display: 'flex', gap: '10px', marginBottom: '16px' }}>
         <button onClick={() => setVista('movimientos')} style={vista === 'movimientos' ? s.btnPrimario(c.main) : s.btnSecundario}>Movimientos</button>
+        <button onClick={() => setVista('por-cobrar')} style={vista === 'por-cobrar' ? s.btnPrimario(c.main) : s.btnSecundario}>
+          <TrendingUp size={13} style={{ marginRight: 5, verticalAlign: '-2px' }} />Cuentas por cobrar
+        </button>
         <button onClick={() => setVista('por-pagar')} style={vista === 'por-pagar' ? s.btnPrimario(c.main) : s.btnSecundario}>
           <Wallet2 size={13} style={{ marginRight: 5, verticalAlign: '-2px' }} />Cuentas por pagar
         </button>
         <button onClick={() => setVista('proyeccion')} style={vista === 'proyeccion' ? s.btnPrimario(c.main) : s.btnSecundario}>
-          <TrendingUp size={13} style={{ marginRight: 5, verticalAlign: '-2px' }} />Proyección de caja
+          <BarChart3 size={13} style={{ marginRight: 5, verticalAlign: '-2px' }} />Proyección de caja
         </button>
       </div>
 
@@ -556,8 +621,106 @@ function Finanzas() {
         </>
       )}
 
+      {/* VISTA CUENTAS POR COBRAR */}
+      {vista === 'por-cobrar' && (
+        <div>
+          <div style={{ ...s.card, background: '#eff6ff', display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px' }}>
+            <div style={{ width: 38, height: 38, borderRadius: 10, background: '#dbeafe', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}><TrendingUp size={18} color="#1d4ed8" /></div>
+            <div>
+              <p style={{ ...s.label, color: '#1d4ed8', margin: 0 }}>Días de cobro (DSO)</p>
+              <p style={{ fontSize: '19px', fontWeight: '800', color: '#1d4ed8', margin: 0 }}>
+                {diasCobroPago.diasCobro != null ? `${diasCobroPago.diasCobro.toFixed(0)} días` : 'Sin cobros registrados aún'}
+              </p>
+              {diasCobroPago.diasCobro != null && <p style={{ margin: '2px 0 0', fontSize: '11.5px', color: '#3b82f6' }}>Promedio real entre emisión y cobro, sobre {diasCobroPago.muestraCobro} cobro(s) registrado(s)</p>}
+            </div>
+          </div>
+          <div style={{ ...s.card, padding: 0, overflow: 'hidden' }}>
+            {loading ? <div style={s.empty}>Cargando...</div>
+            : facturasCobrarTodas.length === 0 ? <div style={s.empty}>No hay facturas registradas</div>
+            : (
+              <table style={s.tabla}>
+                <thead><tr>{['Cliente','Nº factura','Emisión','Vencimiento','Total','Saldo','Estado',''].map(h => <th key={h} style={s.tablaCabecera(c.main)}>{h}</th>)}</tr></thead>
+                <tbody>
+                  {facturasCobrarTodas.filter(f => f.estado !== 'anulada').map((f, i) => {
+                    const ec = ESTADO_COLOR[f.estado] || ESTADO_COLOR.pendiente
+                    const saldo = saldoPendienteVenta(f)
+                    const puedeCobrar = !['pagada','cobrada','anulada'].includes(f.estado)
+                    return (
+                      <tr key={f.id} style={s.tablaFila(i)}>
+                        <td style={s.tablaCellBold}>{f.clientes?.razon_social || f.clientes?.nombre_contacto || '—'}</td>
+                        <td style={{ ...s.tablaCell, fontSize: '12px', color: '#94a3b8' }}>{f.numero_factura || '—'}</td>
+                        <td style={s.tablaCell}>{f.fecha_emision ? new Date(f.fecha_emision + 'T00:00:00').toLocaleDateString('es-AR') : '—'}</td>
+                        <td style={s.tablaCell}>{f.fecha_vencimiento ? new Date(f.fecha_vencimiento + 'T00:00:00').toLocaleDateString('es-AR') : '—'}</td>
+                        <td style={s.tablaCell}>{Number(f.total).toLocaleString('es-AR', { style: 'currency', currency: 'ARS' })}</td>
+                        <td style={{ ...s.tablaCellBold, color: saldo > 0 ? '#dc2626' : '#059669' }}>{saldo.toLocaleString('es-AR', { style: 'currency', currency: 'ARS' })}</td>
+                        <td style={s.tablaCell}><span style={s.badge(ec.bg, ec.color)}>{f.estado}</span></td>
+                        <td style={s.tablaCell}>
+                          {puedeCobrar && <button style={{ ...s.btnPrimario(c.main), padding: '6px 12px', fontSize: '12px' }} onClick={() => abrirCobro(f)}>Registrar cobro</button>}
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* MODAL REGISTRAR COBRO */}
+      {cobrandoFactura && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50 }}>
+          <div style={{ background: '#fff', borderRadius: '20px', padding: '28px', width: '100%', maxWidth: '420px', boxShadow: '0 20px 60px rgba(0,0,0,0.2)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+              <h4 style={{ margin: 0, fontWeight: '700', color: '#0f172a' }}>Registrar cobro</h4>
+              <button onClick={() => setCobrandoFactura(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8' }}><X size={16} /></button>
+            </div>
+            <p style={{ margin: '0 0 18px', fontSize: '13px', color: '#64748b' }}>
+              {cobrandoFactura.numero_factura || 's/n'} — {cobrandoFactura.clientes?.razon_social || cobrandoFactura.clientes?.nombre_contacto || 'Sin cliente'} · Saldo pendiente: <strong>{saldoPendienteVenta(cobrandoFactura).toLocaleString('es-AR', { style: 'currency', currency: 'ARS' })}</strong>
+            </p>
+            <form onSubmit={registrarCobro}>
+              <div style={s.grid2}>
+                <div><label style={s.label}>Monto ($)</label><input type="number" style={s.input} value={formCobro.monto} onChange={e => setFormCobro({...formCobro, monto: e.target.value})} required /></div>
+                <div>
+                  <label style={s.label}>Medio de pago</label>
+                  <select style={s.input} value={formCobro.medio_pago} onChange={e => setFormCobro({...formCobro, medio_pago: e.target.value})}>
+                    <option value="transferencia">Transferencia</option>
+                    <option value="efectivo">Efectivo</option>
+                    <option value="cheque">Cheque</option>
+                    <option value="tarjeta">Tarjeta</option>
+                  </select>
+                </div>
+                <div style={{ gridColumn: '1 / -1' }}>
+                  <label style={s.label}>Cuenta que recibe el cobro</label>
+                  <select style={s.input} value={formCobro.cuenta_id} onChange={e => setFormCobro({...formCobro, cuenta_id: e.target.value})} required>
+                    <option value="">Seleccionar cuenta</option>
+                    {cuentas.map(ct => <option key={ct.id} value={ct.id}>{ct.banco} — {ct.tipo}</option>)}
+                  </select>
+                </div>
+                <div style={{ gridColumn: '1 / -1' }}><label style={s.label}>Referencia</label><input style={s.input} value={formCobro.referencia} onChange={e => setFormCobro({...formCobro, referencia: e.target.value})} /></div>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '18px' }}>
+                <button type="button" style={s.btnSecundario} onClick={() => setCobrandoFactura(null)}>Cancelar</button>
+                <button type="submit" style={s.btnPrimario(c.main)}>Confirmar cobro</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
       {/* VISTA CUENTAS POR PAGAR */}
       {vista === 'por-pagar' && (
+        <div>
+          <div style={{ ...s.card, background: '#fff7ed', display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px' }}>
+            <div style={{ width: 38, height: 38, borderRadius: 10, background: '#fed7aa', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}><TrendingDown size={18} color="#c2410c" /></div>
+            <div>
+              <p style={{ ...s.label, color: '#c2410c', margin: 0 }}>Días de pago (DPO)</p>
+              <p style={{ fontSize: '19px', fontWeight: '800', color: '#c2410c', margin: 0 }}>
+                {diasCobroPago.diasPago != null ? `${diasCobroPago.diasPago.toFixed(0)} días` : 'Sin pagos registrados aún'}
+              </p>
+              {diasCobroPago.diasPago != null && <p style={{ margin: '2px 0 0', fontSize: '11.5px', color: '#ea580c' }}>Promedio real entre emisión y pago, sobre {diasCobroPago.muestraPago} pago(s) registrado(s)</p>}
+            </div>
+          </div>
         <div style={{ ...s.card, padding: 0, overflow: 'hidden' }}>
           {loading ? <div style={s.empty}>Cargando...</div>
           : facturasCompra.length === 0 ? <div style={s.empty}>No hay facturas de compra registradas</div>
@@ -590,6 +753,7 @@ function Finanzas() {
               </tbody>
             </table>
           )}
+        </div>
         </div>
       )}
 
