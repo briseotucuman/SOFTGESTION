@@ -118,10 +118,10 @@ function Dashboard({ user }) {
     const mes = hoy.toISOString().slice(0, 7)
     const nuevasAlertas = []
 
-    const { data: facVencidas } = await supabase.from('facturas').select('numero_factura, total, fecha_vencimiento, clientes(razon_social,nombre_contacto)').eq('estado','pendiente').lt('fecha_vencimiento', hoy.toISOString().split('T')[0])
+    const { data: facVencidas } = await supabase.from('facturas').select('numero_factura, total, fecha_vencimiento, clientes(razon_social,nombre_contacto)').in('estado',['emitida','pendiente']).lt('fecha_vencimiento', hoy.toISOString().split('T')[0])
     ;(facVencidas||[]).forEach(f => nuevasAlertas.push({ tipo:'danger', titulo:'Factura vencida', detalle:`${f.numero_factura} — ${f.clientes?.razon_social||f.clientes?.nombre_contacto}`, monto: Number(f.total), modulo:'facturacion' }))
 
-    const { data: facPorVencer } = await supabase.from('facturas').select('numero_factura, total, fecha_vencimiento, clientes(razon_social,nombre_contacto)').eq('estado','pendiente').gte('fecha_vencimiento', hoy.toISOString().split('T')[0]).lte('fecha_vencimiento', en7dias.toISOString().split('T')[0])
+    const { data: facPorVencer } = await supabase.from('facturas').select('numero_factura, total, fecha_vencimiento, clientes(razon_social,nombre_contacto)').in('estado',['emitida','pendiente']).gte('fecha_vencimiento', hoy.toISOString().split('T')[0]).lte('fecha_vencimiento', en7dias.toISOString().split('T')[0])
     ;(facPorVencer||[]).forEach(f => nuevasAlertas.push({ tipo:'warning', titulo:'Factura vence en 7 días', detalle:`${f.numero_factura} — ${f.clientes?.razon_social||f.clientes?.nombre_contacto}`, monto: Number(f.total), modulo:'facturacion' }))
 
     const { data: empleadosActivos } = await supabase.from('empleados').select('id, nombre, apellido').eq('activo', true)
