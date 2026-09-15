@@ -80,7 +80,7 @@ function Finanzas() {
   async function cargarProyeccion() {
     const hoy = new Date(); hoy.setHours(0,0,0,0)
     const [{ data: fact }, { data: pagosV }, { data: factC }, { data: pagosC }, { data: cf }] = await Promise.all([
-      supabase.from('facturas').select('id,total,fecha_vencimiento').in('estado', ['pendiente','parcial','vencida']),
+      supabase.from('facturas').select('id,total,fecha_vencimiento').in('estado', ['emitida','pendiente','parcial','vencida']),
       supabase.from('pagos').select('factura_id,monto'),
       supabase.from('facturas_compra').select('id,total,fecha_vencimiento').neq('estado','pagada').neq('estado','anulada'),
       supabase.from('pagos_compra').select('factura_compra_id,monto'),
@@ -141,7 +141,7 @@ function Finanzas() {
     // Por cobrar: total facturado pendiente/parcial/vencida, neto de lo ya cobrado
     const pagadoPorFacturaVenta = {}
     ;(pagosVentaData || []).forEach(p => { pagadoPorFacturaVenta[p.factura_id] = (pagadoPorFacturaVenta[p.factura_id] || 0) + Number(p.monto) })
-    const facturasVentaPendientes = (factVentaTodas || []).filter(f => ['pendiente','parcial','vencida'].includes(f.estado))
+    const facturasVentaPendientes = (factVentaTodas || []).filter(f => ['emitida','pendiente','parcial','vencida'].includes(f.estado))
     const cobrar = facturasVentaPendientes.reduce((acc, f) => acc + Math.max(0, Number(f.total) - (pagadoPorFacturaVenta[f.id] || 0)), 0)
     setPorCobrar(cobrar)
 
