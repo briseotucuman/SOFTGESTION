@@ -1,12 +1,14 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../supabase.js'
 import { s, colores } from '../estilos.js'
-import { Pencil, Plus, Receipt, X } from 'lucide-react'
+import { Pencil, Plus, Receipt, X, FileUp } from 'lucide-react'
+import ImportarARCA from './ImportarARCA.jsx'
 
 const c = colores.facturacion
 
 function Facturacion()  {
   const [facturas, setFacturas] = useState([])
+  const [vista, setVista] = useState('facturas')
   const [contratos, setContratos] = useState([])
   const [loading, setLoading] = useState(true)
   const [mostrarForm, setMostrarForm] = useState(false)
@@ -235,7 +237,7 @@ function Facturacion()  {
           {contratosHora.length > 0 && (
             <button style={{ ...s.btnPrimario('rgba(255,255,255,0.2)'), border: '1px solid rgba(255,255,255,0.4)' }}
               onClick={() => { setMostrarGenerador(!mostrarGenerador); cancelar() }}>
-              ⏱ Facturar por horas
+              Facturar por horas
             </button>
           )}
           <button style={s.btnPrimario('rgba(255,255,255,0.25)')} onClick={() => { if (mostrarForm) { cancelar() } else { setMostrarForm(true); setMostrarGenerador(false) } }}>
@@ -244,6 +246,16 @@ function Facturacion()  {
         </div>
       </div>
 
+      <div style={{ display: 'flex', gap: '10px', marginBottom: '16px' }}>
+        <button onClick={() => setVista('facturas')} style={vista === 'facturas' ? s.btnPrimario(c.main) : s.btnSecundario}>Facturas</button>
+        <button onClick={() => setVista('importar-arca')} style={vista === 'importar-arca' ? s.btnPrimario(c.main) : s.btnSecundario}>
+          <FileUp size={13} style={{ marginRight: 5, verticalAlign: '-2px' }} />Importar desde ARCA
+        </button>
+      </div>
+
+      {vista === 'importar-arca' && <ImportarARCA onImportado={cargarDatos} />}
+
+      {vista === 'facturas' && (<>
       {/* KPIs */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: '14px', marginBottom: '20px' }}>
         <div style={s.card}>
@@ -491,6 +503,7 @@ function Facturacion()  {
           </table>
         )}
       </div>
+      </>)}
     </div>
   )
 }
