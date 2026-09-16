@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../supabase.js'
 import { s, colores } from '../estilos.js'
-import { Package, Pencil, Plus, Trash2, X, FileUp } from 'lucide-react'
+import { Package, Pencil, Plus, Trash2, X, FileUp, ClipboardList } from 'lucide-react'
 import ImportarFactura from './ImportarFactura.jsx'
+import SolicitudesInsumos from './SolicitudesInsumos.jsx'
 
 const c = colores.insumos
 
@@ -143,12 +144,16 @@ function Insumos() {
       )}
 
       <div style={{ display: 'flex', gap: '10px', marginBottom: '16px' }}>
-        {['insumos','movimientos','importar'].map(v => (
+        {['insumos','movimientos','solicitudes','importar'].map(v => (
           <button key={v} onClick={() => setVista(v)} style={vista === v ? s.btnPrimario(c.main) : s.btnSecundario}>
-            {v === 'insumos' ? 'Insumos' : v === 'movimientos' ? 'Movimientos' : <><FileUp size={13} style={{ marginRight: 5, verticalAlign: '-2px' }} />Importar factura</>}
+            {v === 'insumos' ? 'Insumos' : v === 'movimientos' ? 'Movimientos' : v === 'solicitudes' ? <><ClipboardList size={13} style={{ marginRight: 5, verticalAlign: '-2px' }} />Solicitudes</> : <><FileUp size={13} style={{ marginRight: 5, verticalAlign: '-2px' }} />Importar factura</>}
           </button>
         ))}
       </div>
+
+      {vista === 'solicitudes' && (
+        <SolicitudesInsumos />
+      )}
 
       {vista === 'importar' && (
         <ImportarFactura onImportado={cargarDatos} />
