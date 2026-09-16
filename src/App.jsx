@@ -1,9 +1,11 @@
 import { useEffect, useState } from 'react'
+import { BrowserRouter, Routes, Route } from 'react-router-dom'
 import { supabase } from './supabase.js'
 import Login from './Login.jsx'
 import Dashboard from './Dashboard.jsx'
+import SolicitudInsumos from './SolicitudInsumos.jsx'
 
-function App() {
+function AppPrivada() {
   const [session, setSession] = useState(null)
   const [loading, setLoading] = useState(true)
 
@@ -30,6 +32,17 @@ function App() {
   if (!session) return <Login />
 
   return <Dashboard user={session.user} />
+}
+
+function App() {
+  return (
+    <BrowserRouter>
+      <Routes>
+        <Route path="/solicitud-insumos" element={<SolicitudInsumos />} />
+        <Route path="*" element={<AppPrivada />} />
+      </Routes>
+    </BrowserRouter>
+  )
 }
 
 export default App
