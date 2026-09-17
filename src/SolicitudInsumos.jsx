@@ -1,274 +1,245 @@
 import { useEffect, useState } from 'react'
-import { supabase } from '../supabase.js'
-import { s, colores } from '../estilos.js'
-import { Package, Pencil, Plus, Trash2, X, FileUp, ClipboardList } from 'lucide-react'
-import ImportarFactura from './ImportarFactura.jsx'
-import SolicitudesInsumos from './SolicitudesInsumos.jsx'
+import { supabase } from './supabase.js'
+import { paleta } from './estilos.js'
+import { Package, Plus, Trash2, CheckCircle2, Loader2, PackageCheck } from 'lucide-react'
 
-const c = colores.insumos
+const inputStyle = {
+  width: '100%', padding: '11px 13px', boxSizing: 'border-box', background: '#fff',
+  border: `1.5px solid ${paleta.line}`, borderRadius: '8px', color: paleta.ink,
+  fontSize: '15px', outline: 'none', fontFamily: paleta.font
+}
+const labelStyle = { display: 'block', color: paleta.inkSoft, fontSize: '13px', fontWeight: '600', marginBottom: '6px' }
 
-function Insumos() {
+
+function SolicitudInsumos() {
+  const [modo, setModo] = useState('pedir') // pedir | confirmar
+  const [sucursales, setSucursales] = useState([])
   const [insumos, setInsumos] = useState([])
-  const [proveedores, setProveedores] = useState([])
-  const [movimientos, setMovimientos] = useState([])
-  const [loading, setLoading] = useState(true)
-  const [vista, setVista] = useState('insumos')
-  const [mostrarForm, setMostrarForm] = useState(false)
-  const [mostrarMovimiento, setMostrarMovimiento] = useState(null)
-  const [editando, setEditando] = useState(null)
-  const [busqueda, setBusqueda] = useState('')
-  const [form, setForm] = useState({ nombre:'', descripcion:'', unidad_medida:'unidad', categoria:'', stock_actual:'0', stock_minimo:'0', precio_costo:'', proveedor_id:'' })
-  const [formMov, setFormMov] = useState({ tipo_movimiento:'entrada', cantidad:'', motivo:'compra', precio_unitario:'', observaciones:'' })
+  const [cargando, setCargando] = useState(true)
 
-  useEffect(() => { cargarDatos() }, [])
-
-  async function cargarDatos() {
-    setLoading(true)
-    const [{ data: ins }, { data: prov }, { data: mov }] = await Promise.all([
-      supabase.from('insumos').select('*, proveedores(razon_social)').eq('activo', true).order('nombre'),
-      supabase.from('proveedores').select('*').eq('activo', true),
-      supabase.from('movimientos_stock').select('*, insumos(nombre)').order('creado_en', { ascending: false }).limit(50)
-    ])
-    if (ins) setInsumos(ins)
-    if (prov) setProveedores(prov)
-    if (mov) setMovimientos(mov)
-    setLoading(false)
-  }
-
-  function abrirEdicion(ins) {
-    setEditando(ins)
-    setForm({
-      nombre: ins.nombre || '',
-      descripcion: ins.descripcion || '',
-      unidad_medida: ins.unidad_medida || 'unidad',
-      categoria: ins.categoria || '',
-      stock_actual: ins.stock_actual || '0',
-      stock_minimo: ins.stock_minimo || '0',
-      precio_costo: ins.precio_costo || '',
-      proveedor_id: ins.proveedor_id || ''
-    })
-    setMostrarForm(true)
-    window.scrollTo({ top: 0, behavior: 'smooth' })
-  }
-
-  function cancelar() {
-    setMostrarForm(false)
-    setEditando(null)
-    setForm({ nombre:'', descripcion:'', unidad_medida:'unidad', categoria:'', stock_actual:'0', stock_minimo:'0', precio_costo:'', proveedor_id:'' })
-  }
-
-
-  function abrirEdicion(ins) {
-    setEditando(ins)
-    setForm({
-      nombre: ins.nombre || '',
-      descripcion: ins.descripcion || '',
-      unidad_medida: ins.unidad_medida || 'unidad',
-      categoria: ins.categoria || '',
-      stock_actual: ins.stock_actual || '0',
-      stock_minimo: ins.stock_minimo || '0',
-      precio_costo: ins.precio_costo || '',
-      proveedor_id: ins.proveedor_id || ''
-    })
-    setMostrarForm(true)
-    window.scrollTo({ top: 0, behavior: 'smooth' })
-  }
-
-  function cancelarIns() {
-    setMostrarForm(false)
-    setEditando(null)
-    setForm({ nombre:'', descripcion:'', unidad_medida:'unidad', categoria:'', stock_actual:'0', stock_minimo:'0', precio_costo:'', proveedor_id:'' })
-  }
-
-    async function guardarInsumo(e) {
-    e.preventDefault()
-    const datos = {
-      ...form,
-      stock_actual: parseFloat(form.stock_actual) || 0,
-      stock_minimo: parseFloat(form.stock_minimo) || 0,
-      precio_costo: form.precio_costo ? parseFloat(form.precio_costo) : null,
-      proveedor_id: form.proveedor_id || null
+  useEffect(() => {
+    async function cargar() {
+      const [{ data: suc }, { data: ins }] = await Promise.all([
+        supabase.from('sucursales_publicas').select('*').order('nombre'),
+        supabase.from('insumos_publicos').select('*').order('nombre'),
+      ])
+      setSucursales(suc || [])
+      setInsumos(ins || [])
+      setCargando(false)
     }
-    if (editando) {
-      const { error } = await supabase.from('insumos').update(datos).eq('id', editando.id)
-      if (error) { alert('Error: ' + error.message); return }
-    } else {
-      const { error } = await supabase.from('insumos').insert([datos])
-      if (error) { alert('Error: ' + error.message); return }
-    }
-    cancelar()
-    cargarDatos()
-  }
-
-  async function eliminarInsumo(id) {
-    if (!confirm('¿Eliminar este insumo? Esta acción no se puede deshacer.')) return
-    const { error } = await supabase.from('insumos').update({ activo: false }).eq('id', id)
-    if (error) { alert('Error: ' + error.message); return }
-    cargarDatos()
-  }
-
-  async function registrarMovimiento(e) {
-    e.preventDefault()
-    const ins = mostrarMovimiento
-    const cantidad = parseFloat(formMov.cantidad)
-    const stockAnterior = Number(ins.stock_actual)
-    const stockNuevo = formMov.tipo_movimiento === 'entrada' ? stockAnterior + cantidad : stockAnterior - cantidad
-    if (stockNuevo < 0) { alert('Stock insuficiente'); return }
-    await supabase.from('movimientos_stock').insert([{ insumo_id: ins.id, tipo_movimiento: formMov.tipo_movimiento, cantidad, stock_anterior: stockAnterior, stock_nuevo: stockNuevo, motivo: formMov.motivo, precio_unitario: formMov.precio_unitario ? parseFloat(formMov.precio_unitario) : null }])
-    await supabase.from('insumos').update({ stock_actual: stockNuevo }).eq('id', ins.id)
-    setMostrarMovimiento(null)
-    setFormMov({ tipo_movimiento:'entrada', cantidad:'', motivo:'compra', precio_unitario:'', observaciones:'' })
-    cargarDatos()
-  }
-
-  const filtrados = insumos.filter(i => i.nombre.toLowerCase().includes(busqueda.toLowerCase()) || (i.categoria||'').toLowerCase().includes(busqueda.toLowerCase()))
-  const bajoMinimo = insumos.filter(i => Number(i.stock_actual) <= Number(i.stock_minimo))
-  const movColor = { entrada: { bg: '#d1fae5', color: '#059669' }, salida: { bg: '#fee2e2', color: '#dc2626' }, ajuste: { bg: '#fef3c7', color: '#d97706' } }
+    cargar()
+  }, [])
 
   return (
-    <div style={{ fontFamily: "'Segoe UI', sans-serif" }}>
-      <div style={s.cabecera(c.gradient)}>
-        <div>
-          <h3 style={{ ...s.cabeceraTexto, display:'flex', alignItems:'center', gap:'9px' }}><Package size={19} /> Insumos y Stock</h3>
-          <p style={s.cabeceraSubtexto}>{insumos.length} insumos registrados</p>
+    <div style={{ minHeight: '100vh', background: paleta.paper, display: 'flex', justifyContent: 'center', padding: '24px 16px', fontFamily: paleta.font }}>
+      <div style={{ width: '100%', maxWidth: '480px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '18px' }}>
+          <div style={{ background: paleta.brand, borderRadius: '10px', width: '38px', height: '38px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <Package size={19} color="#fff" />
+          </div>
+          <div>
+            <p style={{ margin: 0, fontWeight: '800', fontSize: '16px', color: paleta.ink }}>Insumos</p>
+            <p style={{ margin: 0, fontSize: '12.5px', color: paleta.muted }}>Briseo — pedidos por sucursal</p>
+          </div>
         </div>
-        <button style={s.btnPrimario('rgba(255,255,255,0.25)')} onClick={() => { if (mostrarForm) { cancelar() } else { setMostrarForm(true) } }}>
-          {mostrarForm ? <><X size={14} style={{ marginRight: 5, verticalAlign: '-2px' }} />Cancelar</> : <><Plus size={14} style={{ marginRight: 5, verticalAlign: '-2px' }} />Nuevo insumo</>}
+
+        <div style={{ display: 'flex', gap: '8px', marginBottom: '18px' }}>
+          <button onClick={() => setModo('pedir')} style={{
+            flex: 1, padding: '11px', borderRadius: '9px', cursor: 'pointer', fontWeight: '700', fontSize: '13.5px',
+            background: modo === 'pedir' ? paleta.brand : '#fff', color: modo === 'pedir' ? '#fff' : paleta.inkSoft,
+            border: modo === 'pedir' ? 'none' : `1.5px solid ${paleta.line}`
+          }}>Hacer un pedido</button>
+          <button onClick={() => setModo('confirmar')} style={{
+            flex: 1, padding: '11px', borderRadius: '9px', cursor: 'pointer', fontWeight: '700', fontSize: '13.5px',
+            background: modo === 'confirmar' ? paleta.brand : '#fff', color: modo === 'confirmar' ? '#fff' : paleta.inkSoft,
+            border: modo === 'confirmar' ? 'none' : `1.5px solid ${paleta.line}`
+          }}>Confirmar que llegó</button>
+        </div>
+
+        {cargando ? (
+          <div style={{ textAlign: 'center', padding: '40px 0', color: paleta.muted }}>Cargando…</div>
+        ) : modo === 'pedir' ? (
+          <FormularioPedido sucursales={sucursales} insumos={insumos} />
+        ) : (
+          <ConfirmarRecepcion sucursales={sucursales} insumos={insumos} />
+        )}
+      </div>
+    </div>
+  )
+}
+
+function FormularioPedido({ sucursales, insumos }) {
+  const [enviando, setEnviando] = useState(false)
+  const [enviado, setEnviado] = useState(false)
+  const [error, setError] = useState('')
+  const [solicitadoPor, setSolicitadoPor] = useState('')
+  const [sucursalId, setSucursalId] = useState('')
+  const [notas, setNotas] = useState('')
+  const [items, setItems] = useState([{ insumo_id: '', nombre_libre: '', cantidad: 1 }])
+
+  function actualizarItem(i, campo, valor) {
+    setItems(prev => prev.map((it, idx) => idx === i ? { ...it, [campo]: valor } : it))
+  }
+  function agregarItem() { setItems(prev => [...prev, { insumo_id: '', nombre_libre: '', cantidad: 1 }]) }
+  function quitarItem(i) { setItems(prev => prev.filter((_, idx) => idx !== i)) }
+
+  async function enviar(e) {
+    e.preventDefault()
+    setError('')
+    const itemsValidos = items.filter(it => it.insumo_id || it.nombre_libre.trim())
+    if (!sucursalId) { setError('Elegí la sucursal'); return }
+    if (itemsValidos.length === 0) { setError('Agregá al menos un insumo'); return }
+    setEnviando(true)
+    try {
+      const { data: solicitud, error: e1 } = await supabase.from('solicitudes_insumos').insert({
+        sucursal_id: sucursalId, solicitado_por: solicitadoPor || null, notas: notas || null
+      }).select().single()
+      if (e1) throw e1
+      const filas = itemsValidos.map(it => ({
+        solicitud_id: solicitud.id,
+        insumo_id: it.insumo_id || null,
+        nombre_libre: it.insumo_id ? null : it.nombre_libre.trim(),
+        cantidad: parseFloat(it.cantidad) || 1,
+      }))
+      const { error: e2 } = await supabase.from('solicitud_insumos_items').insert(filas)
+      if (e2) throw e2
+      setEnviado(true)
+    } catch (err) {
+      setError('No se pudo enviar la solicitud. Probá de nuevo.')
+    } finally {
+      setEnviando(false)
+    }
+  }
+
+  if (enviado) {
+    return (
+      <div style={{ background: '#fff', borderRadius: '14px', padding: '30px 24px', textAlign: 'center', border: `1px solid ${paleta.line}` }}>
+        <CheckCircle2 size={32} color={paleta.brand} style={{ marginBottom: '10px' }} />
+        <p style={{ fontWeight: '700', fontSize: '15px', color: paleta.ink, margin: '0 0 6px' }}>Pedido enviado</p>
+        <p style={{ fontSize: '13px', color: paleta.muted, margin: '0 0 18px' }}>Gracias — ya quedó registrado para que lo revisen.</p>
+        <button onClick={() => window.location.reload()} style={{ background: paleta.brand, color: '#fff', border: 'none', borderRadius: '8px', padding: '11px 20px', fontWeight: '600', fontSize: '14px', cursor: 'pointer' }}>
+          Cargar otro pedido
         </button>
       </div>
+    )
+  }
 
-      {bajoMinimo.length > 0 && (
-        <div style={{ background: '#fff1f2', border: '1px solid #fecdd3', borderRadius: '12px', padding: '14px 18px', marginBottom: '16px' }}>
-          <p style={{ margin: 0, color: '#dc2626', fontWeight: '600', fontSize: '13px' }}>{bajoMinimo.length} insumo(s) bajo stock mínimo: {bajoMinimo.map(i => i.nombre).join(', ')}</p>
-        </div>
-      )}
-
-      <div style={{ display: 'flex', gap: '10px', marginBottom: '16px' }}>
-        {['insumos','movimientos','solicitudes','importar'].map(v => (
-          <button key={v} onClick={() => setVista(v)} style={vista === v ? s.btnPrimario(c.main) : s.btnSecundario}>
-            {v === 'insumos' ? 'Insumos' : v === 'movimientos' ? 'Movimientos' : v === 'solicitudes' ? <><ClipboardList size={13} style={{ marginRight: 5, verticalAlign: '-2px' }} />Solicitudes</> : <><FileUp size={13} style={{ marginRight: 5, verticalAlign: '-2px' }} />Importar factura</>}
-          </button>
-        ))}
+  return (
+    <form onSubmit={enviar} style={{ background: '#fff', borderRadius: '14px', padding: '22px', border: `1px solid ${paleta.line}` }}>
+      <div style={{ marginBottom: '16px' }}>
+        <label style={labelStyle}>Tu nombre</label>
+        <input style={inputStyle} value={solicitadoPor} onChange={e => setSolicitadoPor(e.target.value)} placeholder="Quién pide" />
+      </div>
+      <div style={{ marginBottom: '16px' }}>
+        <label style={labelStyle}>Sucursal</label>
+        <select style={inputStyle} value={sucursalId} onChange={e => setSucursalId(e.target.value)} required>
+          <option value="">Seleccionar sucursal</option>
+          {sucursales.map(s => <option key={s.id} value={s.id}>{s.nombre} {s.cliente_nombre ? `— ${s.cliente_nombre}` : ''}</option>)}
+        </select>
       </div>
 
-      {vista === 'solicitudes' && (
-        <SolicitudesInsumos />
-      )}
-
-      {vista === 'importar' && (
-        <ImportarFactura onImportado={cargarDatos} />
-      )}
-
-
-      {mostrarForm && (
-        <div style={s.card}>
-          <h4 style={{ margin: '0 0 20px', color: c.main, fontWeight: '700' }}>
-            {editando ? <><Pencil size={15} style={{ marginRight: 6, verticalAlign: '-2px' }} />Editando — {editando.nombre}</> : 'Nuevo insumo'}
-          </h4>
-          <form onSubmit={guardarInsumo}>
-            <div style={s.grid2}>
-              <div><label style={s.label}>Nombre</label><input style={s.input} value={form.nombre} onChange={e => setForm({...form, nombre: e.target.value})} required onFocus={e => e.target.style.borderColor = c.main} onBlur={e => e.target.style.borderColor = '#e2e8f0'} /></div>
-              <div><label style={s.label}>Categoría</label><input style={s.input} value={form.categoria} onChange={e => setForm({...form, categoria: e.target.value})} onFocus={e => e.target.style.borderColor = c.main} onBlur={e => e.target.style.borderColor = '#e2e8f0'} /></div>
-              <div><label style={s.label}>Unidad de medida</label><select style={s.input} value={form.unidad_medida} onChange={e => setForm({...form, unidad_medida: e.target.value})}><option value="unidad">Unidad</option><option value="litro">Litro</option><option value="kg">Kilogramo</option><option value="rollo">Rollo</option><option value="caja">Caja</option></select></div>
-              <div><label style={s.label}>Proveedor</label><select style={s.input} value={form.proveedor_id} onChange={e => setForm({...form, proveedor_id: e.target.value})}><option value="">Sin proveedor</option>{proveedores.map(p => <option key={p.id} value={p.id}>{p.razon_social}</option>)}</select></div>
-              <div><label style={s.label}>Stock actual</label><input type="number" style={s.input} value={form.stock_actual} onChange={e => setForm({...form, stock_actual: e.target.value})} onFocus={e => e.target.style.borderColor = c.main} onBlur={e => e.target.style.borderColor = '#e2e8f0'} /></div>
-              <div><label style={s.label}>Stock mínimo</label><input type="number" style={s.input} value={form.stock_minimo} onChange={e => setForm({...form, stock_minimo: e.target.value})} onFocus={e => e.target.style.borderColor = c.main} onBlur={e => e.target.style.borderColor = '#e2e8f0'} /></div>
-              <div><label style={s.label}>Precio de costo ($)</label><input type="number" style={s.input} value={form.precio_costo} onChange={e => setForm({...form, precio_costo: e.target.value})} onFocus={e => e.target.style.borderColor = c.main} onBlur={e => e.target.style.borderColor = '#e2e8f0'} /></div>
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '20px' }}>
-              <button type="button" style={s.btnSecundario} onClick={cancelar}>Cancelar</button>
-              <button type="submit" style={s.btnPrimario(c.main)}>{editando ? 'Guardar cambios' : 'Guardar insumo'}</button>
-            </div>
-          </form>
-        </div>
-      )}
-
-      {mostrarMovimiento && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50 }}>
-          <div style={{ background: '#fff', borderRadius: '20px', padding: '28px', width: '100%', maxWidth: '420px', boxShadow: '0 20px 60px rgba(0,0,0,0.2)' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-              <h4 style={{ margin: 0, fontWeight: '700', color: '#0f172a' }}>Movimiento — {mostrarMovimiento.nombre}</h4>
-              <button onClick={() => setMostrarMovimiento(null)} style={{ background: 'none', border: 'none', fontSize: '20px', cursor: 'pointer', color: '#94a3b8' }}><X size={16} /></button>
-            </div>
-            <p style={{ color: '#64748b', fontSize: '13px', marginBottom: '16px' }}>Stock actual: <strong style={{ color: '#0f172a' }}>{mostrarMovimiento.stock_actual} {mostrarMovimiento.unidad_medida}</strong></p>
-            <form onSubmit={registrarMovimiento}>
-              <div style={s.grid2}>
-                <div><label style={s.label}>Tipo</label><select style={s.input} value={formMov.tipo_movimiento} onChange={e => setFormMov({...formMov, tipo_movimiento: e.target.value})}><option value="entrada">Entrada</option><option value="salida">Salida</option><option value="ajuste">Ajuste</option></select></div>
-                <div><label style={s.label}>Cantidad</label><input type="number" style={s.input} value={formMov.cantidad} onChange={e => setFormMov({...formMov, cantidad: e.target.value})} required onFocus={e => e.target.style.borderColor = c.main} onBlur={e => e.target.style.borderColor = '#e2e8f0'} /></div>
-                <div><label style={s.label}>Motivo</label><input style={s.input} value={formMov.motivo} onChange={e => setFormMov({...formMov, motivo: e.target.value})} onFocus={e => e.target.style.borderColor = c.main} onBlur={e => e.target.style.borderColor = '#e2e8f0'} /></div>
-                <div><label style={s.label}>Precio unitario ($)</label><input type="number" style={s.input} value={formMov.precio_unitario} onChange={e => setFormMov({...formMov, precio_unitario: e.target.value})} onFocus={e => e.target.style.borderColor = c.main} onBlur={e => e.target.style.borderColor = '#e2e8f0'} /></div>
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '16px' }}>
-                <button type="button" style={s.btnSecundario} onClick={() => setMostrarMovimiento(null)}>Cancelar</button>
-                <button type="submit" style={s.btnPrimario(c.main)}>Registrar</button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {vista === 'insumos' && (
-        <>
-          <div style={{ marginBottom: '16px' }}><input style={s.buscador} placeholder=" Buscar insumo..." value={busqueda} onChange={e => setBusqueda(e.target.value)} /></div>
-          <div style={{ ...s.card, padding: 0, overflow: 'hidden' }}>
-            {loading ? <div style={s.empty}>Cargando...</div>
-            : filtrados.length === 0 ? <div style={s.empty}>No hay insumos registrados</div>
-            : (
-              <table style={s.tabla}>
-                <thead><tr>{['Insumo','Categoría','Stock actual','Stock mínimo','Precio costo','Proveedor',''].map(h => <th key={h} style={s.tablaCabecera(c.main)}>{h}</th>)}</tr></thead>
-                <tbody>
-                  {filtrados.map((ins, i) => (
-                    <tr key={ins.id} style={s.tablaFila(i)}>
-                      <td style={s.tablaCellBold}>{ins.nombre}</td>
-                      <td style={s.tablaCell}>{ins.categoria || '—'}</td>
-                      <td style={s.tablaCell}><span style={s.badge(Number(ins.stock_actual) <= Number(ins.stock_minimo) ? '#fee2e2' : '#d1fae5', Number(ins.stock_actual) <= Number(ins.stock_minimo) ? '#dc2626' : '#059669')}>{ins.stock_actual} {ins.unidad_medida}</span></td>
-                      <td style={s.tablaCell}>{ins.stock_minimo} {ins.unidad_medida}</td>
-                      <td style={s.tablaCell}>{ins.precio_costo ? Number(ins.precio_costo).toLocaleString('es-AR', { style: 'currency', currency: 'ARS' }) : '—'}</td>
-                      <td style={s.tablaCell}>{ins.proveedores?.razon_social || '—'}</td>
-                      <td style={s.tablaCell}>
-                        <div style={{ display: 'flex', gap: '6px' }}>
-                          <button style={{ ...s.btnPrimario(c.main), padding: '5px 10px', fontSize: '12px' }} onClick={() => setMostrarMovimiento(ins)}>+ Mov.</button>
-                          <button style={{ ...s.btnPrimario('#0077cc'), padding: '5px 10px', fontSize: '12px' }} onClick={() => abrirEdicion(ins)}><Pencil size={14} /></button>
-                          <button style={s.btnPeligro} onClick={() => eliminarInsumo(ins.id)}><Trash2 size={14} /></button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+      <label style={labelStyle}>Insumos necesarios</label>
+      {items.map((it, i) => (
+        <div key={i} style={{ display: 'flex', gap: '8px', marginBottom: '8px', alignItems: 'flex-start' }}>
+          <div style={{ flex: 1 }}>
+            <select style={{ ...inputStyle, marginBottom: it.insumo_id ? 0 : '6px' }} value={it.insumo_id} onChange={e => actualizarItem(i, 'insumo_id', e.target.value)}>
+              <option value="">Otro (escribir abajo)</option>
+              {insumos.map(ins => <option key={ins.id} value={ins.id}>{ins.nombre}</option>)}
+            </select>
+            {!it.insumo_id && (
+              <input style={inputStyle} value={it.nombre_libre} onChange={e => actualizarItem(i, 'nombre_libre', e.target.value)} placeholder="Nombre del insumo" />
             )}
           </div>
-        </>
-      )}
-
-      {vista === 'movimientos' && (
-        <div style={{ ...s.card, padding: 0, overflow: 'hidden' }}>
-          {movimientos.length === 0 ? <div style={s.empty}>No hay movimientos registrados</div>
-          : (
-            <table style={s.tabla}>
-              <thead><tr>{['Fecha','Insumo','Tipo','Cantidad','Ant.','Nuevo','Motivo'].map(h => <th key={h} style={s.tablaCabecera(c.main)}>{h}</th>)}</tr></thead>
-              <tbody>
-                {movimientos.map((m, i) => {
-                  const mc = movColor[m.tipo_movimiento] || { bg: '#f1f5f9', color: '#64748b' }
-                  return (
-                    <tr key={m.id} style={s.tablaFila(i)}>
-                      <td style={s.tablaCell}>{new Date(m.creado_en).toLocaleDateString('es-AR')}</td>
-                      <td style={s.tablaCellBold}>{m.insumos?.nombre}</td>
-                      <td style={s.tablaCell}><span style={s.badge(mc.bg, mc.color)}>{m.tipo_movimiento}</span></td>
-                      <td style={s.tablaCellBold}>{m.cantidad}</td>
-                      <td style={s.tablaCell}>{m.stock_anterior}</td>
-                      <td style={s.tablaCellBold}>{m.stock_nuevo}</td>
-                      <td style={s.tablaCell}>{m.motivo || '—'}</td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
+          <input type="number" min="1" step="1" style={{ ...inputStyle, width: '70px', flexShrink: 0 }} value={it.cantidad} onChange={e => actualizarItem(i, 'cantidad', e.target.value)} />
+          {items.length > 1 && (
+            <button type="button" onClick={() => quitarItem(i)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '10px 0', flexShrink: 0 }}>
+              <Trash2 size={17} color={paleta.danger} />
+            </button>
           )}
         </div>
+      ))}
+      <button type="button" onClick={agregarItem} style={{ background: 'none', border: `1.5px dashed ${paleta.line}`, borderRadius: '8px', padding: '9px', width: '100%', color: paleta.brand, fontWeight: '600', fontSize: '13.5px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', marginBottom: '16px' }}>
+        <Plus size={14} /> Agregar otro insumo
+      </button>
+
+      <div style={{ marginBottom: '18px' }}>
+        <label style={labelStyle}>Notas (opcional)</label>
+        <textarea style={{ ...inputStyle, resize: 'vertical' }} rows={2} value={notas} onChange={e => setNotas(e.target.value)} placeholder="Alguna aclaración..." />
+      </div>
+
+      {error && <p style={{ color: paleta.danger, fontSize: '13px', fontWeight: '600', marginBottom: '14px' }}>{error}</p>}
+
+      <button type="submit" disabled={enviando} style={{
+        width: '100%', background: paleta.brand, color: '#fff', border: 'none', borderRadius: '9px',
+        padding: '13px', fontWeight: '700', fontSize: '15px', cursor: enviando ? 'default' : 'pointer',
+        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', opacity: enviando ? 0.7 : 1
+      }}>
+        {enviando ? <><Loader2 size={16} style={{ animation: 'spin 1s linear infinite' }} /> Enviando…</> : 'Enviar pedido'}
+      </button>
+    </form>
+  )
+}
+
+function ConfirmarRecepcion({ sucursales, insumos }) {
+  const [sucursalId, setSucursalId] = useState('')
+  const [items, setItems] = useState(null)
+  const [cargando, setCargando] = useState(false)
+  const [confirmando, setConfirmando] = useState(null)
+
+  async function buscar(sId) {
+    setSucursalId(sId)
+    if (!sId) { setItems(null); return }
+    setCargando(true)
+    const { data: solicitudes } = await supabase.from('solicitudes_insumos').select('id').eq('sucursal_id', sId)
+    const idsSolicitud = (solicitudes || []).map(s => s.id)
+    if (idsSolicitud.length === 0) { setItems([]); setCargando(false); return }
+    const { data: it } = await supabase.from('solicitud_insumos_items').select('*').in('solicitud_id', idsSolicitud).eq('estado', 'enviado')
+    setItems(it || [])
+    setCargando(false)
+  }
+
+  async function confirmarRecibido(item) {
+    setConfirmando(item.id)
+    await supabase.from('solicitud_insumos_items').update({ estado: 'recibido' }).eq('id', item.id)
+    setItems(prev => prev.filter(it => it.id !== item.id))
+    setConfirmando(null)
+  }
+
+  return (
+    <div style={{ background: '#fff', borderRadius: '14px', padding: '22px', border: `1px solid ${paleta.line}` }}>
+      <label style={labelStyle}>Sucursal</label>
+      <select style={{ ...inputStyle, marginBottom: '18px' }} value={sucursalId} onChange={e => buscar(e.target.value)}>
+        <option value="">Seleccionar sucursal</option>
+        {sucursales.map(s => <option key={s.id} value={s.id}>{s.nombre} {s.cliente_nombre ? `— ${s.cliente_nombre}` : ''}</option>)}
+      </select>
+
+      {cargando && <p style={{ textAlign: 'center', color: paleta.muted, fontSize: '13px' }}>Buscando…</p>}
+
+      {items && !cargando && (
+        items.length === 0 ? (
+          <p style={{ textAlign: 'center', color: paleta.muted, fontSize: '13.5px', padding: '20px 0' }}>No hay pedidos en camino para esta sucursal.</p>
+        ) : (
+          <div>
+            <p style={{ fontSize: '12.5px', color: paleta.muted, marginBottom: '10px' }}>Marcá lo que ya llegó:</p>
+            {items.map(it => {
+              const insumo = insumos.find(i => i.id === it.insumo_id)
+              return (
+                <div key={it.id} style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '11px 0', borderTop: `1px solid ${paleta.line}` }}>
+                  <span style={{ flex: 1, fontSize: '14px', color: paleta.ink }}>{insumo?.nombre || it.nombre_libre} <strong>× {it.cantidad}</strong></span>
+                  <button onClick={() => confirmarRecibido(it)} disabled={confirmando === it.id} style={{
+                    background: paleta.brand, color: '#fff', border: 'none', borderRadius: '7px', padding: '8px 14px',
+                    fontWeight: '600', fontSize: '12.5px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '5px'
+                  }}>
+                    <PackageCheck size={14} /> {confirmando === it.id ? 'Guardando…' : 'Llegó'}
+                  </button>
+                </div>
+              )
+            })}
+          </div>
+        )
       )}
     </div>
   )
 }
 
-export default Insumos
+export default SolicitudInsumos
