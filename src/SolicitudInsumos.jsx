@@ -105,7 +105,8 @@ function FormularioPedido({ sucursales, insumos }) {
       if (e2) throw e2
       setEnviado(true)
     } catch (err) {
-      setError('No se pudo enviar la solicitud. Probá de nuevo.')
+      const detalle = err?.message || err?.error_description || err?.hint || JSON.stringify(err)
+      setError(`No se pudo enviar. Detalle técnico: ${detalle}`)
     } finally {
       setEnviando(false)
     }
