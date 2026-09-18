@@ -84,7 +84,7 @@ function Facturacion()  {
       }
       if (totalHoras > 0) {
         const subtotal = totalHoras * Number(ct.valor_hora)
-        resultados.push({ contrato: ct, ordenes: detalleOrdenes, totalHoras, valorHora: Number(ct.valor_hora), subtotal, cliente: ct.clientes })
+        resultados.push({ contrato: ct, ordenes: detalleOrdenes, totalHoras, valorHora: Number(ct.valor_hora), subtotal, ivaPorc: 21, cliente: ct.clientes })
       }
     }
     setResumenHoras(resultados)
@@ -95,6 +95,7 @@ function Facturacion()  {
     const desde = mesGenerador + '-01'
     const hasta = mesGenerador+'-'+new Date(+mesGenerador.split('-')[0], +mesGenerador.split('-')[1], 0).getDate()
     const detalle = resumen.ordenes.map(o => `${o.numero_orden} (${new Date(o.fecha_programada + 'T00:00:00').toLocaleDateString('es-AR')}): ${o.horas}hs`).join(' | ')
+    const impuestos = resumen.subtotal * (Number(resumen.ivaPorc) || 0) / 100
     const { error } = await supabase.from('facturas').insert([{
       numero_factura: 'FAC-' + new Date().getFullYear() + '-' + (Math.floor(Math.random() * 900) + 100),
       contrato_id: resumen.contrato.id,
@@ -102,12 +103,16 @@ function Facturacion()  {
       fecha_emision: new Date().toISOString().split('T')[0],
       periodo_desde: desde, periodo_hasta: hasta,
       fecha_vencimiento: null,
-      subtotal: resumen.subtotal, impuestos: 0, total: resumen.subtotal,
+      subtotal: resumen.subtotal, impuestos, total: resumen.subtotal + impuestos,
       observaciones: `Facturación por horas — ${resumen.totalHoras}hs × $${resumen.valorHora}/h | ${detalle}`
     }])
     if (error) { alert('Error: ' + error.message); return }
     alert(`Factura generada para ${resumen.cliente.razon_social || resumen.cliente.nombre_contacto}`)
     cargarDatos()
+  }
+
+  function actualizarIvaResumen(i, valor) {
+    setResumenHoras(prev => prev.map((r, idx) => idx === i ? { ...r, ivaPorc: valor } : r))
   }
 
 
@@ -313,18 +318,27 @@ function Facturacion()  {
                   </div>
                 ))}
               </div>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: '10px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: '10px' }}>
                 <div style={{ background: '#fef3c7', borderRadius: '10px', padding: '12px', textAlign: 'center' }}>
                   <p style={{ margin: '0 0 4px', fontSize: '11px', color: '#d97706', fontWeight: '700', textTransform: 'uppercase' }}>Total horas</p>
                   <p style={{ margin: 0, fontSize: '22px', fontWeight: '800', color: '#d97706' }}>{r.totalHoras} hs</p>
                 </div>
                 <div style={{ background: '#dbeafe', borderRadius: '10px', padding: '12px', textAlign: 'center' }}>
-                  <p style={{ margin: '0 0 4px', fontSize: '11px', color: '#1d4ed8', fontWeight: '700', textTransform: 'uppercase' }}>Valor hora</p>
-                  <p style={{ margin: 0, fontSize: '22px', fontWeight: '800', color: '#1d4ed8' }}>{r.valorHora.toLocaleString('es-AR', { style: 'currency', currency: 'ARS' })}</p>
+                  <p style={{ margin: '0 0 4px', fontSize: '11px', color: '#1d4ed8', fontWeight: '700', textTransform: 'uppercase' }}>Subtotal</p>
+                  <p style={{ margin: 0, fontSize: '20px', fontWeight: '800', color: '#1d4ed8' }}>{r.subtotal.toLocaleString('es-AR', { style: 'currency', currency: 'ARS' })}</p>
+                </div>
+                <div style={{ background: '#ede9fe', borderRadius: '10px', padding: '12px', textAlign: 'center' }}>
+                  <p style={{ margin: '0 0 6px', fontSize: '11px', color: '#7c3aed', fontWeight: '700', textTransform: 'uppercase' }}>IVA</p>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }}>
+                    <input type="number" step="0.01" value={r.ivaPorc} onChange={e => actualizarIvaResumen(i, e.target.value)}
+                      style={{ width: '52px', textAlign: 'center', fontWeight: '800', fontSize: '15px', color: '#7c3aed', border: '1.5px solid #ddd6fe', borderRadius: '6px', padding: '3px' }} />
+                    <span style={{ fontSize: '13px', color: '#7c3aed', fontWeight: '700' }}>%</span>
+                  </div>
+                  <p style={{ margin: '4px 0 0', fontSize: '12px', color: '#7c3aed' }}>{(r.subtotal * (Number(r.ivaPorc)||0) / 100).toLocaleString('es-AR', { style: 'currency', currency: 'ARS' })}</p>
                 </div>
                 <div style={{ background: '#d1fae5', borderRadius: '10px', padding: '12px', textAlign: 'center', border: '2px solid #6ee7b7' }}>
                   <p style={{ margin: '0 0 4px', fontSize: '11px', color: '#059669', fontWeight: '700', textTransform: 'uppercase' }}>Total a facturar</p>
-                  <p style={{ margin: 0, fontSize: '22px', fontWeight: '800', color: '#059669' }}>{r.subtotal.toLocaleString('es-AR', { style: 'currency', currency: 'ARS' })}</p>
+                  <p style={{ margin: 0, fontSize: '20px', fontWeight: '800', color: '#059669' }}>{(r.subtotal * (1 + (Number(r.ivaPorc)||0)/100)).toLocaleString('es-AR', { style: 'currency', currency: 'ARS' })}</p>
                 </div>
               </div>
             </div>
