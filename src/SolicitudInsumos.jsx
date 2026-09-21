@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { supabase } from './supabase.js'
 import { paleta } from './estilos.js'
-import { Package, Plus, Trash2, CheckCircle2, Loader2, PackageCheck } from 'lucide-react'
+import { Package, Plus, Trash2, CheckCircle2, Loader2, PackageCheck, Play, Square, Clock } from 'lucide-react'
 
 const inputStyle = {
   width: '100%', padding: '11px 13px', boxSizing: 'border-box', background: '#fff',
@@ -38,30 +38,37 @@ function SolicitudInsumos() {
             <Package size={19} color="#fff" />
           </div>
           <div>
-            <p style={{ margin: 0, fontWeight: '800', fontSize: '16px', color: paleta.ink }}>Insumos</p>
-            <p style={{ margin: 0, fontSize: '12.5px', color: paleta.muted }}>Briseo — pedidos por sucursal</p>
+            <p style={{ margin: 0, fontWeight: '800', fontSize: '16px', color: paleta.ink }}>Portal de campo</p>
+            <p style={{ margin: 0, fontSize: '12.5px', color: paleta.muted }}>Briseo — pedidos y servicios por sucursal</p>
           </div>
         </div>
 
-        <div style={{ display: 'flex', gap: '8px', marginBottom: '18px' }}>
+        <div style={{ display: 'flex', gap: '8px', marginBottom: '18px', flexWrap: 'wrap' }}>
           <button onClick={() => setModo('pedir')} style={{
-            flex: 1, padding: '11px', borderRadius: '9px', cursor: 'pointer', fontWeight: '700', fontSize: '13.5px',
+            flex: '1 1 30%', padding: '11px', borderRadius: '9px', cursor: 'pointer', fontWeight: '700', fontSize: '13px',
             background: modo === 'pedir' ? paleta.brand : '#fff', color: modo === 'pedir' ? '#fff' : paleta.inkSoft,
             border: modo === 'pedir' ? 'none' : `1.5px solid ${paleta.line}`
-          }}>Hacer un pedido</button>
+          }}>Pedir insumos</button>
           <button onClick={() => setModo('confirmar')} style={{
-            flex: 1, padding: '11px', borderRadius: '9px', cursor: 'pointer', fontWeight: '700', fontSize: '13.5px',
+            flex: '1 1 30%', padding: '11px', borderRadius: '9px', cursor: 'pointer', fontWeight: '700', fontSize: '13px',
             background: modo === 'confirmar' ? paleta.brand : '#fff', color: modo === 'confirmar' ? '#fff' : paleta.inkSoft,
             border: modo === 'confirmar' ? 'none' : `1.5px solid ${paleta.line}`
           }}>Confirmar que llegó</button>
+          <button onClick={() => setModo('servicio')} style={{
+            flex: '1 1 30%', padding: '11px', borderRadius: '9px', cursor: 'pointer', fontWeight: '700', fontSize: '13px',
+            background: modo === 'servicio' ? paleta.brand : '#fff', color: modo === 'servicio' ? '#fff' : paleta.inkSoft,
+            border: modo === 'servicio' ? 'none' : `1.5px solid ${paleta.line}`
+          }}>Marcar servicio</button>
         </div>
 
         {cargando ? (
           <div style={{ textAlign: 'center', padding: '40px 0', color: paleta.muted }}>Cargando…</div>
         ) : modo === 'pedir' ? (
           <FormularioPedido sucursales={sucursales} insumos={insumos} />
-        ) : (
+        ) : modo === 'confirmar' ? (
           <ConfirmarRecepcion sucursales={sucursales} insumos={insumos} />
+        ) : (
+          <MarcarServicio sucursales={sucursales} />
         )}
       </div>
     </div>
@@ -239,6 +246,123 @@ function ConfirmarRecepcion({ sucursales, insumos }) {
           </div>
         )
       )}
+    </div>
+  )
+}
+
+function MarcarServicio({ sucursales }) {
+  const [sucursalId, setSucursalId] = useState('')
+  const [cargando, setCargando] = useState(false)
+  const [orden, setOrden] = useState(null)
+  const [asignaciones, setAsignaciones] = useState([])
+  const [empleadoId, setEmpleadoId] = useState('')
+  const [empleadosOrden, setEmpleadosOrden] = useState([])
+  const [error, setError] = useState('')
+  const [guardando, setGuardando] = useState(false)
+
+  async function buscar(sId) {
+    setSucursalId(sId)
+    setOrden(null); setAsignaciones([]); setEmpleadoId(''); setError('')
+    if (!sId) return
+    setCargando(true)
+    const hoy = new Date().toISOString().split('T')[0]
+    const { data: ordenes } = await supabase.from('ordenes_publicas').select('*').eq('sucursal_id', sId).eq('fecha_programada', hoy)
+    if (!ordenes || ordenes.length === 0) { setCargando(false); return }
+    const ordenHoy = ordenes[0]
+    setOrden(ordenHoy)
+    const [{ data: asig }, { data: emps }] = await Promise.all([
+      supabase.from('orden_empleados').select('*').eq('orden_id', ordenHoy.id),
+      supabase.from('empleados_publicos').select('*'),
+    ])
+    setAsignaciones(asig || [])
+    setEmpleadosOrden(emps || [])
+    setCargando(false)
+  }
+
+  const miAsignacion = asignaciones.find(a => a.empleado_id === empleadoId)
+
+  async function marcarInicio() {
+    if (!miAsignacion) return
+    setGuardando(true)
+    const { error: e } = await supabase.from('orden_empleados').update({ estado: 'en_curso', hora_inicio_real: new Date().toISOString() }).eq('id', miAsignacion.id)
+    if (e) { setError('No se pudo registrar. Probá de nuevo.'); setGuardando(false); return }
+    await buscar(sucursalId)
+    setEmpleadoId(empleadoId)
+    setGuardando(false)
+  }
+
+  async function marcarFin() {
+    if (!miAsignacion) return
+    setGuardando(true)
+    const inicio = new Date(miAsignacion.hora_inicio_real)
+    const fin = new Date()
+    const horas = Math.max(0, (fin - inicio) / (1000 * 60 * 60))
+    const { error: e } = await supabase.from('orden_empleados').update({
+      estado: 'finalizado', hora_fin_real: fin.toISOString(), horas_trabajadas: Math.round(horas * 100) / 100
+    }).eq('id', miAsignacion.id)
+    if (e) { setError('No se pudo registrar. Probá de nuevo.'); setGuardando(false); return }
+    await buscar(sucursalId)
+    setEmpleadoId(empleadoId)
+    setGuardando(false)
+  }
+
+  return (
+    <div style={{ background: '#fff', borderRadius: '14px', padding: '22px', border: `1px solid ${paleta.line}` }}>
+      <label style={labelStyle}>Sucursal</label>
+      <select style={{ ...inputStyle, marginBottom: '16px' }} value={sucursalId} onChange={e => buscar(e.target.value)}>
+        <option value="">Seleccionar sucursal</option>
+        {sucursales.map(s => <option key={s.id} value={s.id}>{s.nombre} {s.cliente_nombre ? `— ${s.cliente_nombre}` : ''}</option>)}
+      </select>
+
+      {cargando && <p style={{ textAlign: 'center', color: paleta.muted, fontSize: '13px' }}>Buscando…</p>}
+
+      {sucursalId && !cargando && !orden && (
+        <p style={{ textAlign: 'center', color: paleta.muted, fontSize: '13.5px', padding: '20px 0' }}>No hay ningún servicio programado hoy en esta sucursal.</p>
+      )}
+
+      {orden && (
+        <>
+          <p style={{ fontSize: '12px', color: paleta.muted, marginBottom: '14px' }}>Servicio de hoy: <strong>{orden.numero_orden}</strong></p>
+          <label style={labelStyle}>¿Quién sos?</label>
+          <select style={{ ...inputStyle, marginBottom: '16px' }} value={empleadoId} onChange={e => setEmpleadoId(e.target.value)}>
+            <option value="">Elegí tu nombre</option>
+            {asignaciones.map(a => {
+              const emp = empleadosOrden.find(e => e.id === a.empleado_id)
+              return <option key={a.id} value={a.empleado_id}>{emp ? `${emp.apellido}, ${emp.nombre}` : 'Empleado'}</option>
+            })}
+          </select>
+
+          {miAsignacion && (
+            <div style={{ borderTop: `1px solid ${paleta.line}`, paddingTop: '16px' }}>
+              {miAsignacion.estado === 'pendiente' && (
+                <button onClick={marcarInicio} disabled={guardando} style={{
+                  width: '100%', background: paleta.brand, color: '#fff', border: 'none', borderRadius: '9px', padding: '13px',
+                  fontWeight: '700', fontSize: '15px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px'
+                }}><Play size={16} /> {guardando ? 'Guardando…' : 'Marcar inicio'}</button>
+              )}
+              {miAsignacion.estado === 'en_curso' && (
+                <>
+                  <p style={{ fontSize: '12.5px', color: paleta.brand, marginBottom: '10px', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                    <Clock size={13} /> Trabajando desde las {new Date(miAsignacion.hora_inicio_real).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })}
+                  </p>
+                  <button onClick={marcarFin} disabled={guardando} style={{
+                    width: '100%', background: paleta.danger, color: '#fff', border: 'none', borderRadius: '9px', padding: '13px',
+                    fontWeight: '700', fontSize: '15px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px'
+                  }}><Square size={15} /> {guardando ? 'Guardando…' : 'Marcar fin'}</button>
+                </>
+              )}
+              {miAsignacion.estado === 'finalizado' && (
+                <div style={{ textAlign: 'center', padding: '10px 0' }}>
+                  <CheckCircle2 size={26} color={paleta.brand} style={{ marginBottom: '6px' }} />
+                  <p style={{ fontSize: '13.5px', color: paleta.ink, fontWeight: '600', margin: 0 }}>Ya marcaste tu jornada de hoy</p>
+                  <p style={{ fontSize: '12px', color: paleta.muted, margin: '2px 0 0' }}>{miAsignacion.horas_trabajadas}hs trabajadas</p>
+                </div>
+              )}
+            </div>
+          )}
+        </>
+      )}
+      {error && <p style={{ color: paleta.danger, fontSize: '13px', fontWeight: '600', marginTop: '12px' }}>{error}</p>}
     </div>
   )
 }
