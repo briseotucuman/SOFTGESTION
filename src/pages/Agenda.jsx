@@ -351,7 +351,7 @@ function Agenda() {
                 <div style={{ background:'#f0fdf4', borderRadius:'12px', padding:'16px', marginBottom:'16px', border:'1px solid #86efac' }}>
                   <p style={{ ...s.label, color:'#059669', marginBottom:'12px', fontSize:'13px' }}>Horas trabajadas por empleado</p>
                   {Object.entries(horasEmpleados).map(([empId, eo]) => (
-                    <div key={empId} style={{ display:'flex', alignItems:'center', gap:'12px', marginBottom:'10px' }}>
+                    <div key={empId} style={{ display:'flex', alignItems:'center', gap:'12px', marginBottom:'10px', flexWrap: 'wrap' }}>
                       <span style={{ fontSize:'13px', color:'#374151', fontWeight:'600', minWidth:'160px' }}>{eo.empleados?.apellido}, {eo.empleados?.nombre}</span>
                       <span style={{ fontSize:'11px', color:'#94a3b8', minWidth:'80px' }}>${eo.empleados?.costo_hora}/h</span>
                       <input type="number" placeholder="Horas" value={eo.horas}
@@ -360,6 +360,12 @@ function Agenda() {
                       <span style={{ fontSize:'13px', fontWeight:'700', color:'#059669', minWidth:'100px' }}>
                         = {(Number(eo.horas) * Number(eo.empleados?.costo_hora||0)).toLocaleString('es-AR',{style:'currency',currency:'ARS'})}
                       </span>
+                      {eo.hora_inicio_real && (
+                        <span style={{ fontSize:'11px', color:'#059669', background:'#d1fae5', padding:'3px 8px', borderRadius:'99px', fontWeight:'600' }}>
+                          ✓ Marcado en campo {new Date(eo.hora_inicio_real).toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit'})}
+                          {eo.hora_fin_real && ` - ${new Date(eo.hora_fin_real).toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit'})}`}
+                        </span>
+                      )}
                     </div>
                   ))}
                   <div style={{ borderTop:'1px solid #86efac', paddingTop:'10px', display:'flex', justifyContent:'space-between' }}>
