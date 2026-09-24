@@ -43,7 +43,7 @@ export const colores = {
   costos:       { main: '#0D9488', light: '#0D948815', gradient: 'linear-gradient(135deg, #0D9488 0%, #0F766E 100%)' },
   sueldos:      { main: '#7C3AED', light: '#7C3AED15', gradient: 'linear-gradient(135deg, #7C3AED 0%, #6D28D9 100%)' },
   proveedores:  { main: '#C2410C', light: '#C2410C15', gradient: 'linear-gradient(135deg, #C2410C 0%, #9A3412 100%)' },
-  reportes:     { main: '#DB2777', light: '#DB277715', gradient: 'linear-gradient(135deg, #DB2777 0%, #BE185D 100%)' },
+  reportes:     { main: '#1E293B', light: '#1E293B15', gradient: 'linear-gradient(135deg, #0F172A 0%, #1E293B 100%)' },
   usuarios:     { main: '#4B5563', light: '#4B556315', gradient: 'linear-gradient(135deg, #4B5563 0%, #374151 100%)' },
   danger:       { main: '#BE123C', light: '#FFE4E6', gradient: '#BE123C' },
   warning:      { main: '#B45309', light: '#FEF3C7', gradient: '#B45309' },
