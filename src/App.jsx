@@ -10,14 +10,22 @@ function AppPrivada() {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    supabase.auth.getSession()
+      .then((res) => {
+        setSession(res?.data?.session || null)
+        setLoading(false)
+      })
+      .catch(() => {
+        setLoading(false)
+      })
+
+    const { data: authListener } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session)
-      setLoading(false)
     })
 
-    supabase.auth.onAuthStateChange((_event, session) => {
-      setSession(session)
-    })
+    return () => {
+      authListener?.subscription?.unsubscribe?.()
+    }
   }, [])
 
   if (loading) return (
@@ -29,7 +37,7 @@ function AppPrivada() {
     </div>
   )
 
-  if (!session) return <Login />
+  if (!session) return <Login onLogin={(user) => setSession({ user })} />
 
   return <Dashboard user={session.user} />
 }

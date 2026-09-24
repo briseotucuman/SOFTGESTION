@@ -1,145 +1,164 @@
 // ============================================================
-// Sistema de diseño — SOFTGESTION (Briseo)
-// Identidad: herramienta operativa de precisión. Sin gradientes
-// candy, sin mayúsculas por defecto, un color de marca sólido
-// (verde profundo) y acentos por módulo para orientación rápida.
+// Sistema de diseño — SOFTGESTION ENTERPRISE ERP (Briseo)
+// Estética: Enterprise ERP de alta densidad (SAP / Stripe / Linear).
+// Tipografía suiza/monospaciada, bordes quirúrgicos de 1px,
+// paleta Slate neutral con acentos cromáticos por dominio operativo.
 // ============================================================
 
 export const paleta = {
-  ink: '#16211D',       // texto principal / superficies oscuras
-  inkSoft: '#3C4A44',   // texto secundario oscuro
-  muted: '#5B685F',     // texto terciario / placeholders
-  paper: '#F3F5F1',     // fondo de la app
-  surface: '#FFFFFF',   // tarjetas
-  line: '#E1E4DE',      // bordes
-  lineStrong: '#C7CCC4',
-  brand: '#1F6F5C',     // marca / acciones primarias
-  brandDark: '#164F42', // hover / variante oscura
-  brandSoft: '#E3EFEA', // fondo tintado de marca
-  warn: '#A8631E',
-  warnSoft: '#F7EADA',
-  danger: '#AC3B2A',
-  dangerSoft: '#FBEAE7',
-  info: '#3D5A73',
-  infoSoft: '#E7EEF3',
-  font: "'IBM Plex Sans', 'Segoe UI', system-ui, sans-serif",
+  ink: '#0F172A',          // Slate 900 - texto principal y contrastes altos
+  inkSoft: '#334155',      // Slate 700 - texto de datos y etiquetas
+  muted: '#64748B',        // Slate 500 - metadatos, timestamps y placeholders
+  paper: '#F8FAFC',        // Slate 50 - fondo general del ERP
+  surface: '#FFFFFF',      // Blanco puro - tarjetas, tablas y modales
+  surfaceMuted: '#F1F5F9', // Slate 100 - fondos de inputs, hover y zebra
+  line: '#E2E8F0',         // Slate 200 - divisores y bordes sutiles
+  lineStrong: '#CBD5E1',   // Slate 300 - bordes de inputs y botones
+  brand: '#0F766E',        // Teal 700 - color institucional primario
+  brandDark: '#115E59',    // Teal 800 - estado activo / hover
+  brandSoft: '#F0FDFA',    // Teal 50 - fondos tenues de marca
+  warn: '#B45309',         // Amber 700
+  warnSoft: '#FEF3C7',     // Amber 100
+  danger: '#BE123C',       // Rose 700
+  dangerSoft: '#FFE4E6',   // Rose 100
+  info: '#0369A1',         // Sky 700
+  infoSoft: '#E0F2FE',     // Sky 100
+  success: '#15803D',      // Emerald 700
+  successSoft: '#DCFCE7',  // Emerald 100
+  font: "'IBM Plex Sans', 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif",
+  fontMono: "'IBM Plex Mono', 'Geist Mono', ui-monospace, SFMono-Regular, monospace",
 }
 
-// Acento por módulo: usado en encabezados, headers de tabla,
-// bordes activos y badges — nunca como fondo de página completa.
+// Acento por módulo funcional: mantiene consistencia con la arquitectura de permisos
 export const colores = {
-  clientes:     { main: '#1F6F5C', light: '#1F6F5C1A', gradient: 'linear-gradient(155deg, #1F6F5C, #164F42)' },
-  contratos:    { main: '#3D5A80', light: '#3D5A801A', gradient: 'linear-gradient(155deg, #3D5A80, #2C4260)' },
-  personal:     { main: '#4C7A3F', light: '#4C7A3F1A', gradient: 'linear-gradient(155deg, #4C7A3F, #395C2E)' },
-  agenda:       { main: '#B5701D', light: '#B5701D1A', gradient: 'linear-gradient(155deg, #B5701D, #8C5716)' },
-  presupuestos: { main: '#2E7C8C', light: '#2E7C8C1A', gradient: 'linear-gradient(155deg, #2E7C8C, #235F6B)' },
-  facturacion:  { main: '#A8412E', light: '#A8412E1A', gradient: 'linear-gradient(155deg, #A8412E, #7E3022)' },
-  insumos:      { main: '#5C6BB0', light: '#5C6BB01A', gradient: 'linear-gradient(155deg, #5C6BB0, #454F87)' },
-  finanzas:     { main: '#2F8F6B', light: '#2F8F6B1A', gradient: 'linear-gradient(155deg, #2F8F6B, #226B4F)' },
-  costos:       { main: '#146B5E', light: '#146B5E1A', gradient: 'linear-gradient(155deg, #146B5E, #0E4E44)' },
-  sueldos:      { main: '#7A5AA6', light: '#7A5AA61A', gradient: 'linear-gradient(155deg, #7A5AA6, #5C4380)' },
-  proveedores:  { main: '#9C6B1D', light: '#9C6B1D1A', gradient: 'linear-gradient(155deg, #9C6B1D, #785316)' },
-  reportes:     { main: '#8C4B5E', light: '#8C4B5E1A', gradient: 'linear-gradient(155deg, #8C4B5E, #6B3948)' },
-  usuarios:     { main: '#46707D', light: '#46707D1A', gradient: 'linear-gradient(155deg, #46707D, #35555F)' },
-  danger: { main: '#AC3B2A', light: '#FBEAE7', gradient: '#AC3B2A' },
-  warning:{ main: '#A8631E', light: '#F7EADA', gradient: '#A8631E' },
-  info:   { main: '#3D5A73', light: '#E7EEF3', gradient: '#3D5A73' },
+  clientes:     { main: '#0F766E', light: '#0F766E15', gradient: 'linear-gradient(135deg, #0F766E 0%, #115E59 100%)' },
+  crm:          { main: '#2563EB', light: '#2563EB15', gradient: 'linear-gradient(135deg, #2563EB 0%, #1D4ED8 100%)' },
+  contratos:    { main: '#475569', light: '#47556915', gradient: 'linear-gradient(135deg, #334155 0%, #1E293B 100%)' },
+  personal:     { main: '#15803D', light: '#15803D15', gradient: 'linear-gradient(135deg, #15803D 0%, #166534 100%)' },
+  agenda:       { main: '#D97706', light: '#D9770615', gradient: 'linear-gradient(135deg, #B45309 0%, #92400E 100%)' },
+  presupuestos: { main: '#0284C7', light: '#0284C715', gradient: 'linear-gradient(135deg, #0284C7 0%, #0369A1 100%)' },
+  facturacion:  { main: '#E11D48', light: '#E11D4815', gradient: 'linear-gradient(135deg, #BE123C 0%, #9F1239 100%)' },
+  insumos:      { main: '#6366F1', light: '#6366F115', gradient: 'linear-gradient(135deg, #6366F1 0%, #4F46E5 100%)' },
+  finanzas:     { main: '#059669', light: '#05966915', gradient: 'linear-gradient(135deg, #059669 0%, #047857 100%)' },
+  costos:       { main: '#0D9488', light: '#0D948815', gradient: 'linear-gradient(135deg, #0D9488 0%, #0F766E 100%)' },
+  sueldos:      { main: '#7C3AED', light: '#7C3AED15', gradient: 'linear-gradient(135deg, #7C3AED 0%, #6D28D9 100%)' },
+  proveedores:  { main: '#C2410C', light: '#C2410C15', gradient: 'linear-gradient(135deg, #C2410C 0%, #9A3412 100%)' },
+  reportes:     { main: '#DB2777', light: '#DB277715', gradient: 'linear-gradient(135deg, #DB2777 0%, #BE185D 100%)' },
+  usuarios:     { main: '#4B5563', light: '#4B556315', gradient: 'linear-gradient(135deg, #4B5563 0%, #374151 100%)' },
+  danger:       { main: '#BE123C', light: '#FFE4E6', gradient: '#BE123C' },
+  warning:      { main: '#B45309', light: '#FEF3C7', gradient: '#B45309' },
+  info:         { main: '#0369A1', light: '#E0F2FE', gradient: '#0369A1' },
 }
 
 export const s = {
   cabecera: (fondo) => ({
     background: fondo,
-    borderRadius: '12px',
-    padding: '18px 22px',
+    borderRadius: '10px',
+    padding: '16px 20px',
     marginBottom: '20px',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'space-between',
-    boxShadow: '0 1px 2px rgba(22,33,29,0.08)'
+    boxShadow: '0 1px 3px 0 rgba(15, 23, 42, 0.08), 0 1px 2px -1px rgba(15, 23, 42, 0.06)',
+    border: '1px solid rgba(255, 255, 255, 0.12)'
   }),
   cabeceraTexto: {
-    color: '#ffffff',
+    color: '#FFFFFF',
     margin: 0,
-    fontSize: '18px',
+    fontSize: '17px',
     fontWeight: '700',
-    letterSpacing: '-0.01em'
+    letterSpacing: '-0.015em',
+    lineHeight: '1.2'
   },
   cabeceraSubtexto: {
-    color: 'rgba(255,255,255,0.78)',
-    margin: '3px 0 0',
-    fontSize: '13px'
+    color: 'rgba(255, 255, 255, 0.82)',
+    margin: '4px 0 0',
+    fontSize: '12.5px',
+    fontWeight: '400'
   },
 
   btnPrimario: (color) => ({
-    background: color,
-    color: '#ffffff',
-    border: 'none',
-    borderRadius: '8px',
-    padding: '10px 18px',
+    background: color || paleta.brand,
+    color: '#FFFFFF',
+    border: '1px solid rgba(0, 0, 0, 0.12)',
+    borderRadius: '6px',
+    padding: '8px 16px',
     fontWeight: '600',
-    fontSize: '14px',
+    fontSize: '13px',
     cursor: 'pointer',
-    transition: 'filter 0.15s',
-    whiteSpace: 'nowrap'
+    transition: 'all 0.15s ease',
+    whiteSpace: 'nowrap',
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: '6px',
+    boxShadow: '0 1px 2px 0 rgba(0, 0, 0, 0.05)'
   }),
   btnSecundario: {
-    background: '#ffffff',
-    color: '#3C4A44',
-    border: '1.5px solid #E1E4DE',
-    borderRadius: '8px',
-    padding: '10px 18px',
+    background: '#FFFFFF',
+    color: paleta.inkSoft,
+    border: `1px solid ${paleta.lineStrong}`,
+    borderRadius: '6px',
+    padding: '8px 15px',
     fontWeight: '600',
-    fontSize: '14px',
+    fontSize: '13px',
     cursor: 'pointer',
-    transition: 'border-color 0.15s'
+    transition: 'all 0.15s ease',
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: '6px',
+    boxShadow: '0 1px 2px 0 rgba(0, 0, 0, 0.02)'
   },
   btnPeligro: {
-    background: '#FBEAE7',
-    color: '#AC3B2A',
-    border: '1px solid #AC3B2A33',
-    borderRadius: '8px',
-    padding: '6px 12px',
+    background: '#FFF1F2',
+    color: paleta.danger,
+    border: '1px solid #FECDD3',
+    borderRadius: '6px',
+    padding: '5px 11px',
     fontWeight: '600',
     fontSize: '12px',
-    cursor: 'pointer'
+    cursor: 'pointer',
+    transition: 'all 0.15s ease'
   },
 
   card: {
-    background: '#FFFFFF',
-    borderRadius: '12px',
+    background: paleta.surface,
+    borderRadius: '10px',
     padding: '22px',
     marginBottom: '18px',
-    boxShadow: '0 1px 2px rgba(22,33,29,0.06)',
-    border: '1px solid #E1E4DE'
+    boxShadow: '0 1px 3px 0 rgba(15, 23, 42, 0.04), 0 1px 2px -1px rgba(15, 23, 42, 0.03)',
+    border: `1px solid ${paleta.line}`
   },
   label: {
     display: 'block',
-    color: '#3C4A44',
-    fontSize: '12.5px',
+    color: paleta.inkSoft,
+    fontSize: '12px',
     fontWeight: '600',
-    marginBottom: '6px'
+    marginBottom: '5px',
+    letterSpacing: '-0.01em'
   },
   input: {
     width: '100%',
-    padding: '10px 13px',
+    padding: '9px 12px',
     boxSizing: 'border-box',
-    background: '#F3F5F1',
-    border: '1.5px solid #E1E4DE',
-    borderRadius: '8px',
-    color: '#16211D',
-    fontSize: '14px',
+    background: paleta.surface,
+    border: `1px solid ${paleta.lineStrong}`,
+    borderRadius: '6px',
+    color: paleta.ink,
+    fontSize: '13.5px',
     outline: 'none',
-    transition: 'border-color 0.15s',
-    fontFamily: "'IBM Plex Sans', 'Segoe UI', system-ui, sans-serif"
+    transition: 'border-color 0.15s, box-shadow 0.15s',
+    fontFamily: paleta.font
   },
   grid2: {
     display: 'grid',
-    gridTemplateColumns: '1fr 1fr',
+    gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
     gap: '14px'
   },
   grid3: {
     display: 'grid',
-    gridTemplateColumns: '1fr 1fr 1fr',
+    gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
     gap: '14px'
   },
 
@@ -147,59 +166,71 @@ export const s = {
     width: '100%',
     borderCollapse: 'separate',
     borderSpacing: '0',
-    fontSize: '13px'
+    fontSize: '13px',
+    fontVariantNumeric: 'tabular-nums'
   },
   tablaCabecera: (color) => ({
-    background: color,
-    color: '#ffffff',
-    padding: '11px 15px',
+    background: color || '#1E293B',
+    color: '#FFFFFF',
+    padding: '10px 14px',
     textAlign: 'left',
     fontWeight: '600',
-    fontSize: '12px'
+    fontSize: '11.5px',
+    letterSpacing: '0.04em',
+    textTransform: 'uppercase',
+    borderBottom: `1px solid ${paleta.line}`
   }),
   tablaFila: (i) => ({
-    background: i % 2 === 0 ? '#FFFFFF' : '#F3F5F1',
-    transition: 'background 0.15s'
+    background: i % 2 === 0 ? '#FFFFFF' : '#F8FAFC',
+    transition: 'background 0.12s ease'
   }),
   tablaCell: {
-    padding: '12px 15px',
-    color: '#3C4A44',
-    borderBottom: '1px solid #E1E4DE'
+    padding: '11px 14px',
+    color: paleta.inkSoft,
+    borderBottom: `1px solid ${paleta.line}`,
+    fontSize: '13px'
   },
   tablaCellBold: {
-    padding: '12px 15px',
-    color: '#16211D',
+    padding: '11px 14px',
+    color: paleta.ink,
     fontWeight: '600',
-    borderBottom: '1px solid #E1E4DE'
+    borderBottom: `1px solid ${paleta.line}`,
+    fontSize: '13px'
   },
 
   badge: (bg, color) => ({
-    background: bg,
-    color: color,
-    padding: '3px 10px',
-    borderRadius: '6px',
-    fontSize: '11.5px',
+    background: bg || paleta.surfaceMuted,
+    color: color || paleta.inkSoft,
+    padding: '2px 8px',
+    borderRadius: '4px',
+    fontSize: '11px',
     fontWeight: '600',
-    display: 'inline-block'
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: '4px',
+    border: '1px solid rgba(0, 0, 0, 0.06)',
+    letterSpacing: '0.01em'
   }),
 
   buscador: {
     width: '100%',
-    maxWidth: '320px',
-    padding: '9px 14px',
-    background: '#FFFFFF',
-    border: '1.5px solid #E1E4DE',
-    borderRadius: '8px',
-    fontSize: '14px',
+    maxWidth: '340px',
+    padding: '8px 13px',
+    background: paleta.surface,
+    border: `1px solid ${paleta.lineStrong}`,
+    borderRadius: '6px',
+    fontSize: '13px',
     outline: 'none',
-    color: '#16211D',
-    fontFamily: "'IBM Plex Sans', 'Segoe UI', system-ui, sans-serif"
+    color: paleta.ink,
+    fontFamily: paleta.font,
+    transition: 'border-color 0.15s, box-shadow 0.15s'
   },
 
   empty: {
-    padding: '48px',
+    padding: '56px 20px',
     textAlign: 'center',
-    color: '#5B685F',
-    fontSize: '14px'
+    color: paleta.muted,
+    fontSize: '13.5px'
   }
 }
+

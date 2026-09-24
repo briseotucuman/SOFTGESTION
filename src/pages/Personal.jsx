@@ -55,35 +55,7 @@ function Personal() {
     setForm({ nombre: '', apellido: '', dni: '', cuil: '', fecha_nacimiento: '', fecha_ingreso: '', puesto: '', salario_base: '', costo_hora: '', email: '', telefono: '', direccion: '', tipo_contrato: 'relacion_dependencia', observaciones: '' })
   }
 
-  function abrirEdicion(emp) {
-    setEditando(emp)
-    setForm({
-      nombre: emp.nombre || '',
-      apellido: emp.apellido || '',
-      dni: emp.dni || '',
-      cuil: emp.cuil || '',
-      fecha_nacimiento: emp.fecha_nacimiento || '',
-      fecha_ingreso: emp.fecha_ingreso || '',
-      puesto: emp.puesto || '',
-      salario_base: emp.salario_base || '',
-      costo_hora: emp.costo_hora || '',
-      email: emp.email || '',
-      telefono: emp.telefono || '',
-      direccion: emp.direccion || '',
-      tipo_contrato: emp.tipo_contrato || 'relacion_dependencia',
-      observaciones: emp.observaciones || ''
-    })
-    setMostrarForm(true)
-    window.scrollTo({ top: 0, behavior: 'smooth' })
-  }
-
-  function cancelar() {
-    setMostrarForm(false)
-    setEditando(null)
-    setForm({ nombre: '', apellido: '', dni: '', cuil: '', fecha_nacimiento: '', fecha_ingreso: '', puesto: '', salario_base: '', costo_hora: '', email: '', telefono: '', direccion: '', tipo_contrato: 'relacion_dependencia', observaciones: '' })
-  }
-
-    async function guardarEmpleado(e) {
+  async function guardarEmpleado(e) {
     e.preventDefault()
     const datos = {
       ...form,

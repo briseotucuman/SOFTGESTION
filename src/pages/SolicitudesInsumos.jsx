@@ -120,7 +120,6 @@ function SolicitudesInsumos() {
               {sol.itemsSol.map(it => {
                 const insumo = insumos.find(i => i.id === it.insumo_id)
                 const entrada = ultimaEntrada(it.insumo_id)
-                const pasoItem = PASOS.find(p => p.id === it.estado) || PASOS[0]
                 return (
                   <div key={it.id} style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '9px 0', borderTop: `1px solid ${paleta.line}`, flexWrap: 'wrap' }}>
                     <span style={{ flex: 1, fontSize: '13.5px', color: paleta.ink, minWidth: '160px' }}>

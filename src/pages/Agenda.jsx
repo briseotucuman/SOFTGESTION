@@ -124,7 +124,7 @@ function Agenda() {
     await supabase.from('ordenes_trabajo').update({ estado: 'completada', observaciones_cierre: observacionesCierre }).eq('id', orden.id)
 
     // 2. Guardar horas de cada empleado y crear costo variable
-    for (const [empId, eo] of Object.entries(horasEmpleados)) {
+    for (const [, eo] of Object.entries(horasEmpleados)) {
       const horas = Number(eo.horas)
       const costoHora = Number(eo.empleados?.costo_hora || 0)
       const costoMO = horas * costoHora

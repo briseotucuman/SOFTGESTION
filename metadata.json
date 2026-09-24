@@ -1,0 +1,7 @@
+{
+  "name": "SOFTGESTION · Briseo",
+  "description": "SOFTGESTION — gestión operativa de Briseo: clientes, contratos, agenda, personal, finanzas y más.",
+  "capabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

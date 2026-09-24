@@ -57,30 +57,7 @@ function Insumos() {
     setForm({ nombre:'', descripcion:'', unidad_medida:'unidad', categoria:'', stock_actual:'0', stock_minimo:'0', precio_costo:'', proveedor_id:'' })
   }
 
-
-  function abrirEdicion(ins) {
-    setEditando(ins)
-    setForm({
-      nombre: ins.nombre || '',
-      descripcion: ins.descripcion || '',
-      unidad_medida: ins.unidad_medida || 'unidad',
-      categoria: ins.categoria || '',
-      stock_actual: ins.stock_actual || '0',
-      stock_minimo: ins.stock_minimo || '0',
-      precio_costo: ins.precio_costo || '',
-      proveedor_id: ins.proveedor_id || ''
-    })
-    setMostrarForm(true)
-    window.scrollTo({ top: 0, behavior: 'smooth' })
-  }
-
-  function cancelarIns() {
-    setMostrarForm(false)
-    setEditando(null)
-    setForm({ nombre:'', descripcion:'', unidad_medida:'unidad', categoria:'', stock_actual:'0', stock_minimo:'0', precio_costo:'', proveedor_id:'' })
-  }
-
-    async function guardarInsumo(e) {
+  async function guardarInsumo(e) {
     e.preventDefault()
     const datos = {
       ...form,

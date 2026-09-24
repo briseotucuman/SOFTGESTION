@@ -142,7 +142,25 @@ function Reportes() {
   const [loading, setLoading] = useState(true)
   const [mes, setMes] = useState(new Date().toISOString().slice(0, 7))
 
-  useEffect(() => { cargarReportes() }, [mes])
+  async function cargarEvolucionGeneral() {
+    const meses = ultimosNMeses(mes, 6)
+    const { data } = await supabase.from('movimientos_financieros').select('fecha,tipo,monto')
+      .gte('fecha', meses[0] + '-01')
+      .lte('fecha', mes + '-' + new Date(+mes.split('-')[0], +mes.split('-')[1], 0).getDate())
+    const porMes = {}
+    meses.forEach(m => { porMes[m] = { ingresos: 0, egresos: 0 } })
+    ;(data || []).forEach(mv => {
+      const key = mv.fecha.slice(0, 7)
+      if (!porMes[key]) return
+      if (mv.tipo === 'ingreso') porMes[key].ingresos += Number(mv.monto)
+      else porMes[key].egresos += Number(mv.monto)
+    })
+    setEvolucionGeneral({
+      meses,
+      ingresos: meses.map(m => porMes[m].ingresos),
+      egresos: meses.map(m => porMes[m].egresos),
+    })
+  }
 
   async function cargarReportes() {
     setLoading(true)
@@ -212,25 +230,17 @@ function Reportes() {
     cargarEvolucionGeneral()
   }
 
-  async function cargarEvolucionGeneral() {
-    const meses = ultimosNMeses(mes, 6)
-    const { data } = await supabase.from('movimientos_financieros').select('fecha,tipo,monto')
-      .gte('fecha', meses[0] + '-01')
-      .lte('fecha', mes + '-' + new Date(+mes.split('-')[0], +mes.split('-')[1], 0).getDate())
-    const porMes = {}
-    meses.forEach(m => { porMes[m] = { ingresos: 0, egresos: 0 } })
-    ;(data || []).forEach(mv => {
-      const key = mv.fecha.slice(0, 7)
-      if (!porMes[key]) return
-      if (mv.tipo === 'ingreso') porMes[key].ingresos += Number(mv.monto)
-      else porMes[key].egresos += Number(mv.monto)
+  useEffect(() => {
+    let cancel = false
+    Promise.resolve().then(() => {
+      if (!cancel) {
+        cargarReportes()
+      }
     })
-    setEvolucionGeneral({
-      meses,
-      ingresos: meses.map(m => porMes[m].ingresos),
-      egresos: meses.map(m => porMes[m].egresos),
-    })
-  }
+    return () => {
+      cancel = true
+    }
+  }, [mes])
 
   async function verEvolucionCliente(clienteId, nombre) {
     setClienteEvolucion({ id: clienteId, nombre })

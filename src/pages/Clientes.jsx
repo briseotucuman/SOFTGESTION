@@ -127,7 +127,7 @@ function Clientes() {
       } else {
         alert('No se encontraron coordenadas para esa dirección. Ingresalas manualmente.')
       }
-    } catch(e) {
+    } catch {
       alert('Error al buscar coordenadas. Ingresalas manualmente.')
     }
     setBuscandoCoords(false)
