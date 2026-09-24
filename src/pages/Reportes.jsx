@@ -1,7 +1,26 @@
 import React, { useEffect, useState } from 'react'
 import { supabase } from '../supabase.js'
 import { s, paleta } from '../estilos.js'
-import { TrendingUp, X, History, Calendar, ArrowUpRight, ArrowDownRight, Layers, DollarSign, Building, AlertCircle, MapPin } from 'lucide-react'
+import { TrendingUp, X, History, ArrowUpRight, ArrowDownRight, Layers, DollarSign, Building, AlertCircle, MapPin, ChevronLeft, ChevronRight, ChevronDown } from 'lucide-react'
+
+const MESES = [
+  { valor: '01', nombre: 'Enero' },
+  { valor: '02', nombre: 'Febrero' },
+  { valor: '03', nombre: 'Marzo' },
+  { valor: '04', nombre: 'Abril' },
+  { valor: '05', nombre: 'Mayo' },
+  { valor: '06', nombre: 'Junio' },
+  { valor: '07', nombre: 'Julio' },
+  { valor: '08', nombre: 'Agosto' },
+  { valor: '09', nombre: 'Septiembre' },
+  { valor: '10', nombre: 'Octubre' },
+  { valor: '11', nombre: 'Noviembre' },
+  { valor: '12', nombre: 'Diciembre' },
+]
+
+const anioActual = new Date().getFullYear()
+const mesActual = String(new Date().getMonth() + 1).padStart(2, '0')
+const ANIOS = [anioActual - 3, anioActual - 2, anioActual - 1, anioActual, anioActual + 1]
 
 function indicadorMargen(margen) {
   if (margen >= 30) return { color: '#0F766E', bg: '#F0FDFA', border: '#99F6E4', label: 'Margen Óptimo (≥30%)' }
@@ -161,7 +180,28 @@ function Reportes() {
   const [clienteEvolucion, setClienteEvolucion] = useState(null)
   const [evolucionClienteData, setEvolucionClienteData] = useState(null)
   const [loading, setLoading] = useState(true)
-  const [mes, setMes] = useState(new Date().toISOString().slice(0, 7))
+  const [mesNum, setMesNum] = useState(mesActual)
+  const [anioNum, setAnioNum] = useState(String(anioActual))
+  const mes = `${anioNum}-${mesNum}`
+
+  function cambiarMesRelativo(delta) {
+    let y = parseInt(anioNum, 10)
+    let m = parseInt(mesNum, 10) + delta
+    if (m < 1) {
+      m = 12
+      y -= 1
+    } else if (m > 12) {
+      m = 1
+      y += 1
+    }
+    setAnioNum(String(y))
+    setMesNum(String(m).padStart(2, '0'))
+  }
+
+  function irAlMesActual() {
+    setAnioNum(String(anioActual))
+    setMesNum(mesActual)
+  }
 
   async function cargarEvolucionGeneral() {
     const meses = ultimosNMeses(mes, 6)
@@ -336,27 +376,133 @@ function Reportes() {
           </p>
         </div>
 
-        {/* SELECTOR DE PERÍODO MENSUAL */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', background: '#0F172A', border: '1px solid #334155', borderRadius: '6px', padding: '6px 12px' }}>
-            <Calendar size={14} color="#94A3B8" />
-            <span style={{ fontSize: '12px', color: '#CBD5E1', fontWeight: '500' }}>Período:</span>
-            <input
-              type="month"
-              value={mes}
-              onChange={e => setMes(e.target.value)}
+        {/* SELECTOR DE PERÍODO: MES Y AÑO */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+          {/* Botón Mes Anterior */}
+          <button
+            type="button"
+            onClick={() => cambiarMesRelativo(-1)}
+            title="Mes anterior"
+            style={{
+              background: '#0F172A',
+              border: '1px solid #334155',
+              borderRadius: '6px',
+              color: '#CBD5E1',
+              padding: '7px 9px',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              transition: 'background 0.15s ease'
+            }}
+          >
+            <ChevronLeft size={15} />
+          </button>
+
+          {/* Selector de Mes */}
+          <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+            <select
+              value={mesNum}
+              onChange={e => setMesNum(e.target.value)}
+              aria-label="Seleccionar Mes"
               style={{
-                background: 'transparent',
-                border: 'none',
+                background: '#0F172A',
+                border: '1px solid #334155',
+                borderRadius: '6px',
                 color: '#FFFFFF',
                 fontSize: '13px',
                 fontWeight: '600',
+                padding: '7px 30px 7px 12px',
                 outline: 'none',
-                fontFamily: paleta.fontMono,
-                cursor: 'pointer'
+                cursor: 'pointer',
+                fontFamily: paleta.font,
+                appearance: 'none',
+                WebkitAppearance: 'none'
               }}
-            />
+            >
+              {MESES.map(m => (
+                <option key={m.valor} value={m.valor} style={{ background: '#0F172A', color: '#FFFFFF' }}>
+                  {m.nombre}
+                </option>
+              ))}
+            </select>
+            <ChevronDown size={14} color="#94A3B8" style={{ position: 'absolute', right: '10px', pointerEvents: 'none' }} />
           </div>
+
+          {/* Selector de Año */}
+          <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+            <select
+              value={anioNum}
+              onChange={e => setAnioNum(e.target.value)}
+              aria-label="Seleccionar Año"
+              style={{
+                background: '#0F172A',
+                border: '1px solid #334155',
+                borderRadius: '6px',
+                color: '#FFFFFF',
+                fontSize: '13px',
+                fontWeight: '600',
+                padding: '7px 28px 7px 12px',
+                outline: 'none',
+                cursor: 'pointer',
+                fontFamily: paleta.fontMono,
+                appearance: 'none',
+                WebkitAppearance: 'none'
+              }}
+            >
+              {ANIOS.map(a => (
+                <option key={a} value={String(a)} style={{ background: '#0F172A', color: '#FFFFFF' }}>
+                  {a}
+                </option>
+              ))}
+            </select>
+            <ChevronDown size={14} color="#94A3B8" style={{ position: 'absolute', right: '8px', pointerEvents: 'none' }} />
+          </div>
+
+          {/* Botón Mes Siguiente */}
+          <button
+            type="button"
+            onClick={() => cambiarMesRelativo(1)}
+            title="Mes siguiente"
+            style={{
+              background: '#0F172A',
+              border: '1px solid #334155',
+              borderRadius: '6px',
+              color: '#CBD5E1',
+              padding: '7px 9px',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              transition: 'background 0.15s ease'
+            }}
+          >
+            <ChevronRight size={15} />
+          </button>
+
+          {/* Botón Volver a Mes Actual */}
+          {(mesNum !== mesActual || anioNum !== String(anioActual)) && (
+            <button
+              type="button"
+              onClick={irAlMesActual}
+              title="Volver al período en curso"
+              style={{
+                background: '#1E293B',
+                border: '1px solid #475569',
+                borderRadius: '6px',
+                color: '#2DD4BF',
+                fontSize: '12px',
+                fontWeight: '600',
+                padding: '7px 12px',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '5px'
+              }}
+            >
+              Mes Actual
+            </button>
+          )}
         </div>
       </div>
 
