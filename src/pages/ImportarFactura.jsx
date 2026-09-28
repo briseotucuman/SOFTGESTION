@@ -35,6 +35,21 @@ function fechaToISO(f) {
   return `${m[3]}-${m[2]}-${m[1]}`
 }
 
+function normalizarNumeroFactura(num) {
+  if (!num) return ''
+  const limpio = num.toString().trim().replace(/[^0-9-]/g, '')
+  const partes = limpio.split('-')
+  if (partes.length === 2) {
+    const pv = parseInt(partes[0], 10)
+    const n = parseInt(partes[1], 10)
+    if (!isNaN(pv) && !isNaN(n)) {
+      return `${pv}-${n}`
+    }
+  }
+  const soloDigitos = limpio.replace(/\D/g, '')
+  return soloDigitos ? parseInt(soloDigitos, 10).toString() : limpio
+}
+
 async function extraerLineasPDF(file) {
   const pdfjsLib = await import('pdfjs-dist')
   pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.mjs`
@@ -133,6 +148,7 @@ function ImportarFactura({ onImportado }) {
   const [observacionesTexto, setObservacionesTexto] = useState('')
   const [clienteId, setClienteId] = useState('')
   const [items, setItems] = useState([])
+  const [facturaYaExistente, setFacturaYaExistente] = useState(null)
   const [proveedoresExistentes, setProveedoresExistentes] = useState([])
   const [insumosExistentes, setInsumosExistentes] = useState([])
   const [clientes, setClientes] = useState([])
@@ -144,10 +160,11 @@ function ImportarFactura({ onImportado }) {
     setEstado('procesando')
     setError('')
     try {
-      const [{ data: prov }, { data: ins }, { data: cli }] = await Promise.all([
+      const [{ data: prov }, { data: ins }, { data: cli }, { data: facturasCompraExistentes }] = await Promise.all([
         supabase.from('proveedores').select('*').eq('activo', true),
         supabase.from('insumos').select('*').eq('activo', true),
-        supabase.from('clientes').select('id, razon_social, nombre_contacto').eq('activo', true).order('razon_social')
+        supabase.from('clientes').select('id, razon_social, nombre_contacto').eq('activo', true).order('razon_social'),
+        supabase.from('facturas_compra').select('id, numero_factura, proveedor_id, total, categoria, observaciones')
       ])
       setProveedoresExistentes(prov || [])
       setInsumosExistentes(ins || [])
@@ -166,9 +183,17 @@ function ImportarFactura({ onImportado }) {
         return { ...it, insumo_id: m ? m.id : '' }
       })
 
+      const numFacDetectado = detectarNumeroFactura(lineas)
+      const normNumDetectado = normalizarNumeroFactura(numFacDetectado)
+      const facturaPrevia = (facturasCompraExistentes || []).find(fc => {
+        const normFC = normalizarNumeroFactura(fc.numero_factura)
+        return normFC && normFC === normNumDetectado
+      })
+
+      setFacturaYaExistente(facturaPrevia || null)
       setProveedorTexto(provDetectado)
       setProveedorId(matchProv ? matchProv.id : '')
-      setNumeroFactura(detectarNumeroFactura(lineas))
+      setNumeroFactura(numFacDetectado)
       setFecha(fechaToISO(detectarFecha(lineas)))
       setTotalDetectado(detectarTotal(lineas))
       setSubtotalDetectado(detectarSubtotal(lineas))
@@ -231,30 +256,38 @@ function ImportarFactura({ onImportado }) {
         if (e4) throw e4
       }
 
-      const { error: e5 } = await supabase.from('costos_variables').insert({
-        cliente_id: clienteId || null,
-        nombre: `Factura ${numeroFactura || 's/n'} — ${proveedorTexto}`,
-        categoria: 'Insumos',
-        monto: totalDetectado || totalItems,
-        fecha: fecha,
-        observaciones: observacionesTexto
-      })
-      if (e5) throw e5
+      if (!facturaYaExistente) {
+        const { error: e5 } = await supabase.from('costos_variables').insert({
+          cliente_id: clienteId || null,
+          nombre: `Factura ${numeroFactura || 's/n'} — ${proveedorTexto}`,
+          categoria: 'Insumos',
+          monto: totalDetectado || totalItems,
+          fecha: fecha,
+          observaciones: observacionesTexto
+        })
+        if (e5) throw e5
 
-      const { error: e6 } = await supabase.from('facturas_compra').insert({
-        proveedor_id: provId || null,
-        cliente_id: clienteId || null,
-        numero_factura: numeroFactura,
-        fecha_emision: fecha,
-        fecha_vencimiento: fecha,
-        concepto: `Insumos — ${proveedorTexto}`,
-        categoria: 'Insumos',
-        subtotal: subtotalDetectado || totalItems,
-        total: totalDetectado || totalItems,
-        estado: 'pendiente',
-        observaciones: observacionesTexto
-      })
-      if (e6) throw e6
+        const { error: e6 } = await supabase.from('facturas_compra').insert({
+          proveedor_id: provId || null,
+          cliente_id: clienteId || null,
+          numero_factura: numeroFactura,
+          fecha_emision: fecha,
+          fecha_vencimiento: fecha,
+          concepto: `Insumos — ${proveedorTexto}`,
+          categoria: 'Insumos',
+          subtotal: subtotalDetectado || totalItems,
+          total: totalDetectado || totalItems,
+          estado: 'pendiente',
+          observaciones: observacionesTexto
+        })
+        if (e6) throw e6
+      } else {
+        // La factura ya existía (por ejemplo, importada de ARCA o Cuentas por pagar):
+        // Se actualiza la observación para registrar que el stock físico fue ingresado, sin duplicar la deuda
+        await supabase.from('facturas_compra').update({
+          observaciones: `${facturaYaExistente.observaciones || ''} | Stock de insumos procesado`.trim()
+        }).eq('id', facturaYaExistente.id)
+      }
 
       setEstado('listo')
       if (onImportado) onImportado()
@@ -268,6 +301,7 @@ function ImportarFactura({ onImportado }) {
     setEstado('idle'); setError(''); setNombreArchivo(''); setItems([])
     setProveedorTexto(''); setProveedorId(''); setNumeroFactura(''); setFecha('')
     setTotalDetectado(null); setObservacionesTexto(''); setClienteId('')
+    setFacturaYaExistente(null)
   }
 
   return (
@@ -326,6 +360,22 @@ function ImportarFactura({ onImportado }) {
               </p>
             )}
           </div>
+
+          {facturaYaExistente && (
+            <div style={{
+              display: 'flex', alignItems: 'center', gap: '10px',
+              background: '#FEF3C7', border: '1px solid #FCD34D',
+              borderRadius: '8px', padding: '12px 16px', marginTop: '16px',
+              color: '#92400E', fontSize: '13px'
+            }}>
+              <AlertTriangle size={20} color="#D97706" style={{ flexShrink: 0 }} />
+              <div>
+                <strong>Aviso de deduplicación:</strong> Esta factura (<strong>Nº {numeroFactura}</strong>) ya se encuentra registrada en <strong>Cuentas por pagar</strong> ({facturaYaExistente.categoria || 'Compra'}).
+                <br />
+                Al confirmar la importación, se registrará el ingreso físico al stock de insumos, pero <strong>no se creará una deuda duplicada</strong> en el módulo contable.
+              </div>
+            </div>
+          )}
 
           <h4 style={{ margin: '22px 0 10px', fontSize: '14px', fontWeight: '700', color: paleta.ink }}>Productos detectados</h4>
           <div style={{ overflowX: 'auto' }}>

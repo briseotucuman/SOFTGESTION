@@ -3,7 +3,8 @@ import { supabase } from '../supabase.js'
 import { s, colores, paleta } from '../estilos.js'
 import {
   Upload, Loader2, AlertTriangle, CheckCircle2, X, FileUp,
-  Receipt, ShoppingBag, HelpCircle, Check, Info, AlertCircle, Trash2
+  Receipt, ShoppingBag, HelpCircle, Check, Info, AlertCircle, Trash2,
+  Package, ShieldAlert
 } from 'lucide-react'
 
 const c = colores.facturacion
@@ -47,6 +48,31 @@ function parseArgNumber(str) {
 
 function normalizarCuit(cuit) {
   return (cuit || '').toString().replace(/\D/g, '')
+}
+
+function normalizarNumeroFactura(num) {
+  if (!num) return ''
+  const limpio = num.toString().trim().replace(/[^0-9-]/g, '')
+  const partes = limpio.split('-')
+  if (partes.length === 2) {
+    const pv = parseInt(partes[0], 10)
+    const n = parseInt(partes[1], 10)
+    if (!isNaN(pv) && !isNaN(n)) {
+      return `${pv}-${n}`
+    }
+  }
+  const soloDigitos = limpio.replace(/\D/g, '')
+  return soloDigitos ? parseInt(soloDigitos, 10).toString() : limpio
+}
+
+function normalizarTextoComparacion(str) {
+  return (str || '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/\b(s\.?r\.?l\.?|s\.?a\.?s\.?|s\.?a\.?|sociedad anonima|responsable inscripto)\b/gi, '')
+    .replace(/[^a-z0-9]/g, '')
+    .trim()
 }
 
 function normalizarFecha(str) {
@@ -274,37 +300,85 @@ function ImportarARCA({ tipoInicial = 'ventas', onImportado }) {
 
         setFilas(filasMatch)
       } else {
-        // Modo Compras
-        const [{ data: proveedoresExistentes }, { data: facturasCompraExistentes }] = await Promise.all([
+        // Modo Compras - Detección exhaustiva contra Facturas de Compra, Costos e Insumos
+        const [{ data: proveedoresExistentes }, { data: facturasCompraExistentes }, { data: costosExistentes }, { data: movStockExistentes }] = await Promise.all([
           supabase.from('proveedores').select('id, razon_social, cuit'),
-          supabase.from('facturas_compra').select('numero_factura, proveedor_id'),
+          supabase.from('facturas_compra').select('id, numero_factura, proveedor_id, total, categoria, concepto, observaciones, creado_en, proveedores(razon_social, cuit)'),
+          supabase.from('costos_variables').select('id, nombre, monto, observaciones, fecha'),
+          supabase.from('movimientos_stock').select('id, motivo, observaciones')
         ])
 
-        const provMap = new Map()
-        ;(proveedoresExistentes || []).forEach(p => {
-          if (p.cuit) provMap.set(normalizarCuit(p.cuit), p)
-        })
-
-        const clavesExistentes = new Set(
-          (facturasCompraExistentes || []).map(fc => `${fc.proveedor_id}_${fc.numero_factura}`)
-        )
-
         const filasMatch = parsed.map(f => {
-          const match = (proveedoresExistentes || []).find(p =>
-            (f.cuit && normalizarCuit(p.cuit) === f.cuit) ||
-            (p.razon_social && f.nombreEntidad && p.razon_social.trim().toLowerCase() === f.nombreEntidad.trim().toLowerCase())
+          const normNumF = normalizarNumeroFactura(f.numero_factura)
+          const cuitF = f.cuit ? normalizarCuit(f.cuit) : ''
+          const nombreNormF = normalizarTextoComparacion(f.nombreEntidad)
+
+          // 1. Coincidencia de proveedor
+          const matchProv = (proveedoresExistentes || []).find(p =>
+            (cuitF && normalizarCuit(p.cuit) === cuitF) ||
+            (p.razon_social && nombreNormF && normalizarTextoComparacion(p.razon_social) === nombreNormF) ||
+            (p.razon_social && nombreNormF && (normalizarTextoComparacion(p.razon_social).includes(nombreNormF) || nombreNormF.includes(normalizarTextoComparacion(p.razon_social))))
           )
 
-          const claveCompuesta = match ? `${match.id}_${f.numero_factura}` : null
-          const yaExiste = claveCompuesta ? clavesExistentes.has(claveCompuesta) : false
+          // 2. Comprobación exhaustiva en facturas_compra
+          const matchFacturaCompra = (facturasCompraExistentes || []).find(fc => {
+            const normNumFC = normalizarNumeroFactura(fc.numero_factura)
+            if (!normNumFC || normNumFC !== normNumF) return false
+
+            const cuitFC = fc.proveedores?.cuit ? normalizarCuit(fc.proveedores.cuit) : ''
+            const nombreFC = normalizarTextoComparacion(fc.proveedores?.razon_social || '')
+
+            if (cuitF && cuitFC && cuitF === cuitFC) return true
+            if (nombreNormF && nombreFC && (nombreNormF.includes(nombreFC) || nombreFC.includes(nombreNormF))) return true
+            if (Math.abs(Number(fc.total || 0) - Number(f.total || 0)) < 1.5) return true
+            if (matchProv && fc.proveedor_id === matchProv.id) return true
+            if (!fc.proveedor_id) return true
+
+            return true
+          })
+
+          // 3. Comprobación en movimientos de stock o costos cargados desde el módulo de Insumos
+          const matchStock = (movStockExistentes || []).find(m => {
+            const motivo = (m.motivo || '') + ' ' + (m.observaciones || '')
+            return motivo.includes(f.numero_factura) || (normNumF && motivo.includes(normNumF))
+          })
+
+          const matchCosto = (costosExistentes || []).find(c => {
+            const nom = (c.nombre || '') + ' ' + (c.observaciones || '')
+            return nom.includes(f.numero_factura) || (normNumF && nom.includes(normNumF))
+          })
+
+          // 4. Determinar si el origen es el módulo de Insumos
+          let origenInsumos = false
+          let motivoDuplicado = ''
+
+          if (matchFacturaCompra) {
+            const cat = (matchFacturaCompra.categoria || '').toLowerCase()
+            const concepto = (matchFacturaCompra.concepto || '').toLowerCase()
+            const obs = (matchFacturaCompra.observaciones || '').toLowerCase()
+
+            if (cat === 'insumos' || concepto.includes('insumos') || obs.includes('insumos') || matchStock || matchCosto) {
+              origenInsumos = true
+              motivoDuplicado = `Ya importada por módulo Insumos (${matchFacturaCompra.numero_factura})`
+            } else {
+              motivoDuplicado = `Ya registrada en Cuentas por pagar (${matchFacturaCompra.numero_factura})`
+            }
+          } else if (matchStock || matchCosto) {
+            origenInsumos = true
+            motivoDuplicado = 'Ya registrada en stock/costos de Insumos'
+          }
+
+          const yaExiste = Boolean(matchFacturaCompra || matchStock || matchCosto)
 
           return {
             ...f,
-            entidad_id: match ? match.id : '',
-            esNuevo: !match,
+            entidad_id: matchProv ? matchProv.id : '',
+            esNuevo: !matchProv,
             yaExiste,
+            origenInsumos,
+            motivoDuplicado,
             incluir: f.esFactura && !yaExiste,
-            nombreEntidadResuelto: match ? match.razon_social : f.nombreEntidad,
+            nombreEntidadResuelto: matchProv ? matchProv.razon_social : f.nombreEntidad,
             categoria: 'Insumos',
           }
         })
@@ -756,6 +830,23 @@ function ImportarARCA({ tipoInicial = 'ventas', onImportado }) {
             </div>
           </div>
 
+          {/* ALERTA DUPLICADOS DE INSUMOS */}
+          {filas.filter(f => f.origenInsumos).length > 0 && (
+            <div style={{
+              display: 'flex', alignItems: 'center', gap: '10px',
+              background: '#FEF3C7', border: '1px solid #FCD34D',
+              borderRadius: '8px', padding: '12px 16px', marginBottom: '14px',
+              color: '#92400E', fontSize: '13px'
+            }}>
+              <Package size={20} color="#D97706" style={{ flexShrink: 0 }} />
+              <div>
+                <strong style={{ display: 'block', marginBottom: '2px' }}>Control anti-duplicación activo:</strong>
+                Se detectaron y bloquearon <strong>{filas.filter(f => f.origenInsumos).length} comprobante(s)</strong> que ya habían sido importados previamente en el módulo de <strong>Insumos</strong>.
+                Fueron excluidos automáticamente para no duplicar las deudas con proveedores ni distorsionar los costos.
+              </div>
+            </div>
+          )}
+
           {/* TABLA DE DETALLE */}
           <div style={{ overflowX: 'auto', maxHeight: '420px', border: `1px solid ${paleta.line}`, borderRadius: '8px' }}>
             <table style={{ ...s.tabla, margin: 0 }}>
@@ -816,8 +907,22 @@ function ImportarARCA({ tipoInicial = 'ventas', onImportado }) {
                       }}>
                         {f.tipoLabel}
                       </span>
-                      {f.yaExiste && (
-                        <div style={{ color: '#D97706', fontSize: '11px', fontWeight: '700', marginTop: '2px' }}>
+                      {f.yaExiste && f.origenInsumos && (
+                        <div style={{
+                          display: 'inline-flex', alignItems: 'center', gap: '4px',
+                          color: '#B45309', background: '#FEF3C7', border: '1px solid #FCD34D',
+                          padding: '2px 6px', borderRadius: '4px', fontSize: '10.5px', fontWeight: '700', marginTop: '3px'
+                        }} title={f.motivoDuplicado}>
+                          <Package size={11} color="#B45309" />
+                          Importada en Insumos
+                        </div>
+                      )}
+                      {f.yaExiste && !f.origenInsumos && (
+                        <div style={{
+                          display: 'inline-flex', alignItems: 'center', gap: '4px',
+                          color: '#64748B', background: '#F1F5F9', border: '1px solid #E2E8F0',
+                          padding: '2px 6px', borderRadius: '4px', fontSize: '10.5px', fontWeight: '700', marginTop: '3px'
+                        }} title={f.motivoDuplicado}>
                           ⚠️ Ya en el sistema
                         </div>
                       )}
