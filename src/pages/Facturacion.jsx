@@ -234,7 +234,7 @@ function Facturacion()  {
         </button>
       </div>
 
-      {vista === 'importar-arca' && <ImportarARCA onImportado={cargarDatos} />}
+      {vista === 'importar-arca' && <ImportarARCA tipoInicial="ventas" onImportado={cargarDatos} />}
 
       {vista === 'facturas' && (<>
       {/* KPIs */}

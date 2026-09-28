@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../supabase.js'
 import { s, colores, paleta } from '../estilos.js'
-import { BarChart3, Pencil, Plus, Trash2, X, TrendingDown, TrendingUp, Wallet2, ArrowRightLeft } from 'lucide-react'
+import { BarChart3, Pencil, Plus, Trash2, X, TrendingDown, TrendingUp, Wallet2, ArrowRightLeft, FileUp } from 'lucide-react'
+import ImportarARCA from './ImportarARCA.jsx'
 
 const c = colores.finanzas
 
@@ -46,6 +47,7 @@ function Finanzas() {
   const [proveedores, setProveedores] = useState([])
   const [clientes, setClientes] = useState([])
   const [mostrarFormCompra, setMostrarFormCompra] = useState(false)
+  const [mostrarImportarCompras, setMostrarImportarCompras] = useState(false)
   const [formCompra, setFormCompra] = useState({ proveedor_id: '', cliente_id: '', numero_factura: '', fecha_emision: new Date().toISOString().split('T')[0], fecha_vencimiento: '', categoria: 'Insumos', total: '', observaciones: '' })
   const [pagandoFactura, setPagandoFactura] = useState(null)
   const [formPagoCompra, setFormPagoCompra] = useState({ monto: '', medio_pago: 'transferencia', cuenta_id: '', referencia: '' })
@@ -368,9 +370,21 @@ function Finanzas() {
             </button>
           )}
           {vista === 'por-pagar' && (
-            <button style={s.btnPrimario('rgba(255,255,255,0.25)')} onClick={() => setMostrarFormCompra(!mostrarFormCompra)}>
-              {mostrarFormCompra ? <><X size={14} style={{ marginRight: 5, verticalAlign: '-2px' }} />Cancelar</> : <><Plus size={14} style={{ marginRight: 5, verticalAlign: '-2px' }} />Factura de compra</>}
-            </button>
+            <>
+              <button
+                style={{ ...s.btnPrimario('rgba(255,255,255,0.2)'), border: '1px solid rgba(255,255,255,0.35)' }}
+                onClick={() => {
+                  setMostrarImportarCompras(!mostrarImportarCompras)
+                  setMostrarFormCompra(false)
+                }}
+              >
+                <FileUp size={14} style={{ marginRight: 5, verticalAlign: '-2px' }} />
+                {mostrarImportarCompras ? 'Ver facturas' : 'Importar ARCA Compras'}
+              </button>
+              <button style={s.btnPrimario('rgba(255,255,255,0.25)')} onClick={() => { setMostrarFormCompra(!mostrarFormCompra); setMostrarImportarCompras(false) }}>
+                {mostrarFormCompra ? <><X size={14} style={{ marginRight: 5, verticalAlign: '-2px' }} />Cancelar</> : <><Plus size={14} style={{ marginRight: 5, verticalAlign: '-2px' }} />Factura manual</>}
+              </button>
+            </>
           )}
         </div>
       </div>
@@ -743,49 +757,74 @@ function Finanzas() {
       {/* VISTA CUENTAS POR PAGAR */}
       {vista === 'por-pagar' && (
         <div>
-          <div style={{ ...s.card, background: '#fff7ed', display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px' }}>
-            <div style={{ width: 38, height: 38, borderRadius: 10, background: '#fed7aa', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}><TrendingDown size={18} color="#c2410c" /></div>
-            <div>
-              <p style={{ ...s.label, color: '#c2410c', margin: 0 }}>Días de pago (DPO)</p>
-              <p style={{ fontSize: '19px', fontWeight: '800', color: '#c2410c', margin: 0 }}>
-                {diasCobroPago.diasPago != null ? `${diasCobroPago.diasPago.toFixed(0)} días` : 'Sin pagos registrados aún'}
-              </p>
-              {diasCobroPago.diasPago != null && <p style={{ margin: '2px 0 0', fontSize: '11.5px', color: '#ea580c' }}>Promedio real entre emisión y pago, sobre {diasCobroPago.muestraPago} pago(s) registrado(s)</p>}
+          {mostrarImportarCompras ? (
+            <div style={{ marginBottom: '20px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
+                <h4 style={{ margin: 0, fontWeight: '700', color: paleta.ink, fontSize: '15px' }}>
+                  Importación de Compras desde ARCA (Comprobantes Recibidos)
+                </h4>
+                <button
+                  style={s.btnSecundario}
+                  onClick={() => setMostrarImportarCompras(false)}
+                >
+                  <X size={14} style={{ marginRight: 5, verticalAlign: '-2px' }} />
+                  Volver al listado de facturas
+                </button>
+              </div>
+              <ImportarARCA
+                tipoInicial="compras"
+                onImportado={() => {
+                  cargarDatos()
+                }}
+              />
             </div>
-          </div>
-        <div style={{ ...s.card, padding: 0, overflow: 'hidden' }}>
-          {loading ? <div style={s.empty}>Cargando...</div>
-          : facturasCompra.length === 0 ? <div style={s.empty}>No hay facturas de compra registradas</div>
-          : (
-            <table style={s.tabla}>
-              <thead><tr>{['Proveedor','Nº factura','Categoría','Cliente imputado','Emisión','Vencimiento','Total','Saldo','Estado',''].map(h => <th key={h} style={s.tablaCabecera(c.main)}>{h}</th>)}</tr></thead>
-              <tbody>
-                {facturasCompra.map((f, i) => {
-                  const ec = ESTADO_COLOR[f.estado] || ESTADO_COLOR.pendiente
-                  const saldo = saldoPendiente(f)
-                  return (
-                    <tr key={f.id} style={s.tablaFila(i)}>
-                      <td style={s.tablaCellBold}>{f.proveedores?.razon_social || '—'}</td>
-                      <td style={{ ...s.tablaCell, fontSize: '12px', color: '#94a3b8' }}>{f.numero_factura || '—'}</td>
-                      <td style={s.tablaCell}>{f.categoria}</td>
-                      <td style={{ ...s.tablaCell, fontSize: '12px' }}>{f.clientes?.razon_social || f.clientes?.nombre_contacto || '—'}</td>
-                      <td style={s.tablaCell}>{f.fecha_emision ? new Date(f.fecha_emision + 'T00:00:00').toLocaleDateString('es-AR') : '—'}</td>
-                      <td style={s.tablaCell}>{f.fecha_vencimiento ? new Date(f.fecha_vencimiento + 'T00:00:00').toLocaleDateString('es-AR') : '—'}</td>
-                      <td style={s.tablaCell}>{Number(f.total).toLocaleString('es-AR', { style: 'currency', currency: 'ARS' })}</td>
-                      <td style={{ ...s.tablaCellBold, color: saldo > 0 ? '#dc2626' : '#059669' }}>{saldo.toLocaleString('es-AR', { style: 'currency', currency: 'ARS' })}</td>
-                      <td style={s.tablaCell}><span style={s.badge(ec.bg, ec.color)}>{f.estado}</span></td>
-                      <td style={s.tablaCell}>
-                        {f.estado !== 'pagada' && f.estado !== 'anulada' && (
-                          <button style={{ ...s.btnPrimario(c.main), padding: '6px 12px', fontSize: '12px' }} onClick={() => abrirPago(f)}>Registrar pago</button>
-                        )}
-                      </td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
+          ) : (
+            <>
+              <div style={{ ...s.card, background: '#fff7ed', display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px' }}>
+                <div style={{ width: 38, height: 38, borderRadius: 10, background: '#fed7aa', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}><TrendingDown size={18} color="#c2410c" /></div>
+                <div>
+                  <p style={{ ...s.label, color: '#c2410c', margin: 0 }}>Días de pago (DPO)</p>
+                  <p style={{ fontSize: '19px', fontWeight: '800', color: '#c2410c', margin: 0 }}>
+                    {diasCobroPago.diasPago != null ? `${diasCobroPago.diasPago.toFixed(0)} días` : 'Sin pagos registrados aún'}
+                  </p>
+                  {diasCobroPago.diasPago != null && <p style={{ margin: '2px 0 0', fontSize: '11.5px', color: '#ea580c' }}>Promedio real entre emisión y pago, sobre {diasCobroPago.muestraPago} pago(s) registrado(s)</p>}
+                </div>
+              </div>
+              <div style={{ ...s.card, padding: 0, overflow: 'hidden' }}>
+                {loading ? <div style={s.empty}>Cargando...</div>
+                : facturasCompra.length === 0 ? <div style={s.empty}>No hay facturas de compra registradas</div>
+                : (
+                  <table style={s.tabla}>
+                    <thead><tr>{['Proveedor','Nº factura','Categoría','Cliente imputado','Emisión','Vencimiento','Total','Saldo','Estado',''].map(h => <th key={h} style={s.tablaCabecera(c.main)}>{h}</th>)}</tr></thead>
+                    <tbody>
+                      {facturasCompra.map((f, i) => {
+                        const ec = ESTADO_COLOR[f.estado] || ESTADO_COLOR.pendiente
+                        const saldo = saldoPendiente(f)
+                        return (
+                          <tr key={f.id} style={s.tablaFila(i)}>
+                            <td style={s.tablaCellBold}>{f.proveedores?.razon_social || '—'}</td>
+                            <td style={{ ...s.tablaCell, fontSize: '12px', color: '#94a3b8' }}>{f.numero_factura || '—'}</td>
+                            <td style={s.tablaCell}>{f.categoria}</td>
+                            <td style={{ ...s.tablaCell, fontSize: '12px' }}>{f.clientes?.razon_social || f.clientes?.nombre_contacto || '—'}</td>
+                            <td style={s.tablaCell}>{f.fecha_emision ? new Date(f.fecha_emision + 'T00:00:00').toLocaleDateString('es-AR') : '—'}</td>
+                            <td style={s.tablaCell}>{f.fecha_vencimiento ? new Date(f.fecha_vencimiento + 'T00:00:00').toLocaleDateString('es-AR') : '—'}</td>
+                            <td style={s.tablaCell}>{Number(f.total).toLocaleString('es-AR', { style: 'currency', currency: 'ARS' })}</td>
+                            <td style={{ ...s.tablaCellBold, color: saldo > 0 ? '#dc2626' : '#059669' }}>{saldo.toLocaleString('es-AR', { style: 'currency', currency: 'ARS' })}</td>
+                            <td style={s.tablaCell}><span style={s.badge(ec.bg, ec.color)}>{f.estado}</span></td>
+                            <td style={s.tablaCell}>
+                              {f.estado !== 'pagada' && f.estado !== 'anulada' && (
+                                <button style={{ ...s.btnPrimario(c.main), padding: '6px 12px', fontSize: '12px' }} onClick={() => abrirPago(f)}>Registrar pago</button>
+                              )}
+                            </td>
+                          </tr>
+                        )
+                      })}
+                    </tbody>
+                  </table>
+                )}
+              </div>
+            </>
           )}
-        </div>
         </div>
       )}
 
