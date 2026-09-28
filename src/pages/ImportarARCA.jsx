@@ -3,7 +3,7 @@ import { supabase } from '../supabase.js'
 import { s, colores, paleta } from '../estilos.js'
 import {
   Upload, Loader2, AlertTriangle, CheckCircle2, X, FileUp,
-  Receipt, ShoppingBag, HelpCircle, Check, Info, AlertCircle
+  Receipt, ShoppingBag, HelpCircle, Check, Info, AlertCircle, Trash2
 } from 'lucide-react'
 
 const c = colores.facturacion
@@ -569,6 +569,51 @@ function ImportarARCA({ tipoInicial = 'ventas', onImportado }) {
         }}>
           <CheckCircle2 size={16} color="#2563EB" />
           <span>{infoMensaje}</span>
+        </div>
+      )}
+
+      {/* AVISO / ACCIÓN PARA LIMPIAR ANTES DE REIMPORTAR */}
+      {estado === 'idle' && tipoOperacion === 'ventas' && (
+        <div style={{
+          display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px',
+          background: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: '10px', padding: '12px 16px', marginBottom: '16px'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <AlertTriangle size={18} color="#D97706" />
+            <span style={{ fontSize: '13px', color: '#92400E', fontWeight: '500' }}>
+              ¿Querés reimportar desde cero? Podés vaciar todas las facturas de venta previas para que la carga quede 100% limpia con ARCA.
+            </span>
+          </div>
+          <button
+            type="button"
+            style={{
+              ...s.btnPeligro,
+              padding: '6px 14px', fontSize: '12px', fontWeight: '700',
+              display: 'inline-flex', alignItems: 'center', gap: '5px'
+            }}
+            onClick={async () => {
+              if (!confirm('¿Eliminar TODAS las facturas de venta para realizar una importación limpia desde ARCA?')) return
+              try {
+                const { data: facts } = await supabase.from('facturas').select('id')
+                if (!facts || facts.length === 0) {
+                  alert('No hay facturas cargadas para borrar.')
+                  return
+                }
+                const ids = facts.map(f => f.id)
+                await supabase.from('pagos').delete().in('factura_id', ids)
+                await supabase.from('movimientos_financieros').update({ factura_id: null }).in('factura_id', ids)
+                const { error: err } = await supabase.from('facturas').delete().in('id', ids)
+                if (err) throw err
+                alert(`Se eliminaron las ${ids.length} facturas de venta. Ahora podés subir tu archivo ARCA para tener la facturación limpia.`)
+                if (onImportado) onImportado()
+              } catch (e) {
+                alert('Error al vaciar facturas: ' + e.message)
+              }
+            }}
+          >
+            <Trash2 size={13} />
+            Vaciar facturas de venta previas
+          </button>
         </div>
       )}
 

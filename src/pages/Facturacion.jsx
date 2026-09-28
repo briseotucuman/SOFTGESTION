@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../supabase.js'
 import { s, colores } from '../estilos.js'
-import { Pencil, Plus, Receipt, X, FileUp } from 'lucide-react'
+import { Pencil, Plus, Receipt, X, FileUp, Trash2, AlertTriangle, Loader2 } from 'lucide-react'
 import ImportarARCA from './ImportarARCA.jsx'
 
 const c = colores.facturacion
@@ -14,6 +14,8 @@ function Facturacion()  {
   const [mostrarForm, setMostrarForm] = useState(false)
   const [mostrarPagos, setMostrarPagos] = useState(null)
   const [mostrarGenerador, setMostrarGenerador] = useState(false)
+  const [modalConfirmarBorrado, setModalConfirmarBorrado] = useState(false)
+  const [borrandoTodas, setBorrandoTodas] = useState(false)
   const [editando, setEditando] = useState(null)
   const [pagos, setPagos] = useState([])
   const [cuentas, setCuentas] = useState([])
@@ -150,6 +152,59 @@ function Facturacion()  {
     cargarDatos()
   }
 
+  async function eliminarFacturaIndividual(id, numero) {
+    if (!confirm(`¿Eliminar definitivamente la factura ${numero || id}? Esta acción no se puede deshacer.`)) return
+    try {
+      await supabase.from('pagos').delete().eq('factura_id', id)
+      await supabase.from('movimientos_financieros').update({ factura_id: null }).eq('factura_id', id)
+      const { error } = await supabase.from('facturas').delete().eq('id', id)
+      if (error) throw error
+      await cargarDatos()
+    } catch (err) {
+      alert('Error al eliminar la factura: ' + (err.message || 'Error desconocido'))
+    }
+  }
+
+  async function borrarTodasLasFacturas() {
+    setBorrandoTodas(true)
+    try {
+      const { data: facts, error: errFetch } = await supabase.from('facturas').select('id')
+      if (errFetch) throw errFetch
+
+      if (!facts || facts.length === 0) {
+        alert('No hay facturas para eliminar.')
+        setBorrandoTodas(false)
+        setModalConfirmarBorrado(false)
+        return
+      }
+
+      const ids = facts.map(f => f.id)
+      try {
+        await supabase.from('pagos').delete().in('factura_id', ids)
+      } catch (e) {
+        console.warn('Pagos cleanup notice:', e)
+      }
+
+      try {
+        await supabase.from('movimientos_financieros').update({ factura_id: null }).in('factura_id', ids)
+      } catch (e) {
+        console.warn('Movimientos cleanup notice:', e)
+      }
+
+      const { error: errDel } = await supabase.from('facturas').delete().in('id', ids)
+      if (errDel) throw errDel
+
+      setModalConfirmarBorrado(false)
+      await cargarDatos()
+      alert(`Se eliminaron correctamente las ${ids.length} facturas de venta. El módulo quedó totalmente limpio para importar directamente de ARCA.`)
+      setVista('importar-arca')
+    } catch (err) {
+      alert('Error al borrar las facturas: ' + (err.message || 'Error desconocido'))
+    } finally {
+      setBorrandoTodas(false)
+    }
+  }
+
   async function verPagos(factura) {
     setMostrarPagos(factura)
     const { data } = await supabase.from('pagos').select('*').eq('factura_id', factura.id).order('fecha_pago', { ascending: false })
@@ -227,11 +282,36 @@ function Facturacion()  {
         </div>
       </div>
 
-      <div style={{ display: 'flex', gap: '10px', marginBottom: '16px' }}>
-        <button onClick={() => setVista('facturas')} style={vista === 'facturas' ? s.btnPrimario(c.main) : s.btnSecundario}>Facturas</button>
-        <button onClick={() => setVista('importar-arca')} style={vista === 'importar-arca' ? s.btnPrimario(c.main) : s.btnSecundario}>
-          <FileUp size={13} style={{ marginRight: 5, verticalAlign: '-2px' }} />Importar desde ARCA
-        </button>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '10px' }}>
+        <div style={{ display: 'flex', gap: '10px' }}>
+          <button onClick={() => setVista('facturas')} style={vista === 'facturas' ? s.btnPrimario(c.main) : s.btnSecundario}>Facturas</button>
+          <button onClick={() => setVista('importar-arca')} style={vista === 'importar-arca' ? s.btnPrimario(c.main) : s.btnSecundario}>
+            <FileUp size={13} style={{ marginRight: 5, verticalAlign: '-2px' }} />Importar desde ARCA
+          </button>
+        </div>
+
+        {facturas.length > 0 && (
+          <button
+            type="button"
+            onClick={() => setModalConfirmarBorrado(true)}
+            style={{
+              ...s.btnSecundario,
+              color: '#DC2626',
+              borderColor: '#FCA5A5',
+              background: '#FEF2F2',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+              fontSize: '12.5px',
+              fontWeight: '700',
+              padding: '6px 12px',
+              cursor: 'pointer'
+            }}
+          >
+            <Trash2 size={14} color="#DC2626" />
+            Borrar todas las facturas ({facturas.length})
+          </button>
+        )}
       </div>
 
       {vista === 'importar-arca' && <ImportarARCA tipoInicial="ventas" onImportado={cargarDatos} />}
@@ -484,6 +564,13 @@ function Facturacion()  {
                         {f.estado !== 'anulada' && (
                           <button onClick={() => anularFactura(f.id)} style={{ ...s.btnPeligro, padding: '5px 10px', fontSize: '12px' }}>Anular</button>
                         )}
+                        <button
+                          title="Eliminar factura"
+                          onClick={() => eliminarFacturaIndividual(f.id, f.numero_factura)}
+                          style={{ ...s.btnPeligro, padding: '5px 8px', fontSize: '12px' }}
+                        >
+                          <Trash2 size={13} />
+                        </button>
                       </div>
                     </td>
                   </tr>
@@ -494,6 +581,62 @@ function Facturacion()  {
         )}
       </div>
       </>)}
+
+      {/* MODAL CONFIRMAR BORRADO TOTAL */}
+      {modalConfirmarBorrado && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100, padding: '16px' }}>
+          <div style={{ background: '#FFFFFF', borderRadius: '16px', padding: '28px', width: '100%', maxWidth: '460px', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)', border: '1px solid #FCA5A5' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px' }}>
+              <div style={{ width: 42, height: 42, borderRadius: '50%', background: '#FEE2E2', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                <AlertTriangle size={22} color="#DC2626" />
+              </div>
+              <div>
+                <h4 style={{ margin: 0, fontSize: '17px', fontWeight: '800', color: '#991B1B' }}>
+                  ¿Borrar todas las facturas de venta?
+                </h4>
+                <p style={{ margin: '2px 0 0', fontSize: '12.5px', color: '#64748B' }}>
+                  Limpieza total para reimportar desde ARCA
+                </p>
+              </div>
+            </div>
+
+            <div style={{ background: '#FEF2F2', padding: '12px 16px', borderRadius: '8px', fontSize: '13px', color: '#991B1B', lineHeight: '1.5', marginBottom: '20px' }}>
+              Esta acción eliminará de forma irreversible las <strong>{facturas.length} facturas de venta</strong> actualmente cargadas en el sistema.
+              <br /><br />
+              Esto te permitirá tener el módulo 100% en blanco para importar de manera limpia el archivo CSV oficial descargado de ARCA sin generar duplicados.
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
+              <button
+                type="button"
+                style={s.btnSecundario}
+                onClick={() => setModalConfirmarBorrado(false)}
+                disabled={borrandoTodas}
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                style={{ ...s.btnPeligro, display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '9px 18px', fontWeight: '700' }}
+                onClick={borrarTodasLasFacturas}
+                disabled={borrandoTodas}
+              >
+                {borrandoTodas ? (
+                  <>
+                    <Loader2 size={15} style={{ animation: 'spin 1s linear infinite' }} />
+                    Borrando facturas…
+                  </>
+                ) : (
+                  <>
+                    <Trash2 size={15} />
+                    Confirmar y vaciar todo
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
