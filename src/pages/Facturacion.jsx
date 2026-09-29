@@ -153,10 +153,13 @@ function Facturacion()  {
   }
 
   async function eliminarFacturaIndividual(id, numero) {
-    if (!confirm(`¿Eliminar definitivamente la factura ${numero || id}? Esta acción no se puede deshacer.`)) return
+    if (!confirm(`¿Eliminar definitivamente la factura ${numero || id}? Esta acción también eliminará sus cobranzas asociadas para que los Reportes y Finanzas se mantengan limpios.`)) return
     try {
       await supabase.from('pagos').delete().eq('factura_id', id)
-      await supabase.from('movimientos_financieros').update({ factura_id: null }).eq('factura_id', id)
+      await supabase.from('movimientos_financieros').delete().eq('factura_id', id)
+      if (numero) {
+        await supabase.from('movimientos_financieros').delete().eq('tipo', 'ingreso').ilike('descripcion', `%${numero}%`)
+      }
       const { error } = await supabase.from('facturas').delete().eq('id', id)
       if (error) throw error
       await cargarDatos()
@@ -172,7 +175,21 @@ function Facturacion()  {
       if (errFetch) throw errFetch
 
       if (!facts || facts.length === 0) {
-        alert('No hay facturas para eliminar.')
+        // Verificar si quedaron cobranzas huérfanas en movimientos_financieros
+        const { data: cobranzasHuerfanas } = await supabase.from('movimientos_financieros')
+          .select('id')
+          .eq('tipo', 'ingreso')
+          .eq('categoria', 'Cobranzas')
+
+        if (cobranzasHuerfanas && cobranzasHuerfanas.length > 0) {
+          if (confirm(`No quedan facturas de venta, pero existen ${cobranzasHuerfanas.length} cobranza(s) registrada(s) que aún figuran en Reportes. ¿Deseas eliminarlas ahora para dejar los reportes en cero?`)) {
+            await supabase.from('movimientos_financieros').delete().in('id', cobranzasHuerfanas.map(c => c.id))
+            alert(`Se eliminaron las ${cobranzasHuerfanas.length} cobranzas huérfanas. El módulo de Reportes y Finanzas quedó 100% limpio.`)
+            await cargarDatos()
+          }
+        } else {
+          alert('No hay facturas ni cobranzas pendientes de eliminar.')
+        }
         setBorrandoTodas(false)
         setModalConfirmarBorrado(false)
         return
@@ -186,7 +203,10 @@ function Facturacion()  {
       }
 
       try {
-        await supabase.from('movimientos_financieros').update({ factura_id: null }).in('factura_id', ids)
+        // Eliminar movimientos financieros vinculados a las facturas
+        await supabase.from('movimientos_financieros').delete().in('factura_id', ids)
+        // Eliminar todas las cobranzas de ventas para que no queden reflejadas en reportes
+        await supabase.from('movimientos_financieros').delete().eq('tipo', 'ingreso').eq('categoria', 'Cobranzas')
       } catch (e) {
         console.warn('Movimientos cleanup notice:', e)
       }
@@ -196,7 +216,7 @@ function Facturacion()  {
 
       setModalConfirmarBorrado(false)
       await cargarDatos()
-      alert(`Se eliminaron correctamente las ${ids.length} facturas de venta. El módulo quedó totalmente limpio para importar directamente de ARCA.`)
+      alert(`Se eliminaron correctamente las ${ids.length} facturas de venta y todas sus cobranzas asociadas. Los Reportes y Facturación quedaron 100% limpios para importar desde ARCA.`)
       setVista('importar-arca')
     } catch (err) {
       alert('Error al borrar las facturas: ' + (err.message || 'Error desconocido'))

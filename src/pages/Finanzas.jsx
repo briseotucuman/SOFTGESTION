@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../supabase.js'
 import { s, colores, paleta } from '../estilos.js'
-import { BarChart3, Pencil, Plus, Trash2, X, TrendingDown, TrendingUp, Wallet2, ArrowRightLeft, FileUp } from 'lucide-react'
+import { BarChart3, Pencil, Plus, Trash2, X, TrendingDown, TrendingUp, Wallet2, ArrowRightLeft, FileUp, AlertTriangle, Loader2 } from 'lucide-react'
 import ImportarARCA from './ImportarARCA.jsx'
 
 const c = colores.finanzas
@@ -348,6 +348,37 @@ function Finanzas() {
     cargarDatos()
   }
 
+  const idsFacturasVenta = new Set((facturasCobrarTodas || []).map(f => f.id))
+  const numsFacturasVenta = new Set((facturasCobrarTodas || []).map(f => f.numero_factura).filter(Boolean))
+
+  const cobranzasHuerfanas = movimientos.filter(m => {
+    if (m.tipo !== 'ingreso') return false
+    const esCobranza = m.categoria === 'Cobranzas' || (m.descripcion && m.descripcion.toLowerCase().includes('cobro factura')) || m.factura_id
+    if (!esCobranza) return false
+    const tieneValida = (m.factura_id && idsFacturasVenta.has(m.factura_id)) ||
+      (numsFacturasVenta.size > 0 && Array.from(numsFacturasVenta).some(n => m.descripcion && m.descripcion.includes(n)))
+    return !tieneValida
+  })
+
+  const [depurandoHuerfanas, setDepurandoHuerfanas] = useState(false)
+
+  async function depurarCobranzasFinanzas() {
+    if (!confirm(`¿Eliminar definitivamente las ${cobranzasHuerfanas.length} cobranzas huérfanas de facturas eliminadas?`)) return
+    setDepurandoHuerfanas(true)
+    try {
+      const ids = cobranzasHuerfanas.map(m => m.id)
+      for (let i = 0; i < ids.length; i += 50) {
+        await supabase.from('movimientos_financieros').delete().in('id', ids.slice(i, i + 50))
+      }
+      alert(`Se eliminaron con éxito las ${ids.length} cobranzas huérfanas.`)
+      cargarDatos()
+    } catch (e) {
+      alert('Error al depurar cobranzas: ' + e.message)
+    } finally {
+      setDepurandoHuerfanas(false)
+    }
+  }
+
   const movMes = movimientos.filter(m => m.fecha && m.fecha.startsWith(filtroMes))
   const totalIngresos = movMes.filter(m => m.tipo === 'ingreso').reduce((a, m) => a + Number(m.monto), 0)
   const totalEgresos = movMes.filter(m => m.tipo === 'egreso').reduce((a, m) => a + Number(m.monto), 0)
@@ -388,6 +419,35 @@ function Finanzas() {
           )}
         </div>
       </div>
+
+      {/* AVISO DE COBRANZAS HUÉRFANAS */}
+      {cobranzasHuerfanas.length > 0 && (
+        <div style={{
+          background: '#fef2f2', border: '1px solid #fecaca', borderLeft: '4px solid #dc2626',
+          borderRadius: '8px', padding: '12px 16px', marginBottom: '14px',
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '10px'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <AlertTriangle size={18} color="#dc2626" />
+            <div>
+              <p style={{ margin: 0, fontSize: '13px', fontWeight: '700', color: '#991b1b' }}>
+                Se detectaron {cobranzasHuerfanas.length} cobranza(s) registrada(s) de facturas de venta que fueron eliminadas.
+              </p>
+              <p style={{ margin: '2px 0 0', fontSize: '12px', color: '#7f1d1d' }}>
+                Podés eliminarlas para sincronizar los movimientos con el módulo de Reportes y Facturación.
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={depurarCobranzasFinanzas}
+            disabled={depurandoHuerfanas}
+            style={{ ...s.btnPeligro, padding: '6px 14px', fontSize: '12px', fontWeight: '700', display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+          >
+            {depurandoHuerfanas ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
+            Depurar {cobranzasHuerfanas.length} cobranza(s)
+          </button>
+        </div>
+      )}
 
       {/* INDICADOR DE FLUJO */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: '14px', marginBottom: '14px' }}>

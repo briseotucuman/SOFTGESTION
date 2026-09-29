@@ -1,7 +1,11 @@
 import React, { useEffect, useState } from 'react'
 import { supabase } from '../supabase.js'
 import { s, paleta } from '../estilos.js'
-import { TrendingUp, X, History, ArrowUpRight, ArrowDownRight, Layers, DollarSign, Building, AlertCircle, MapPin, ChevronLeft, ChevronRight, ChevronDown } from 'lucide-react'
+import {
+  TrendingUp, X, History, ArrowUpRight, ArrowDownRight, Layers,
+  DollarSign, Building, AlertCircle, MapPin, ChevronLeft, ChevronRight,
+  ChevronDown, AlertTriangle, Trash2, Loader2, RefreshCw
+} from 'lucide-react'
 
 const MESES = [
   { valor: '01', nombre: 'Enero' },
@@ -179,6 +183,8 @@ function Reportes() {
   const [evolucionGeneral, setEvolucionGeneral] = useState(null)
   const [clienteEvolucion, setClienteEvolucion] = useState(null)
   const [evolucionClienteData, setEvolucionClienteData] = useState(null)
+  const [cobranzasHuerfanas, setCobranzasHuerfanas] = useState([])
+  const [depurando, setDepurando] = useState(false)
   const [loading, setLoading] = useState(true)
   const [mesNum, setMesNum] = useState(mesActual)
   const [anioNum, setAnioNum] = useState(String(anioActual))
@@ -203,24 +209,86 @@ function Reportes() {
     setMesNum(mesActual)
   }
 
-  async function cargarEvolucionGeneral() {
+  async function cargarEvolucionGeneral(setIdsValidos, setNumsValidos) {
     const meses = ultimosNMeses(mes, 6)
-    const { data } = await supabase.from('movimientos_financieros').select('fecha,tipo,monto')
+    const { data } = await supabase.from('movimientos_financieros')
+      .select('id,fecha,tipo,monto,categoria,descripcion,factura_id')
       .gte('fecha', meses[0] + '-01')
       .lte('fecha', mes + '-' + new Date(+mes.split('-')[0], +mes.split('-')[1], 0).getDate())
+
+    const setIds = setIdsValidos instanceof Set ? setIdsValidos : new Set()
+    const setNums = setNumsValidos instanceof Set ? setNumsValidos : new Set()
+
     const porMes = {}
     meses.forEach(m => { porMes[m] = { ingresos: 0, egresos: 0 } })
     ;(data || []).forEach(mv => {
       const key = mv.fecha.slice(0, 7)
       if (!porMes[key]) return
-      if (mv.tipo === 'ingreso') porMes[key].ingresos += Number(mv.monto)
-      else porMes[key].egresos += Number(mv.monto)
+
+      if (mv.tipo === 'ingreso') {
+        const esCobranza = mv.categoria === 'Cobranzas' || (mv.descripcion && mv.descripcion.toLowerCase().includes('cobro factura')) || mv.factura_id
+        if (esCobranza) {
+          // Si no hay facturas activas, o la factura fue eliminada, es huérfana -> NO computar
+          const tieneFacturaValida = (mv.factura_id && setIds.has(mv.factura_id)) ||
+            (setNums.size > 0 && Array.from(setNums).some(num => mv.descripcion && mv.descripcion.includes(num)))
+          if (!tieneFacturaValida) return
+        }
+        porMes[key].ingresos += Number(mv.monto)
+      } else {
+        porMes[key].egresos += Number(mv.monto)
+      }
     })
     setEvolucionGeneral({
       meses,
       ingresos: meses.map(m => porMes[m].ingresos),
       egresos: meses.map(m => porMes[m].egresos),
     })
+  }
+
+  async function depurarCobranzasHuerfanas() {
+    if (!confirm(`¿Eliminar definitivamente todas las cobranzas huérfanas de facturas de venta que fueron eliminadas? Esta acción limpiará la base de datos de movimientos contables y sincronizará Reportes y Finanzas.`)) return
+    setDepurando(true)
+    try {
+      const { data: todasFacts } = await supabase.from('facturas').select('id, numero_factura')
+      const setIds = new Set((todasFacts || []).map(f => f.id))
+      const setNums = new Set((todasFacts || []).map(f => f.numero_factura).filter(Boolean))
+
+      const { data: todasCobranzas } = await supabase.from('movimientos_financieros')
+        .select('id, tipo, categoria, descripcion, factura_id')
+        .eq('tipo', 'ingreso')
+
+      const idsBorrar = (todasCobranzas || []).filter(m => {
+        const esCobranza = m.categoria === 'Cobranzas' || (m.descripcion && m.descripcion.toLowerCase().includes('cobro factura')) || m.factura_id
+        if (!esCobranza) return false
+        const tieneValida = (m.factura_id && setIds.has(m.factura_id)) ||
+          (setNums.size > 0 && Array.from(setNums).some(num => m.descripcion && m.descripcion.includes(num)))
+        return !tieneValida
+      }).map(m => m.id)
+
+      if (idsBorrar.length > 0) {
+        for (let i = 0; i < idsBorrar.length; i += 50) {
+          const chunk = idsBorrar.slice(i, i + 50)
+          const { error } = await supabase.from('movimientos_financieros').delete().in('id', chunk)
+          if (error) throw error
+        }
+      }
+
+      // También depurar pagos si no hay facturas
+      if (setIds.size === 0) {
+        try {
+          await supabase.from('pagos').delete().neq('id', '00000000-0000-0000-0000-000000000000')
+        } catch (e) {
+          console.warn('Pagos cleanup notice:', e)
+        }
+      }
+
+      alert(`Se eliminaron con éxito ${idsBorrar.length} cobranza(s) huérfana(s). Los reportes y finanzas quedaron sincronizados y limpios.`)
+      await cargarReportes()
+    } catch (err) {
+      alert('Error al depurar cobranzas: ' + (err.message || 'Error desconocido'))
+    } finally {
+      setDepurando(false)
+    }
   }
 
   async function cargarReportes() {
@@ -238,28 +306,59 @@ function Reportes() {
       { data: insumosBajos },
       { data: facturasData },
       { data: costosFijos },
-      { data: costosVariables }
+      { data: costosVariables },
+      { data: todasLasFacturas },
+      { data: todasCobranzasDb }
     ] = await Promise.all([
       supabase.from('clientes').select('*', { count: 'exact', head: true }).eq('activo', true),
       supabase.from('contratos').select('*', { count: 'exact', head: true }).eq('estado', 'activo'),
       supabase.from('empleados').select('*', { count: 'exact', head: true }).eq('activo', true),
       supabase.from('ordenes_trabajo').select('*', { count: 'exact', head: true }).gte('fecha_programada', mes + '-01').lte('fecha_programada', mes + '-' + new Date(+mes.split('-')[0], +mes.split('-')[1], 0).getDate()),
-      supabase.from('movimientos_financieros').select('tipo,monto,categoria').gte('fecha', mes + '-01').lte('fecha', mes + '-' + new Date(+mes.split('-')[0], +mes.split('-')[1], 0).getDate()),
+      supabase.from('movimientos_financieros').select('id,tipo,monto,categoria,descripcion,factura_id,fecha').gte('fecha', mes + '-01').lte('fecha', mes + '-' + new Date(+mes.split('-')[0], +mes.split('-')[1], 0).getDate()),
       supabase.from('facturas').select('total').in('estado', ['pendiente', 'parcial', 'vencida']),
       supabase.from('insumos').select('id, stock_actual, stock_minimo').eq('activo', true),
-      supabase.from('facturas').select(`total, estado, cliente_id, clientes(id, razon_social, nombre_contacto)`).in('estado', ['pagada', 'parcial']).gte('fecha_emision', mes + '-01').lte('fecha_emision', mes + '-' + new Date(+mes.split('-')[0], +mes.split('-')[1], 0).getDate()),
+      supabase.from('facturas').select(`total, estado, cliente_id, clientes(id, razon_social, nombre_contacto)`).in('estado', ['pagada', 'parcial', 'cobrada']).gte('fecha_emision', mes + '-01').lte('fecha_emision', mes + '-' + new Date(+mes.split('-')[0], +mes.split('-')[1], 0).getDate()),
       supabase.from('costos_fijos').select('monto').eq('activo', true).eq('mes', mes),
       supabase.from('costos_variables').select('monto, cliente_id, clientes(id, razon_social, nombre_contacto)').gte('fecha', mes + '-01').lte('fecha', mes + '-' + new Date(+mes.split('-')[0], +mes.split('-')[1], 0).getDate()),
+      supabase.from('facturas').select('id, numero_factura'),
+      supabase.from('movimientos_financieros').select('id, tipo, categoria, descripcion, factura_id').eq('tipo', 'ingreso')
     ])
 
-    const ingresosDelMes = (movimientosMes || []).filter(m => m.tipo === 'ingreso').reduce((a, m) => a + Number(m.monto), 0)
-    const egresosDelMes = (movimientosMes || []).filter(m => m.tipo === 'egreso').reduce((a, m) => a + Number(m.monto), 0)
+    const setIds = new Set((todasLasFacturas || []).map(f => f.id))
+    const setNums = new Set((todasLasFacturas || []).map(f => f.numero_factura).filter(Boolean))
+
+    // Detección exhaustiva de cobranzas huérfanas en toda la base de datos
+    const huerfanasTotales = (todasCobranzasDb || []).filter(m => {
+      const esCobranza = m.categoria === 'Cobranzas' || (m.descripcion && m.descripcion.toLowerCase().includes('cobro factura')) || m.factura_id
+      if (!esCobranza) return false
+      const tieneValida = (m.factura_id && setIds.has(m.factura_id)) ||
+        (setNums.size > 0 && Array.from(setNums).some(num => m.descripcion && m.descripcion.includes(num)))
+      return !tieneValida
+    })
+
+    setCobranzasHuerfanas(huerfanasTotales)
+
+    // Filtrar movimientos del mes para excluir cobranzas de facturas ya eliminadas
+    const movimientosValidos = (movimientosMes || []).filter(m => {
+      if (m.tipo === 'ingreso') {
+        const esCobranza = m.categoria === 'Cobranzas' || (m.descripcion && m.descripcion.toLowerCase().includes('cobro factura')) || m.factura_id
+        if (esCobranza) {
+          const tieneValida = (m.factura_id && setIds.has(m.factura_id)) ||
+            (setNums.size > 0 && Array.from(setNums).some(num => m.descripcion && m.descripcion.includes(num)))
+          if (!tieneValida) return false // No computar si su factura fue eliminada
+        }
+      }
+      return true
+    })
+
+    const ingresosDelMes = movimientosValidos.filter(m => m.tipo === 'ingreso').reduce((a, m) => a + Number(m.monto), 0)
+    const egresosDelMes = movimientosValidos.filter(m => m.tipo === 'egreso').reduce((a, m) => a + Number(m.monto), 0)
     const montoFacturasPendientes = (facturasPendientes || []).reduce((a, f) => a + Number(f.total), 0)
     const totalCostosFijos = (costosFijos || []).reduce((a, c) => a + Number(c.monto), 0)
     const totalCostosVariables = (costosVariables || []).reduce((a, c) => a + Number(c.monto), 0)
 
     const gastos = {}
-    ;(movimientosMes || []).filter(m => m.tipo === 'egreso').forEach(m => {
+    movimientosValidos.filter(m => m.tipo === 'egreso').forEach(m => {
       const cat = (m.categoria || 'otro').replace(/_/g, ' ')
       gastos[cat] = (gastos[cat] || 0) + Number(m.monto)
     })
@@ -306,7 +405,7 @@ function Reportes() {
     setRentabilidadClientes(rentabilidad)
     setGastosPorCategoria(Object.entries(gastos).map(([categoria, monto]) => ({ categoria, monto })).sort((a, b) => b.monto - a.monto))
     setLoading(false)
-    cargarEvolucionGeneral()
+    cargarEvolucionGeneral(setIds, setNums)
   }
 
   useEffect(() => {
@@ -328,7 +427,7 @@ function Reportes() {
     const desde = meses[0] + '-01'
     const hasta = mes + '-' + new Date(+mes.split('-')[0], +mes.split('-')[1], 0).getDate()
     const [{ data: fact }, { data: cv }] = await Promise.all([
-      supabase.from('facturas').select('total,fecha_emision,estado').eq('cliente_id', clienteId).in('estado', ['pagada', 'parcial']).gte('fecha_emision', desde).lte('fecha_emision', hasta),
+      supabase.from('facturas').select('total,fecha_emision,estado').eq('cliente_id', clienteId).in('estado', ['pagada', 'parcial', 'cobrada']).gte('fecha_emision', desde).lte('fecha_emision', hasta),
       supabase.from('costos_variables').select('monto,fecha').eq('cliente_id', clienteId).gte('fecha', desde).lte('fecha', hasta),
     ])
     const porMes = {}
@@ -503,6 +602,30 @@ function Reportes() {
               Mes Actual
             </button>
           )}
+
+          {/* Botón Sincronizar / Refrescar */}
+          <button
+            type="button"
+            onClick={() => cargarReportes()}
+            title="Recalcular métricas y sincronizar con la base de datos"
+            style={{
+              background: '#0F172A',
+              border: '1px solid #334155',
+              borderRadius: '6px',
+              color: '#CBD5E1',
+              fontSize: '12px',
+              fontWeight: '600',
+              padding: '7px 12px',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              transition: 'background 0.15s ease'
+            }}
+          >
+            <RefreshCw size={14} className={loading ? "animate-spin" : ""} />
+            Sincronizar
+          </button>
         </div>
       </div>
 
@@ -513,6 +636,58 @@ function Reportes() {
         </div>
       ) : (
         <>
+          {/* AVISO DE COBRANZAS HUÉRFANAS DETECTADAS */}
+          {cobranzasHuerfanas.length > 0 && (
+            <div style={{
+              background: '#FEF2F2',
+              border: '1px solid #FECACA',
+              borderLeft: '4px solid #DC2626',
+              borderRadius: '8px',
+              padding: '14px 18px',
+              marginBottom: '18px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              flexWrap: 'wrap',
+              gap: '12px',
+              boxShadow: '0 1px 3px 0 rgba(220, 38, 38, 0.08)'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px', maxWidth: '75%' }}>
+                <div style={{
+                  width: '36px', height: '36px', borderRadius: '50%',
+                  background: '#FEE2E2', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0
+                }}>
+                  <AlertTriangle size={20} color="#DC2626" />
+                </div>
+                <div>
+                  <h4 style={{ margin: 0, fontSize: '13.5px', fontWeight: '700', color: '#991B1B' }}>
+                    Sincronización de Cobranzas: Se detectaron {cobranzasHuerfanas.length} cobranza(s) registrada(s) de facturas que fueron eliminadas
+                  </h4>
+                  <p style={{ margin: '3px 0 0', fontSize: '12px', color: '#7F1D1D' }}>
+                    Las métricas de este reporte ya están limpias y no computan estas cobranzas. Hacé clic para eliminarlas definitivamente de la base de datos y mantener Finanzas sincronizado.
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={depurarCobranzasHuerfanas}
+                disabled={depurando}
+                style={{
+                  ...s.btnPeligro,
+                  padding: '8px 16px',
+                  fontSize: '12.5px',
+                  fontWeight: '700',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  cursor: depurando ? 'not-allowed' : 'pointer'
+                }}
+              >
+                {depurando ? <Loader2 size={15} className="animate-spin" /> : <Trash2 size={15} />}
+                Depurar {cobranzasHuerfanas.length} cobranza(s) huérfana(s)
+              </button>
+            </div>
+          )}
           {/* AVISO DE CONTROL OPERATIVO SI HAY STOCK CRÍTICO */}
           {stats.stockBajoMinimo > 0 && (
             <div style={{

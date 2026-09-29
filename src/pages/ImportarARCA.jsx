@@ -666,19 +666,26 @@ function ImportarARCA({ tipoInicial = 'ventas', onImportado }) {
               display: 'inline-flex', alignItems: 'center', gap: '5px'
             }}
             onClick={async () => {
-              if (!confirm('¿Eliminar TODAS las facturas de venta para realizar una importación limpia desde ARCA?')) return
+              if (!confirm('¿Eliminar TODAS las facturas de venta y sus cobranzas asociadas para realizar una importación limpia desde ARCA?')) return
               try {
                 const { data: facts } = await supabase.from('facturas').select('id')
-                if (!facts || facts.length === 0) {
-                  alert('No hay facturas cargadas para borrar.')
-                  return
+                const ids = (facts || []).map(f => f.id)
+                if (ids.length > 0) {
+                  await supabase.from('pagos').delete().in('factura_id', ids)
+                  await supabase.from('movimientos_financieros').delete().in('factura_id', ids)
+                  const { error: err } = await supabase.from('facturas').delete().in('id', ids)
+                  if (err) throw err
                 }
-                const ids = facts.map(f => f.id)
-                await supabase.from('pagos').delete().in('factura_id', ids)
-                await supabase.from('movimientos_financieros').update({ factura_id: null }).in('factura_id', ids)
-                const { error: err } = await supabase.from('facturas').delete().in('id', ids)
-                if (err) throw err
-                alert(`Se eliminaron las ${ids.length} facturas de venta. Ahora podés subir tu archivo ARCA para tener la facturación limpia.`)
+                // Limpiar siempre las cobranzas de ventas de movimientos_financieros
+                const { data: movCobranzas } = await supabase.from('movimientos_financieros')
+                  .select('id')
+                  .eq('tipo', 'ingreso')
+                  .eq('categoria', 'Cobranzas')
+                if (movCobranzas && movCobranzas.length > 0) {
+                  await supabase.from('movimientos_financieros').delete().in('id', movCobranzas.map(m => m.id))
+                }
+
+                alert(`Limpieza completa: se vaciaron facturas de venta y cobranzas asociadas. Reportes, Finanzas y Facturación quedaron 100% listos para importar desde ARCA.`)
                 if (onImportado) onImportado()
               } catch (e) {
                 alert('Error al vaciar facturas: ' + e.message)
