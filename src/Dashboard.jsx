@@ -1,12 +1,12 @@
 import { useState, useEffect, useMemo } from 'react'
-import { supabase } from './supabase.js'
+import { supabase, escucharCambiosDatos } from './supabase.js'
 import { colores, paleta } from './estilos.js'
 import {
   Home, Users, FileText, HardHat, CalendarDays, Wallet, Receipt, Package,
   BarChart3, ClipboardList, Briefcase, Factory, TrendingUp, UserCog,
   Bell, CheckCircle2, LogOut, ChevronLeft, ChevronRight, RefreshCw,
   Search, Command, Clock, AlertTriangle, ArrowUpRight,
-  Shield, Check, ExternalLink, Radar
+  Shield, Check, ExternalLink, Radar, ShieldCheck
 } from 'lucide-react'
 import Clientes from './pages/Clientes.jsx'
 import CRM from './pages/CRM.jsx'
@@ -24,7 +24,7 @@ import Reportes from './pages/Reportes.jsx'
 import Usuarios from './pages/Usuarios.jsx'
 
 // Módulos restringidos a rol admin (coincide con las políticas RLS en Supabase)
-const SOLO_ADMIN = ['facturacion', 'finanzas', 'costos', 'sueldos', 'usuarios']
+const SOLO_ADMIN = ['facturacion', 'finanzas', 'conciliacion', 'costos', 'sueldos', 'usuarios']
 
 const GRUPOS_MENU = [
   {
@@ -42,11 +42,12 @@ const GRUPOS_MENU = [
   {
     label: 'Administración & Finanzas',
     items: [
-      { id: 'presupuestos', icon: Wallet,        label: 'Presupuestos', desc: 'Cotizaciones comerciales y propuestas' },
-      { id: 'facturacion',  icon: Receipt,       label: 'Facturación',  desc: 'Emisión, cuentas corrientes y cobranzas' },
-      { id: 'finanzas',     icon: BarChart3,     label: 'Finanzas',     desc: 'Flujo de caja, ingresos y egresos' },
-      { id: 'costos',       icon: ClipboardList, label: 'Costos',       desc: 'Costeo operativo por servicio y cliente' },
-      { id: 'sueldos',      icon: Briefcase,     label: 'Sueldos',      desc: 'Liquidación salarial y jornales' },
+      { id: 'presupuestos', icon: Wallet,        label: 'Presupuestos',           desc: 'Cotizaciones comerciales y propuestas' },
+      { id: 'facturacion',  icon: Receipt,       label: 'Facturación',            desc: 'Emisión, cuentas corrientes y cobranzas' },
+      { id: 'finanzas',     icon: BarChart3,     label: 'Finanzas',               desc: 'Flujo de caja, ingresos y egresos' },
+      { id: 'conciliacion', icon: ShieldCheck,   label: 'Conciliación Bancaria',  desc: 'Resúmenes bancarios y conciliación' },
+      { id: 'costos',       icon: ClipboardList, label: 'Costos',                 desc: 'Costeo operativo por servicio y cliente' },
+      { id: 'sueldos',      icon: Briefcase,     label: 'Sueldos',                desc: 'Liquidación salarial y jornales' },
     ]
   },
   {
@@ -110,6 +111,69 @@ function Dashboard({ user }) {
     }
   }, [seccionActiva, esAdmin])
 
+  // Sincronización automática en vivo del Tablero
+  useEffect(() => {
+    // 1. Escuchar eventos locales de cambio de datos desde Facturación, Finanzas, ARCA, Reportes
+    const desuscribir = escucharCambiosDatos(() => {
+      if (seccionActiva === 'inicio') {
+        cargarKpis()
+        cargarAlertas()
+      }
+    })
+
+    // 2. Refrescar al volver el foco a la ventana
+    const alVolverFoco = () => {
+      if (seccionActiva === 'inicio') {
+        cargarKpis()
+        cargarAlertas()
+      }
+    }
+    window.addEventListener('focus', alVolverFoco)
+    const alCambiarVisibilidad = () => {
+      if (document.visibilityState === 'visible' && seccionActiva === 'inicio') {
+        cargarKpis()
+        cargarAlertas()
+      }
+    }
+    document.addEventListener('visibilitychange', alCambiarVisibilidad)
+
+    // 3. Heartbeat periódico cada 20 segundos para mantener el tablero 100% fresco
+    const timerSync = setInterval(() => {
+      if (seccionActiva === 'inicio') {
+        cargarKpis()
+      }
+    }, 20000)
+
+    // 4. Canal Realtime de Supabase
+    let canalRealtime = null
+    try {
+      canalRealtime = supabase.channel('dashboard_auto_sync')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'facturas' }, () => {
+          if (seccionActiva === 'inicio') { cargarKpis(); cargarAlertas() }
+        })
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'movimientos_financieros' }, () => {
+          if (seccionActiva === 'inicio') cargarKpis()
+        })
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'pagos' }, () => {
+          if (seccionActiva === 'inicio') cargarKpis()
+        })
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'cuentas_bancarias' }, () => {
+          if (seccionActiva === 'inicio') cargarKpis()
+        })
+        .subscribe()
+    } catch (e) {
+      console.warn('Realtime subscription notice:', e)
+    }
+
+    return () => {
+      desuscribir()
+      window.removeEventListener('focus', alVolverFoco)
+      document.removeEventListener('visibilitychange', alCambiarVisibilidad)
+      clearInterval(timerSync)
+      if (canalRealtime) supabase.removeChannel(canalRealtime)
+    }
+  }, [seccionActiva])
+
   async function cargarRol() {
     try {
       const { data } = await supabase.from('usuarios_sistema').select('rol').eq('user_id', user.id).maybeSingle()
@@ -131,23 +195,63 @@ function Dashboard({ user }) {
         { count: contratos },
         { count: empleados },
         { count: serviciosHoy },
-        { data: ingresos },
-        { data: facturas }
+        { data: ingresosRaw },
+        { data: facturasPendientesData },
+        { data: pagosData },
+        { data: todasFacturas }
       ] = await Promise.all([
         supabase.from('clientes').select('*', { count: 'exact', head: true }).eq('activo', true),
         supabase.from('contratos').select('*', { count: 'exact', head: true }).eq('estado', 'activo'),
         supabase.from('empleados').select('*', { count: 'exact', head: true }).eq('activo', true),
         supabase.from('ordenes_trabajo').select('*', { count: 'exact', head: true }).eq('fecha_programada', hoy),
-        supabase.from('movimientos_financieros').select('monto').eq('tipo', 'ingreso').gte('fecha', mes + '-01').lte('fecha', mes + '-' + new Date(+mes.split('-')[0], +mes.split('-')[1], 0).getDate()),
-        supabase.from('facturas').select('total').in('estado', ['pendiente', 'parcial', 'vencida']),
+        supabase.from('movimientos_financieros').select('id, monto, categoria, descripcion, factura_id').eq('tipo', 'ingreso').gte('fecha', mes + '-01').lte('fecha', mes + '-' + new Date(+mes.split('-')[0], +mes.split('-')[1], 0).getDate()),
+        supabase.from('facturas').select('id, total, estado').in('estado', ['emitida', 'pendiente', 'parcial', 'vencida']),
+        supabase.from('pagos').select('factura_id, monto'),
+        supabase.from('facturas').select('id, numero_factura')
       ])
+
+      const setFactIds = new Set((todasFacturas || []).map(f => f.id))
+      const setFactNums = new Set((todasFacturas || []).map(f => f.numero_factura).filter(Boolean))
+
+      // Depuración automática de cobranzas huérfanas de facturas eliminadas
+      const huerfanos = (ingresosRaw || []).filter(m => {
+        const esCobranza = m.categoria === 'Cobranzas' || (m.descripcion && m.descripcion.toLowerCase().includes('cobro factura')) || m.factura_id
+        if (!esCobranza) return false
+        const tieneValida = (m.factura_id && setFactIds.has(m.factura_id)) ||
+          (setFactNums.size > 0 && Array.from(setFactNums).some(n => m.descripcion && m.descripcion.includes(n)))
+        return !tieneValida
+      })
+
+      if (huerfanos.length > 0) {
+        const idsHuerfanos = huerfanos.map(h => h.id)
+        try {
+          await supabase.from('movimientos_financieros').delete().in('id', idsHuerfanos)
+        } catch (e) {
+          console.warn('Orphan cleanup notice in kpi:', e)
+        }
+      }
+
+      // Solo computar ingresos reales que no pertenezcan a facturas eliminadas
+      const ingresosValidos = (ingresosRaw || []).filter(m => !huerfanos.some(h => h.id === m.id))
+
+      // Calcular saldo neto pendiente de facturas de venta restando los pagos registrados
+      const pagadoPorFact = {}
+      ;(pagosData || []).forEach(p => {
+        pagadoPorFact[p.factura_id] = (pagadoPorFact[p.factura_id] || 0) + Number(p.monto)
+      })
+
+      const totalPendienteReal = (facturasPendientesData || []).reduce((acc, f) => {
+        const pagado = pagadoPorFact[f.id] || 0
+        return acc + Math.max(0, Number(f.total) - pagado)
+      }, 0)
+
       setKpis({
         clientes: clientes || 0,
         contratos: contratos || 0,
         empleados: empleados || 0,
         serviciosHoy: serviciosHoy || 0,
-        ingresosMes: (ingresos || []).reduce((a, m) => a + Number(m.monto), 0),
-        facturasPendientes: (facturas || []).reduce((a, f) => a + Number(f.total), 0)
+        ingresosMes: ingresosValidos.reduce((a, m) => a + Number(m.monto), 0),
+        facturasPendientes: totalPendienteReal
       })
     } catch {
       // Supabase fallback si tablas aún no tienen datos
@@ -1163,6 +1267,7 @@ function Dashboard({ user }) {
               {seccionActiva === 'facturacion' && esAdmin && <Facturacion />}
               {seccionActiva === 'insumos' && <Insumos />}
               {seccionActiva === 'finanzas' && esAdmin && <Finanzas />}
+              {seccionActiva === 'conciliacion' && esAdmin && <Finanzas vistaInicial="conciliacion" />}
               {seccionActiva === 'costos' && esAdmin && <Costos />}
               {seccionActiva === 'sueldos' && esAdmin && <Sueldos />}
               {seccionActiva === 'proveedores' && <Proveedores />}

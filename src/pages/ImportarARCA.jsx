@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { supabase } from '../supabase.js'
+import { supabase, emitirCambioDatos } from '../supabase.js'
 import { s, colores, paleta } from '../estilos.js'
 import {
   Upload, Loader2, AlertTriangle, CheckCircle2, X, FileUp,
@@ -509,6 +509,7 @@ function ImportarARCA({ tipoInicial = 'ventas', onImportado }) {
 
       setStats({ totalProcesadas: totalImportado, totalMonto })
       setEstado('listo')
+      emitirCambioDatos('importar-arca')
       if (onImportado) onImportado()
     } catch (err) {
       setError(err.message || 'Error al guardar comprobantes en el sistema')
@@ -686,6 +687,7 @@ function ImportarARCA({ tipoInicial = 'ventas', onImportado }) {
                 }
 
                 alert(`Limpieza completa: se vaciaron facturas de venta y cobranzas asociadas. Reportes, Finanzas y Facturación quedaron 100% listos para importar desde ARCA.`)
+                emitirCambioDatos('importar-arca')
                 if (onImportado) onImportado()
               } catch (e) {
                 alert('Error al vaciar facturas: ' + e.message)

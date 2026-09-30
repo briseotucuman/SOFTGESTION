@@ -1,14 +1,19 @@
 import { useEffect, useState } from 'react'
-import { supabase } from '../supabase.js'
+import { supabase, emitirCambioDatos, escucharCambiosDatos } from '../supabase.js'
 import { s, colores, paleta } from '../estilos.js'
-import { BarChart3, Pencil, Plus, Trash2, X, TrendingDown, TrendingUp, Wallet2, ArrowRightLeft, FileUp, AlertTriangle, Loader2 } from 'lucide-react'
+import {
+  BarChart3, Pencil, Plus, Trash2, X, TrendingDown, TrendingUp, Wallet2, ArrowRightLeft,
+  FileUp, AlertTriangle, Loader2, ShieldCheck, RefreshCw, Landmark, Banknote, Building2,
+  SlidersHorizontal, Check, CheckCircle2, DollarSign, UploadCloud, FileSpreadsheet, Eye, Search
+} from 'lucide-react'
 import ImportarARCA from './ImportarARCA.jsx'
+import ConciliacionBancaria from './ConciliacionBancaria.jsx'
 
 const c = colores.finanzas
 
 const CATEGORIAS = {
-  ingreso: ['Cobranzas', 'Otro ingreso'],
-  egreso: ['Insumos', 'Servicios', 'Haberes', 'Impuestos', 'Alquileres', 'Socios', 'Marketing', 'Otro egreso']
+  ingreso: ['Cobranzas', 'Otro ingreso', 'Ajuste de saldo'],
+  egreso: ['Insumos', 'Servicios', 'Haberes', 'Impuestos', 'Alquileres', 'Socios', 'Marketing', 'Otro egreso', 'Ajuste de saldo']
 }
 const CATEGORIAS_COMPRA = ['Insumos', 'Servicios', 'Alquiler', 'Impuestos', 'Mantenimiento', 'Otro']
 const FORMAS_PAGO = ['Efectivo', 'Transferencia', 'Cheque', 'Tarjeta', 'Otro']
@@ -21,14 +26,16 @@ const ESTADO_COLOR = {
   anulada:   { bg: '#f1f5f9', color: '#64748b' },
 }
 
-function Finanzas() {
-  const [vista, setVista] = useState('movimientos') // movimientos | por-cobrar | por-pagar | proyeccion
+function Finanzas({ vistaInicial = 'movimientos' }) {
+  const [vista, setVista] = useState(vistaInicial) // movimientos | por-cobrar | por-pagar | conciliacion | estado-cuenta | proyeccion
   const [movimientos, setMovimientos] = useState([])
   const [cuentas, setCuentas] = useState([])
   const [facturas, setFacturas] = useState([])
   const [facturasCobrarTodas, setFacturasCobrarTodas] = useState([])
   const [pagosVenta, setPagosVenta] = useState([])
   const [loading, setLoading] = useState(true)
+  const [sincronizando, setSincronizando] = useState(false)
+  const [cuentaSeleccionadaId, setCuentaSeleccionadaId] = useState('')
   const [mostrarForm, setMostrarForm] = useState(false)
   const [mostrarCuenta, setMostrarCuenta] = useState(false)
   const [editando, setEditando] = useState(null)
@@ -41,6 +48,22 @@ function Finanzas() {
   })
   const [formCuenta, setFormCuenta] = useState({ banco: '', tipo: 'caja_ahorro', numero: '', cbu: '', saldo: '0' })
 
+  // ---- Actualización y edición de saldos de bancos y efectivo ----
+  const [cuentaEditando, setCuentaEditando] = useState(null)
+  const [formEditCuenta, setFormEditCuenta] = useState({
+    banco: '', tipo: 'caja_ahorro', numero: '', cbu: '', saldoNuevo: '',
+    registrarMovimiento: true, motivoAjuste: 'Ajuste manual de saldo / Arqueo'
+  })
+  const [modalAjusteSaldos, setModalAjusteSaldos] = useState(false)
+  const [saldosRapidos, setSaldosRapidos] = useState({})
+  const [guardandoAjuste, setGuardandoAjuste] = useState(false)
+
+  const [prevVistaInicial, setPrevVistaInicial] = useState(vistaInicial)
+  if (vistaInicial !== prevVistaInicial) {
+    setPrevVistaInicial(vistaInicial)
+    setVista(vistaInicial)
+  }
+
   // ---- Cuentas por pagar ----
   const [facturasCompra, setFacturasCompra] = useState([])
   const [pagosCompra, setPagosCompra] = useState([])
@@ -51,11 +74,15 @@ function Finanzas() {
   const [formCompra, setFormCompra] = useState({ proveedor_id: '', cliente_id: '', numero_factura: '', fecha_emision: new Date().toISOString().split('T')[0], fecha_vencimiento: '', categoria: 'Insumos', total: '', observaciones: '' })
   const [pagandoFactura, setPagandoFactura] = useState(null)
   const [formPagoCompra, setFormPagoCompra] = useState({ monto: '', medio_pago: 'transferencia', cuenta_id: '', referencia: '' })
+  const [filtroPagar, setFiltroPagar] = useState('todas') // 'todas' | 'pendientes' | 'pagadas'
+  const [busquedaPagar, setBusquedaPagar] = useState('')
 
   // ---- Cuentas por cobrar ----
   const [cobrandoFactura, setCobrandoFactura] = useState(null)
   const [formCobro, setFormCobro] = useState({ monto: '', medio_pago: 'transferencia', cuenta_id: '', referencia: '' })
   const [diasCobroPago, setDiasCobroPago] = useState({ diasCobro: null, diasPago: null })
+  const [filtroCobrar, setFiltroCobrar] = useState('todas') // 'todas' | 'pendientes' | 'cobradas'
+  const [busquedaCobrar, setBusquedaCobrar] = useState('')
 
   // ---- Indicador de flujo (cobrar/pagar) ----
   const [porCobrar, setPorCobrar] = useState(0)
@@ -67,7 +94,52 @@ function Finanzas() {
   const [rangoDesde, setRangoDesde] = useState(new Date().toISOString().slice(0,7) + '-01')
   const [rangoHasta, setRangoHasta] = useState(new Date().toISOString().split('T')[0])
 
-  useEffect(() => { cargarDatos() }, [])
+  useEffect(() => {
+    cargarDatos()
+
+    // 1. Escuchar evento de datos global en memoria
+    const desuscribir = escucharCambiosDatos(() => {
+      cargarDatos()
+    })
+
+    // 2. Refrescar al re-enfocar la ventana
+    const alEnfocar = () => {
+      cargarDatos()
+    }
+    window.addEventListener('focus', alEnfocar)
+    const alVisibilidad = () => {
+      if (document.visibilityState === 'visible') cargarDatos()
+    }
+    document.addEventListener('visibilitychange', alVisibilidad)
+
+    // 3. Heartbeat periódico para que las finanzas siempre estén actualizadas
+    const timerSync = setInterval(() => {
+      cargarDatos()
+    }, 25000)
+
+    // 4. Canal Realtime de Supabase
+    let canalRealtime = null
+    try {
+      canalRealtime = supabase.channel('finanzas_auto_sync')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'movimientos_financieros' }, () => cargarDatos())
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'facturas' }, () => cargarDatos())
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'pagos' }, () => cargarDatos())
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'cuentas_bancarias' }, () => cargarDatos())
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'facturas_compra' }, () => cargarDatos())
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'pagos_compra' }, () => cargarDatos())
+        .subscribe()
+    } catch (e) {
+      console.warn('Realtime notice in finanzas:', e)
+    }
+
+    return () => {
+      desuscribir()
+      window.removeEventListener('focus', alEnfocar)
+      document.removeEventListener('visibilitychange', alVisibilidad)
+      clearInterval(timerSync)
+      if (canalRealtime) supabase.removeChannel(canalRealtime)
+    }
+  }, [])
   useEffect(() => { if (vista === 'proyeccion' && !proyeccion) cargarProyeccion() }, [vista])
 
   const BUCKETS = [
@@ -116,7 +188,7 @@ function Finanzas() {
   async function cargarDatos() {
     setLoading(true)
     const [
-      { data: movData }, { data: cuentasData }, { data: facturasData },
+      { data: movDataRaw }, { data: cuentasData }, { data: facturasData },
       { data: factCompraData }, { data: pagosCompraData }, { data: provData }, { data: cliData },
       { data: factVentaTodas }, { data: pagosVentaData }
     ] = await Promise.all([
@@ -130,8 +202,46 @@ function Finanzas() {
       supabase.from('facturas').select('id,numero_factura,total,estado,fecha_emision,fecha_vencimiento,clientes(razon_social,nombre_contacto)').order('fecha_emision', { ascending: false }),
       supabase.from('pagos').select('*, facturas(fecha_emision)'),
     ])
-    if (movData) setMovimientos(movData)
-    if (cuentasData) setCuentas(cuentasData)
+
+    let movData = movDataRaw || []
+    const setFactVentaIds = new Set((factVentaTodas || []).map(f => f.id))
+    const setFactVentaNums = new Set((factVentaTodas || []).map(f => f.numero_factura).filter(Boolean))
+
+    // Detección automática y purga transparente de cobranzas huérfanas de facturas eliminadas
+    const huerfanos = movData.filter(m => {
+      if (m.tipo !== 'ingreso') return false
+      const esCobranza = m.categoria === 'Cobranzas' || (m.descripcion && m.descripcion.toLowerCase().includes('cobro factura')) || m.factura_id
+      if (!esCobranza) return false
+      const tieneValida = (m.factura_id && setFactVentaIds.has(m.factura_id)) ||
+        (setFactVentaNums.size > 0 && Array.from(setFactVentaNums).some(n => m.descripcion && m.descripcion.includes(n)))
+      return !tieneValida
+    })
+
+    if (huerfanos.length > 0) {
+      const idsHuerfanos = huerfanos.map(m => m.id)
+      for (const h of huerfanos) {
+        if (h.cuenta_id && h.monto) {
+          await ajustarSaldo(h.cuenta_id, -Number(h.monto))
+        }
+      }
+      for (let i = 0; i < idsHuerfanos.length; i += 50) {
+        await supabase.from('movimientos_financieros').delete().in('id', idsHuerfanos.slice(i, i + 50))
+      }
+      if (setFactVentaIds.size === 0) {
+        try {
+          await supabase.from('pagos').delete().neq('id', '00000000-0000-0000-0000-000000000000')
+        } catch (e) {
+          console.warn('Pagos cleanup notice:', e)
+        }
+      }
+      movData = movData.filter(m => !idsHuerfanos.includes(m.id))
+      const { data: cuentasActualizadas } = await supabase.from('cuentas_bancarias').select('*').eq('activa', true)
+      if (cuentasActualizadas) setCuentas(cuentasActualizadas)
+    } else if (cuentasData) {
+      setCuentas(cuentasData)
+    }
+
+    setMovimientos(movData)
     if (facturasData) setFacturas(facturasData)
     if (factCompraData) setFacturasCompra(factCompraData)
     if (pagosCompraData) setPagosCompra(pagosCompraData)
@@ -254,23 +364,143 @@ function Finanzas() {
         await supabase.from('facturas').update({ estado: 'cobrada' }).eq('id', form.factura_id)
       }
     }
-    cancelar(); cargarDatos()
+    cancelar()
+    await cargarDatos()
+    emitirCambioDatos('finanzas')
   }
 
   async function eliminarMovimiento(m) {
     if (!confirm('¿Eliminar este movimiento?')) return
     if (m.cuenta_id) await ajustarSaldo(m.cuenta_id, -efectoEnSaldo(m.tipo, m.monto))
     await supabase.from('movimientos_financieros').delete().eq('id', m.id)
-    cargarDatos()
+    await cargarDatos()
+    emitirCambioDatos('finanzas')
   }
 
   async function guardarCuenta(e) {
     e.preventDefault()
-    const { error } = await supabase.from('cuentas_bancarias').insert([{ ...formCuenta, saldo: parseFloat(formCuenta.saldo) || 0 }])
+    const saldoInit = parseFloat(formCuenta.saldo) || 0
+    const { error } = await supabase.from('cuentas_bancarias').insert([{ ...formCuenta, saldo: saldoInit, activa: true }])
     if (error) { alert('Error: ' + error.message); return }
     setMostrarCuenta(false)
     setFormCuenta({ banco: '', tipo: 'caja_ahorro', numero: '', cbu: '', saldo: '0' })
-    cargarDatos()
+    await cargarDatos()
+    emitirCambioDatos('finanzas')
+  }
+
+  // ---------- Edición y ajuste de saldos de cuentas (Bancos y Efectivo) ----------
+  function abrirEditarCuenta(ct) {
+    setCuentaEditando(ct)
+    setFormEditCuenta({
+      banco: ct.banco || '',
+      tipo: ct.tipo || 'caja_ahorro',
+      numero: ct.numero || '',
+      cbu: ct.cbu || '',
+      saldoNuevo: String(Number(ct.saldo || 0)),
+      registrarMovimiento: true,
+      motivoAjuste: 'Ajuste manual de saldo / Arqueo'
+    })
+  }
+
+  async function guardarEdicionCuenta(e) {
+    e.preventDefault()
+    if (!cuentaEditando) return
+    const saldoNuevoNum = parseFloat(formEditCuenta.saldoNuevo)
+    if (isNaN(saldoNuevoNum)) {
+      alert('Ingresá un valor numérico válido para el saldo.')
+      return
+    }
+    const saldoAnterior = Number(cuentaEditando.saldo || 0)
+    const diff = saldoNuevoNum - saldoAnterior
+
+    try {
+      const { error: errCt } = await supabase.from('cuentas_bancarias').update({
+        banco: formEditCuenta.banco.trim(),
+        tipo: formEditCuenta.tipo,
+        numero: formEditCuenta.numero?.trim() || null,
+        cbu: formEditCuenta.cbu?.trim() || null,
+        saldo: saldoNuevoNum
+      }).eq('id', cuentaEditando.id)
+
+      if (errCt) throw errCt
+
+      // Si se solicitó registrar movimiento contable y hay diferencia real
+      if (formEditCuenta.registrarMovimiento && Math.abs(diff) > 0.009) {
+        const tipoMov = diff > 0 ? 'ingreso' : 'egreso'
+        const montoMov = Math.abs(diff)
+        await supabase.from('movimientos_financieros').insert([{
+          fecha: new Date().toISOString().split('T')[0],
+          tipo: tipoMov,
+          categoria: 'Ajuste de saldo',
+          descripcion: `${formEditCuenta.motivoAjuste || 'Ajuste de saldo'} (${formEditCuenta.banco}) — Diferencia: ${diff > 0 ? '+' : '-'}${montoMov.toLocaleString('es-AR', { style: 'currency', currency: 'ARS' })}`,
+          monto: montoMov,
+          cuenta_id: cuentaEditando.id,
+          forma_pago: formEditCuenta.tipo === 'caja_chica' ? 'Efectivo' : 'Transferencia',
+          comprobante: 'Ajuste manual'
+        }])
+      }
+
+      setCuentaEditando(null)
+      await cargarDatos()
+      emitirCambioDatos('finanzas')
+      alert(`Saldo de "${formEditCuenta.banco}" actualizado exitosamente a ${saldoNuevoNum.toLocaleString('es-AR', { style: 'currency', currency: 'ARS' })}.`)
+    } catch (err) {
+      alert('Error al actualizar cuenta: ' + err.message)
+    }
+  }
+
+  async function eliminarCuenta(ct) {
+    if (!confirm(`¿Dar de baja la cuenta "${ct.banco}"? Los movimientos históricos se conservarán pero la cuenta no aparecerá activa.`)) return
+    try {
+      const { error } = await supabase.from('cuentas_bancarias').update({ activa: false }).eq('id', ct.id)
+      if (error) throw error
+      setCuentaEditando(null)
+      await cargarDatos()
+      emitirCambioDatos('finanzas')
+    } catch (err) {
+      alert('Error: ' + err.message)
+    }
+  }
+
+  function abrirAjusteTodosSaldos() {
+    const mapa = {}
+    cuentas.forEach(ct => {
+      mapa[ct.id] = String(Number(ct.saldo || 0))
+    })
+    setSaldosRapidos(mapa)
+    setModalAjusteSaldos(true)
+  }
+
+  async function guardarAjusteTodosSaldos(e) {
+    e.preventDefault()
+    setGuardandoAjuste(true)
+    try {
+      for (const ct of cuentas) {
+        const nuevo = parseFloat(saldosRapidos[ct.id])
+        if (!isNaN(nuevo) && nuevo !== Number(ct.saldo || 0)) {
+          const diff = nuevo - Number(ct.saldo || 0)
+          await supabase.from('cuentas_bancarias').update({ saldo: nuevo }).eq('id', ct.id)
+          await supabase.from('movimientos_financieros').insert([{
+            fecha: new Date().toISOString().split('T')[0],
+            tipo: diff > 0 ? 'ingreso' : 'egreso',
+            categoria: 'Ajuste de saldo',
+            descripcion: `Ajuste masivo de saldo (${ct.banco}) — Diferencia: ${diff > 0 ? '+' : '-'}${Math.abs(diff).toLocaleString('es-AR', { style: 'currency', currency: 'ARS' })}`,
+            monto: Math.abs(diff),
+            cuenta_id: ct.id,
+            forma_pago: ct.tipo === 'caja_chica' ? 'Efectivo' : 'Transferencia',
+            comprobante: 'Ajuste masivo'
+          }])
+        }
+      }
+      setModalAjusteSaldos(false)
+      await cargarDatos()
+      emitirCambioDatos('finanzas')
+      alert('Saldos de bancos y efectivo actualizados exitosamente.')
+    } catch (err) {
+      alert('Error al actualizar saldos: ' + err.message)
+    } finally {
+      setGuardandoAjuste(false)
+    }
   }
 
   // ---------- Cuentas por pagar ----------
@@ -288,7 +518,8 @@ function Finanzas() {
     if (error) { alert('Error: ' + error.message); return }
     setMostrarFormCompra(false)
     setFormCompra({ proveedor_id: '', cliente_id: '', numero_factura: '', fecha_emision: new Date().toISOString().split('T')[0], fecha_vencimiento: '', categoria: 'Insumos', total: '', observaciones: '' })
-    cargarDatos()
+    await cargarDatos()
+    emitirCambioDatos('finanzas')
   }
 
   function abrirPago(factura) {
@@ -316,7 +547,8 @@ function Finanzas() {
     const nuevoEstado = totalPagado >= Number(pagandoFactura.total) ? 'pagada' : 'parcial'
     await supabase.from('facturas_compra').update({ estado: nuevoEstado }).eq('id', pagandoFactura.id)
     setPagandoFactura(null)
-    cargarDatos()
+    await cargarDatos()
+    emitirCambioDatos('finanzas')
   }
 
   // ---------- Cuentas por cobrar ----------
@@ -345,38 +577,8 @@ function Finanzas() {
     const nuevoEstado = totalCobrado >= Number(cobrandoFactura.total) ? 'cobrada' : 'parcial'
     await supabase.from('facturas').update({ estado: nuevoEstado }).eq('id', cobrandoFactura.id)
     setCobrandoFactura(null)
-    cargarDatos()
-  }
-
-  const idsFacturasVenta = new Set((facturasCobrarTodas || []).map(f => f.id))
-  const numsFacturasVenta = new Set((facturasCobrarTodas || []).map(f => f.numero_factura).filter(Boolean))
-
-  const cobranzasHuerfanas = movimientos.filter(m => {
-    if (m.tipo !== 'ingreso') return false
-    const esCobranza = m.categoria === 'Cobranzas' || (m.descripcion && m.descripcion.toLowerCase().includes('cobro factura')) || m.factura_id
-    if (!esCobranza) return false
-    const tieneValida = (m.factura_id && idsFacturasVenta.has(m.factura_id)) ||
-      (numsFacturasVenta.size > 0 && Array.from(numsFacturasVenta).some(n => m.descripcion && m.descripcion.includes(n)))
-    return !tieneValida
-  })
-
-  const [depurandoHuerfanas, setDepurandoHuerfanas] = useState(false)
-
-  async function depurarCobranzasFinanzas() {
-    if (!confirm(`¿Eliminar definitivamente las ${cobranzasHuerfanas.length} cobranzas huérfanas de facturas eliminadas?`)) return
-    setDepurandoHuerfanas(true)
-    try {
-      const ids = cobranzasHuerfanas.map(m => m.id)
-      for (let i = 0; i < ids.length; i += 50) {
-        await supabase.from('movimientos_financieros').delete().in('id', ids.slice(i, i + 50))
-      }
-      alert(`Se eliminaron con éxito las ${ids.length} cobranzas huérfanas.`)
-      cargarDatos()
-    } catch (e) {
-      alert('Error al depurar cobranzas: ' + e.message)
-    } finally {
-      setDepurandoHuerfanas(false)
-    }
+    await cargarDatos()
+    emitirCambioDatos('finanzas')
   }
 
   const movMes = movimientos.filter(m => m.fecha && m.fecha.startsWith(filtroMes))
@@ -391,10 +593,47 @@ function Finanzas() {
       <div style={s.cabecera(c.gradient)}>
         <div>
           <h3 style={{ ...s.cabeceraTexto, display:'flex', alignItems:'center', gap:'9px' }}><BarChart3 size={19} /> Finanzas</h3>
-          <p style={s.cabeceraSubtexto}>{movimientos.length} movimientos · {facturasCompra.filter(f=>f.estado!=='pagada'&&f.estado!=='anulada').length} facturas de compra pendientes</p>
+          <p style={s.cabeceraSubtexto}>{movimientos.length} movimientos · {cuentas.length} cuentas activas · {facturasCompra.filter(f=>f.estado!=='pagada'&&f.estado!=='anulada').length} facturas de compra pendientes</p>
         </div>
-        <div style={{ display: 'flex', gap: '10px' }}>
-          <button style={{ ...s.btnPrimario('rgba(255,255,255,0.2)'), border: '1px solid rgba(255,255,255,0.4)' }} onClick={() => setMostrarCuenta(true)}>+ Cuenta</button>
+        <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', alignItems: 'center' }}>
+          {/* Botón Sincronizar en vivo */}
+          <button
+            type="button"
+            style={{ ...s.btnPrimario('rgba(255,255,255,0.18)'), border: '1px solid rgba(255,255,255,0.35)', display: 'flex', alignItems: 'center', gap: '6px' }}
+            onClick={async () => {
+              setSincronizando(true)
+              await cargarDatos()
+              setSincronizando(false)
+            }}
+            disabled={sincronizando}
+            title="Sincronizar y actualizar datos de finanzas en vivo"
+          >
+            <RefreshCw size={13} className={sincronizando ? 'animate-spin' : ''} />
+            <span>{sincronizando ? 'Sincronizando…' : 'Sincronizar'}</span>
+          </button>
+
+          {/* Botón Ajustar saldos */}
+          <button
+            type="button"
+            style={{ ...s.btnPrimario('rgba(255,255,255,0.2)'), border: '1px solid rgba(255,255,255,0.4)', display: 'flex', alignItems: 'center', gap: '6px' }}
+            onClick={abrirAjusteTodosSaldos}
+            title="Actualizar y modificar saldos de bancos y efectivo"
+          >
+            <SlidersHorizontal size={13} />
+            <span>Ajustar saldos</span>
+          </button>
+
+          {/* Botón + Cuenta */}
+          <button
+            style={{ ...s.btnPrimario('rgba(255,255,255,0.2)'), border: '1px solid rgba(255,255,255,0.4)' }}
+            onClick={() => {
+              setFormCuenta({ banco: '', tipo: 'cuenta_corriente', numero: '', cbu: '', saldo: '0' })
+              setMostrarCuenta(true)
+            }}
+          >
+            + Cuenta
+          </button>
+
           {vista === 'movimientos' && (
             <button style={s.btnPrimario('rgba(255,255,255,0.25)')} onClick={() => { if (mostrarForm) { cancelar() } else { setMostrarForm(true) } }}>
               {mostrarForm ? <><X size={14} style={{ marginRight: 5, verticalAlign: '-2px' }} />Cancelar</> : <><Plus size={14} style={{ marginRight: 5, verticalAlign: '-2px' }} />Movimiento</>}
@@ -419,35 +658,6 @@ function Finanzas() {
           )}
         </div>
       </div>
-
-      {/* AVISO DE COBRANZAS HUÉRFANAS */}
-      {cobranzasHuerfanas.length > 0 && (
-        <div style={{
-          background: '#fef2f2', border: '1px solid #fecaca', borderLeft: '4px solid #dc2626',
-          borderRadius: '8px', padding: '12px 16px', marginBottom: '14px',
-          display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '10px'
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <AlertTriangle size={18} color="#dc2626" />
-            <div>
-              <p style={{ margin: 0, fontSize: '13px', fontWeight: '700', color: '#991b1b' }}>
-                Se detectaron {cobranzasHuerfanas.length} cobranza(s) registrada(s) de facturas de venta que fueron eliminadas.
-              </p>
-              <p style={{ margin: '2px 0 0', fontSize: '12px', color: '#7f1d1d' }}>
-                Podés eliminarlas para sincronizar los movimientos con el módulo de Reportes y Facturación.
-              </p>
-            </div>
-          </div>
-          <button
-            onClick={depurarCobranzasFinanzas}
-            disabled={depurandoHuerfanas}
-            style={{ ...s.btnPeligro, padding: '6px 14px', fontSize: '12px', fontWeight: '700', display: 'inline-flex', alignItems: 'center', gap: '6px' }}
-          >
-            {depurandoHuerfanas ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
-            Depurar {cobranzasHuerfanas.length} cobranza(s)
-          </button>
-        </div>
-      )}
 
       {/* INDICADOR DE FLUJO */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: '14px', marginBottom: '14px' }}>
@@ -489,18 +699,21 @@ function Finanzas() {
           <p style={{ fontSize: '20px', fontWeight: '800', color: balance >= 0 ? '#1d4ed8' : '#d97706', margin: 0 }}>{balance.toLocaleString('es-AR', { style: 'currency', currency: 'ARS' })}</p>
         </div>
         <div style={s.card}>
-          <p style={{ ...s.label, color: '#64748b' }}>Saldo en cuentas</p>
+          <p style={{ ...s.label, color: '#64748b' }}>Saldo en cuentas (bancos + efectivo)</p>
           <p style={{ fontSize: '20px', fontWeight: '800', color: '#0f172a', margin: 0 }}>{saldoTotal.toLocaleString('es-AR', { style: 'currency', currency: 'ARS' })}</p>
         </div>
       </div>
 
-      <div style={{ display: 'flex', gap: '10px', marginBottom: '16px' }}>
+      <div style={{ display: 'flex', gap: '10px', marginBottom: '16px', flexWrap: 'wrap' }}>
         <button onClick={() => setVista('movimientos')} style={vista === 'movimientos' ? s.btnPrimario(c.main) : s.btnSecundario}>Movimientos</button>
         <button onClick={() => setVista('por-cobrar')} style={vista === 'por-cobrar' ? s.btnPrimario(c.main) : s.btnSecundario}>
           <TrendingUp size={13} style={{ marginRight: 5, verticalAlign: '-2px' }} />Cuentas por cobrar
         </button>
         <button onClick={() => setVista('por-pagar')} style={vista === 'por-pagar' ? s.btnPrimario(c.main) : s.btnSecundario}>
           <Wallet2 size={13} style={{ marginRight: 5, verticalAlign: '-2px' }} />Cuentas por pagar
+        </button>
+        <button onClick={() => setVista('conciliacion')} style={vista === 'conciliacion' ? s.btnPrimario(c.main) : s.btnSecundario}>
+          <ShieldCheck size={13} style={{ marginRight: 5, verticalAlign: '-2px' }} />Conciliación bancaria
         </button>
         <button onClick={() => setVista('estado-cuenta')} style={vista === 'estado-cuenta' ? s.btnPrimario(c.main) : s.btnSecundario}>
           <ArrowRightLeft size={13} style={{ marginRight: 5, verticalAlign: '-2px' }} />Estado de cuenta
@@ -648,74 +861,440 @@ function Finanzas() {
         </div>
       )}
 
-      {/* MODAL CUENTA */}
+      {/* MODAL CREAR NUEVA CUENTA / CAJA */}
       {mostrarCuenta && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50 }}>
-          <div style={{ background: '#fff', borderRadius: '20px', padding: '28px', width: '100%', maxWidth: '400px', boxShadow: '0 20px 60px rgba(0,0,0,0.2)' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-              <h4 style={{ margin: 0, fontWeight: '700', color: '#0f172a' }}>Nueva cuenta bancaria</h4>
-              <button onClick={() => setMostrarCuenta(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8' }}><X size={16} /></button>
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(2px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 60 }}>
+          <div style={{ background: '#fff', borderRadius: '16px', padding: '28px', width: '100%', maxWidth: '440px', boxShadow: '0 20px 60px rgba(0,0,0,0.25)', border: '1px solid #E2E8F0' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '18px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <div style={{ width: 34, height: 34, borderRadius: 8, background: '#E0F2FE', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <Building2 size={18} color="#0369A1" />
+                </div>
+                <h4 style={{ margin: 0, fontWeight: '700', color: '#0F172A', fontSize: '16px' }}>Nueva cuenta / Caja</h4>
+              </div>
+              <button onClick={() => setMostrarCuenta(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94A3B8' }}><X size={18} /></button>
             </div>
             <form onSubmit={guardarCuenta}>
               <div style={s.grid2}>
-                <div style={{ gridColumn: '1 / -1' }}><label style={s.label}>Banco / Descripción</label><input style={s.input} value={formCuenta.banco} onChange={e => setFormCuenta({...formCuenta, banco: e.target.value})} required /></div>
+                <div style={{ gridColumn: '1 / -1' }}>
+                  <label style={s.label}>Nombre de la cuenta o banco</label>
+                  <input
+                    style={s.input}
+                    value={formCuenta.banco}
+                    onChange={e => setFormCuenta({...formCuenta, banco: e.target.value})}
+                    placeholder="Ej. Banco Galicia, Caja Efectivo Central, Mercado Pago"
+                    required
+                  />
+                </div>
                 <div>
-                  <label style={s.label}>Tipo</label>
+                  <label style={s.label}>Tipo de cuenta</label>
                   <select style={s.input} value={formCuenta.tipo} onChange={e => setFormCuenta({...formCuenta, tipo: e.target.value})}>
-                    <option value="caja_ahorro">Caja de ahorro</option>
                     <option value="cuenta_corriente">Cuenta corriente</option>
-                    <option value="caja_chica">Caja chica</option>
+                    <option value="caja_ahorro">Caja de ahorro</option>
+                    <option value="caja_chica">Caja chica / Efectivo</option>
                   </select>
                 </div>
-                <div><label style={s.label}>Saldo inicial ($)</label><input type="number" style={s.input} value={formCuenta.saldo} onChange={e => setFormCuenta({...formCuenta, saldo: e.target.value})} /></div>
+                <div>
+                  <label style={s.label}>Saldo inicial ($)</label>
+                  <input type="number" step="0.01" style={s.input} value={formCuenta.saldo} onChange={e => setFormCuenta({...formCuenta, saldo: e.target.value})} placeholder="0.00" />
+                </div>
+                <div>
+                  <label style={s.label}>Nº de cuenta / Alias</label>
+                  <input style={s.input} value={formCuenta.numero} onChange={e => setFormCuenta({...formCuenta, numero: e.target.value})} placeholder="Opcional" />
+                </div>
+                <div>
+                  <label style={s.label}>CBU / CVU</label>
+                  <input style={s.input} value={formCuenta.cbu} onChange={e => setFormCuenta({...formCuenta, cbu: e.target.value})} placeholder="22 dígitos (opcional)" />
+                </div>
               </div>
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '16px' }}>
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '22px' }}>
                 <button type="button" style={s.btnSecundario} onClick={() => setMostrarCuenta(false)}>Cancelar</button>
-                <button type="submit" style={s.btnPrimario(c.main)}>Guardar cuenta</button>
+                <button type="submit" style={s.btnPrimario(c.main)}>Crear cuenta</button>
               </div>
             </form>
           </div>
         </div>
       )}
 
-      {/* CUENTAS */}
-      <div style={{ display: 'grid', gridTemplateColumns: `repeat(${Math.max(cuentas.length,1)}, 1fr)`, gap: '14px', marginBottom: '20px' }}>
-        {cuentas.map(ct => (
-          <div key={ct.id} style={s.card}>
-            <p style={{ ...s.label, color: '#64748b' }}>{ct.banco} · {ct.tipo.replace('_',' ')}</p>
-            <p style={{ fontSize: '18px', fontWeight: '800', color: '#0f172a', margin: 0 }}>{Number(ct.saldo).toLocaleString('es-AR', { style: 'currency', currency: 'ARS' })}</p>
+      {/* MODAL EDITAR / MODIFICAR SALDO DE CUENTA (BANCO O EFECTIVO) */}
+      {cuentaEditando && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(2px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 60 }}>
+          <div style={{ background: '#fff', borderRadius: '16px', padding: '28px', width: '100%', maxWidth: '480px', boxShadow: '0 20px 60px rgba(0,0,0,0.25)', border: '1px solid #E2E8F0' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '18px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <div style={{ width: 34, height: 34, borderRadius: 8, background: '#FEF3C7', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <SlidersHorizontal size={18} color="#D97706" />
+                </div>
+                <div>
+                  <h4 style={{ margin: 0, fontWeight: '700', color: '#0F172A', fontSize: '16px' }}>Modificar saldo y datos de cuenta</h4>
+                  <p style={{ margin: 0, fontSize: '12px', color: '#64748B' }}>{cuentaEditando.banco} · {cuentaEditando.tipo.replace('_', ' ')}</p>
+                </div>
+              </div>
+              <button onClick={() => setCuentaEditando(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94A3B8' }}><X size={18} /></button>
+            </div>
+
+            <form onSubmit={guardarEdicionCuenta}>
+              <div style={s.grid2}>
+                <div style={{ gridColumn: '1 / -1' }}>
+                  <label style={s.label}>Nombre de la cuenta o banco</label>
+                  <input
+                    style={s.input}
+                    value={formEditCuenta.banco}
+                    onChange={e => setFormEditCuenta({...formEditCuenta, banco: e.target.value})}
+                    required
+                  />
+                </div>
+                <div>
+                  <label style={s.label}>Tipo de cuenta</label>
+                  <select style={s.input} value={formEditCuenta.tipo} onChange={e => setFormEditCuenta({...formEditCuenta, tipo: e.target.value})}>
+                    <option value="cuenta_corriente">Cuenta corriente</option>
+                    <option value="caja_ahorro">Caja de ahorro</option>
+                    <option value="caja_chica">Caja chica / Efectivo</option>
+                  </select>
+                </div>
+                <div>
+                  <label style={s.label}>Nº de cuenta / Alias</label>
+                  <input style={s.input} value={formEditCuenta.numero} onChange={e => setFormEditCuenta({...formEditCuenta, numero: e.target.value})} placeholder="Opcional" />
+                </div>
+                <div style={{ gridColumn: '1 / -1' }}>
+                  <label style={s.label}>CBU / CVU</label>
+                  <input style={s.input} value={formEditCuenta.cbu} onChange={e => setFormEditCuenta({...formEditCuenta, cbu: e.target.value})} placeholder="Opcional" />
+                </div>
+
+                {/* CAJA DE COMPARACIÓN DE SALDOS */}
+                <div style={{ gridColumn: '1 / -1', background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: '10px', padding: '14px', marginTop: '6px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                    <span style={{ fontSize: '12px', color: '#64748B' }}>Saldo registrado actual:</span>
+                    <strong style={{ fontSize: '13px', color: '#0F172A' }}>
+                      {Number(cuentaEditando.saldo || 0).toLocaleString('es-AR', { style: 'currency', currency: 'ARS' })}
+                    </strong>
+                  </div>
+
+                  <div style={{ marginBottom: '10px' }}>
+                    <label style={{ ...s.label, color: '#0F172A', fontWeight: '700' }}>Nuevo saldo real ($):</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      style={{ ...s.input, fontSize: '16px', fontWeight: '700', color: '#0F766E', borderColor: '#0F766E' }}
+                      value={formEditCuenta.saldoNuevo}
+                      onChange={e => setFormEditCuenta({...formEditCuenta, saldoNuevo: e.target.value})}
+                      required
+                    />
+                  </div>
+
+                  {(() => {
+                    const nuevo = parseFloat(formEditCuenta.saldoNuevo) || 0
+                    const actual = Number(cuentaEditando.saldo || 0)
+                    const diff = nuevo - actual
+                    if (Math.abs(diff) < 0.01) return <p style={{ margin: 0, fontSize: '12px', color: '#64748B' }}>El saldo no tiene cambios.</p>
+                    return (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12.5px', color: diff > 0 ? '#15803D' : '#DC2626' }}>
+                        <span>Diferencia calculada:</span>
+                        <strong>{diff > 0 ? '+' : ''}{diff.toLocaleString('es-AR', { style: 'currency', currency: 'ARS' })}</strong>
+                        <span style={{ fontSize: '11px', background: diff > 0 ? '#DCFCE7' : '#FEE2E2', padding: '2px 6px', borderRadius: '4px' }}>
+                          {diff > 0 ? 'Aumento de saldo' : 'Disminución de saldo'}
+                        </span>
+                      </div>
+                    )
+                  })()}
+
+                  <div style={{ marginTop: '12px', paddingTop: '10px', borderTop: '1px solid #E2E8F0' }}>
+                    <label style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', cursor: 'pointer', fontSize: '12.5px', color: '#334155' }}>
+                      <input
+                        type="checkbox"
+                        checked={formEditCuenta.registrarMovimiento}
+                        onChange={e => setFormEditCuenta({...formEditCuenta, registrarMovimiento: e.target.checked})}
+                        style={{ marginTop: '3px' }}
+                      />
+                      <span>
+                        <strong>Registrar movimiento de ajuste en finanzas:</strong> Guarda automáticamente un ingreso o egreso de conciliación para que el flujo de caja refleje este cambio.
+                      </span>
+                    </label>
+
+                    {formEditCuenta.registrarMovimiento && (
+                      <div style={{ marginTop: '8px' }}>
+                        <input
+                          style={{ ...s.input, fontSize: '12px' }}
+                          value={formEditCuenta.motivoAjuste}
+                          onChange={e => setFormEditCuenta({...formEditCuenta, motivoAjuste: e.target.value})}
+                          placeholder="Motivo del ajuste (ej. Arqueo de caja, Ajuste según extracto)"
+                        />
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '22px' }}>
+                <button
+                  type="button"
+                  onClick={() => eliminarCuenta(cuentaEditando)}
+                  style={{ ...s.btnPeligro, padding: '7px 12px', fontSize: '12px' }}
+                  title="Dar de baja esta cuenta"
+                >
+                  Dar de baja cuenta
+                </button>
+                <div style={{ display: 'flex', gap: '10px' }}>
+                  <button type="button" style={s.btnSecundario} onClick={() => setCuentaEditando(null)}>Cancelar</button>
+                  <button type="submit" style={s.btnPrimario(c.main)}>Guardar saldo y cambios</button>
+                </div>
+              </div>
+            </form>
           </div>
-        ))}
+        </div>
+      )}
+
+      {/* MODAL AJUSTE RÁPIDO DE TODOS LOS SALDOS (BANCOS Y EFECTIVO) */}
+      {modalAjusteSaldos && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(2px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 60 }}>
+          <div style={{ background: '#fff', borderRadius: '16px', padding: '28px', width: '100%', maxWidth: '640px', boxShadow: '0 20px 60px rgba(0,0,0,0.25)', border: '1px solid #E2E8F0', maxHeight: '90vh', overflowY: 'auto' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+              <div>
+                <h4 style={{ margin: 0, fontWeight: '700', color: '#0F172A', fontSize: '17px' }}>Ajustar saldos de bancos y efectivo</h4>
+                <p style={{ margin: '4px 0 0', fontSize: '12.5px', color: '#64748B' }}>Actualizá simultáneamente los saldos reales de todas tus cuentas bancarias y cajas físicas.</p>
+              </div>
+              <button onClick={() => setModalAjusteSaldos(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94A3B8' }}><X size={18} /></button>
+            </div>
+
+            <form onSubmit={guardarAjusteTodosSaldos}>
+              <div style={{ border: '1px solid #E2E8F0', borderRadius: '10px', overflow: 'hidden', marginBottom: '20px' }}>
+                <table style={{ ...s.tabla, margin: 0 }}>
+                  <thead>
+                    <tr>
+                      <th style={s.tablaCabecera(c.main)}>Cuenta / Caja</th>
+                      <th style={s.tablaCabecera(c.main)}>Tipo</th>
+                      <th style={{ ...s.tablaCabecera(c.main), textAlign: 'right' }}>Saldo actual</th>
+                      <th style={{ ...s.tablaCabecera(c.main), width: '170px' }}>Nuevo saldo ($)</th>
+                      <th style={{ ...s.tablaCabecera(c.main), textAlign: 'right' }}>Diferencia</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {cuentas.map((ct, i) => {
+                      const actual = Number(ct.saldo || 0)
+                      const nuevo = parseFloat(saldosRapidos[ct.id]) || 0
+                      const diff = nuevo - actual
+                      const esCaja = ct.tipo === 'caja_chica' || ct.banco?.toLowerCase().includes('efectivo') || ct.banco?.toLowerCase().includes('caja')
+                      return (
+                        <tr key={ct.id} style={s.tablaFila(i)}>
+                          <td style={s.tablaCellBold}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '7px' }}>
+                              {esCaja ? <Banknote size={15} color="#059669" /> : <Building2 size={15} color="#0284C7" />}
+                              <span>{ct.banco}</span>
+                            </div>
+                          </td>
+                          <td style={s.tablaCell}>
+                            <span style={{ fontSize: '11px', background: esCaja ? '#DCFCE7' : '#E0F2FE', color: esCaja ? '#15803D' : '#0369A1', padding: '2px 6px', borderRadius: '4px', fontWeight: '600' }}>
+                              {esCaja ? 'Efectivo / Caja' : ct.tipo.replace('_', ' ')}
+                            </span>
+                          </td>
+                          <td style={{ ...s.tablaCell, textAlign: 'right', color: '#64748B' }}>
+                            {actual.toLocaleString('es-AR', { style: 'currency', currency: 'ARS' })}
+                          </td>
+                          <td style={s.tablaCell}>
+                            <input
+                              type="number"
+                              step="0.01"
+                              style={{ ...s.input, padding: '4px 8px', fontSize: '13px', textAlign: 'right', fontWeight: '600' }}
+                              value={saldosRapidos[ct.id] ?? ''}
+                              onChange={e => setSaldosRapidos({...saldosRapidos, [ct.id]: e.target.value})}
+                              required
+                            />
+                          </td>
+                          <td style={{ ...s.tablaCell, textAlign: 'right', fontWeight: '700', color: Math.abs(diff) < 0.01 ? '#94A3B8' : (diff > 0 ? '#15803D' : '#DC2626') }}>
+                            {Math.abs(diff) < 0.01 ? '—' : `${diff > 0 ? '+' : ''}${diff.toLocaleString('es-AR', { style: 'currency', currency: 'ARS' })}`}
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
+
+              <div style={{ background: '#F1F5F9', padding: '12px 16px', borderRadius: '8px', marginBottom: '18px', fontSize: '12px', color: '#475569' }}>
+                💡 <em>Al confirmar, los saldos se actualizarán en el sistema y se generarán los asientos de ajuste contable necesarios para conciliar el historial.</em>
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
+                <button type="button" style={s.btnSecundario} onClick={() => setModalAjusteSaldos(false)}>Cancelar</button>
+                <button type="submit" style={s.btnPrimario(c.main)} disabled={guardandoAjuste}>
+                  {guardandoAjuste ? 'Guardando…' : 'Actualizar todos los saldos'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* SECCIÓN DE CUENTAS BANCARIAS Y EFECTIVO */}
+      <div style={{ marginBottom: '22px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+          <div>
+            <h4 style={{ margin: 0, fontSize: '14px', fontWeight: '700', color: '#0F172A', display: 'flex', alignItems: 'center', gap: '7px' }}>
+              <Landmark size={15} color="#0F766E" />
+              <span>Saldos de Bancos y Efectivo</span>
+              <span style={{ fontSize: '11px', background: '#F1F5F9', color: '#64748B', padding: '2px 8px', borderRadius: '10px', fontWeight: '600' }}>
+                {cuentas.length} {cuentas.length === 1 ? 'cuenta' : 'cuentas'}
+              </span>
+            </h4>
+          </div>
+          <div style={{ display: 'flex', gap: '8px' }}>
+            <button
+              onClick={() => {
+                setFormCuenta({ banco: 'Caja Efectivo', tipo: 'caja_chica', numero: 'Caja 1', cbu: '', saldo: '0' })
+                setMostrarCuenta(true)
+              }}
+              style={{ ...s.btnSecundario, padding: '5px 10px', fontSize: '11.5px', display: 'flex', alignItems: 'center', gap: '5px' }}
+              title="Crear cuenta para control de efectivo físico / caja chica"
+            >
+              <Banknote size={13} color="#059669" />
+              <span>+ Caja Efectivo</span>
+            </button>
+            <button
+              onClick={abrirAjusteTodosSaldos}
+              style={{ ...s.btnSecundario, padding: '5px 10px', fontSize: '11.5px', display: 'flex', alignItems: 'center', gap: '5px' }}
+              title="Modificar o ajustar saldos de todas las cuentas"
+            >
+              <SlidersHorizontal size={13} color="#0F766E" />
+              <span>Ajustar saldos</span>
+            </button>
+          </div>
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '14px' }}>
+          {cuentas.map(ct => {
+            const esCaja = ct.tipo === 'caja_chica' || ct.banco?.toLowerCase().includes('efectivo') || ct.banco?.toLowerCase().includes('caja')
+            return (
+              <div key={ct.id} style={{ ...s.card, margin: 0, padding: '16px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', border: '1px solid #E2E8F0', position: 'relative' }}>
+                <div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '8px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <div style={{ width: 32, height: 32, borderRadius: 8, background: esCaja ? '#DCFCE7' : '#E0F2FE', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        {esCaja ? <Banknote size={17} color="#15803D" /> : <Building2 size={17} color="#0369A1" />}
+                      </div>
+                      <div>
+                        <p style={{ margin: 0, fontSize: '14px', fontWeight: '700', color: '#0F172A' }}>{ct.banco}</p>
+                        <span style={{ fontSize: '10.5px', fontWeight: '600', color: esCaja ? '#15803D' : '#0369A1', textTransform: 'uppercase' }}>
+                          {esCaja ? 'Efectivo / Caja' : ct.tipo.replace('_', ' ')}
+                        </span>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => abrirEditarCuenta(ct)}
+                      style={{ background: '#F8FAFC', border: '1px solid #CBD5E1', borderRadius: '6px', padding: '5px 7px', cursor: 'pointer', color: '#475569', display: 'flex', alignItems: 'center', gap: '4px', fontSize: '11px', fontWeight: '600' }}
+                      title="Modificar cuenta o ajustar saldo"
+                    >
+                      <Pencil size={11} />
+                      <span>Modificar</span>
+                    </button>
+                  </div>
+
+                  {ct.numero && (
+                    <p style={{ margin: '0 0 6px', fontSize: '11px', color: '#94A3B8' }}>Nº / Alias: {ct.numero}</p>
+                  )}
+
+                  <div style={{ marginTop: '10px' }}>
+                    <p style={{ margin: 0, fontSize: '11px', color: '#64748B' }}>Saldo disponible:</p>
+                    <p style={{ fontSize: '20px', fontWeight: '800', color: Number(ct.saldo) >= 0 ? '#0F172A' : '#DC2626', margin: '2px 0 0' }}>
+                      {Number(ct.saldo).toLocaleString('es-AR', { style: 'currency', currency: 'ARS' })}
+                    </p>
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', gap: '6px', marginTop: '14px', paddingTop: '10px', borderTop: '1px solid #F1F5F9' }}>
+                  <button
+                    onClick={() => abrirEditarCuenta(ct)}
+                    style={{ flex: 1, background: '#F1F5F9', border: 'none', borderRadius: '6px', padding: '6px 8px', fontSize: '11.5px', fontWeight: '600', color: '#334155', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px' }}
+                  >
+                    <SlidersHorizontal size={12} color="#0F766E" />
+                    <span>Ajustar saldo</span>
+                  </button>
+                  <button
+                    onClick={() => {
+                      setCuentaSeleccionadaId(ct.id)
+                      setVista('conciliacion')
+                    }}
+                    style={{ flex: 1, background: '#F0FDFA', border: '1px solid #CCFBF1', borderRadius: '6px', padding: '6px 8px', fontSize: '11.5px', fontWeight: '600', color: '#0F766E', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px' }}
+                    title="Cargar extracto bancario y conciliar movimientos"
+                  >
+                    <ShieldCheck size={12} color="#0F766E" />
+                    <span>Conciliar</span>
+                  </button>
+                </div>
+              </div>
+            )
+          })}
+        </div>
       </div>
+
+      {/* VISTA CONCILIACIÓN BANCARIA */}
+      {vista === 'conciliacion' && (
+        <div style={{ marginBottom: '24px' }}>
+          <ConciliacionBancaria
+            cuentas={cuentas}
+            movimientos={movimientos}
+            onActualizarDatos={async () => {
+              await cargarDatos()
+              emitirCambioDatos('conciliacion')
+            }}
+            cuentaInicialId={cuentaSeleccionadaId}
+          />
+        </div>
+      )}
 
       {/* VISTA MOVIMIENTOS */}
       {vista === 'movimientos' && (
         <>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '16px', marginBottom: '16px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '16px', marginBottom: '16px', flexWrap: 'wrap' }}>
             <input type="month" style={{ ...s.buscador, maxWidth: '200px' }} value={filtroMes} onChange={e => setFiltroMes(e.target.value)} />
             <span style={{ color: '#64748b', fontSize: '13px' }}>{movMes.length} movimientos este mes</span>
           </div>
-          <div style={{ ...s.card, padding: 0, overflow: 'hidden' }}>
+          <div style={{ ...s.card, padding: 0, overflowX: 'auto', WebkitOverflowScrolling: 'touch', border: '1px solid #E2E8F0', borderRadius: '10px' }}>
             {loading ? <div style={s.empty}>Cargando...</div>
             : movMes.length === 0 ? <div style={s.empty}>No hay movimientos este mes</div>
             : (
-              <table style={s.tabla}>
-                <thead><tr>{['Fecha','Tipo','Categoría','Descripción','Cuenta','Forma de pago','Comprobante','Monto',''].map(h => <th key={h} style={s.tablaCabecera(c.main)}>{h}</th>)}</tr></thead>
+              <table style={{ ...s.tabla, minWidth: '880px', width: '100%' }}>
+                <thead>
+                  <tr>
+                    {['Fecha','Tipo','Categoría','Descripción','Cuenta','Forma de pago','Comprobante'].map(h => <th key={h} style={s.tablaCabecera(c.main)}>{h}</th>)}
+                    <th style={{ ...s.tablaCabecera(c.main), textAlign: 'right', whiteSpace: 'nowrap' }}>Monto</th>
+                    <th style={{
+                      ...s.tablaCabecera(c.main),
+                      position: 'sticky',
+                      right: 0,
+                      zIndex: 3,
+                      textAlign: 'center',
+                      minWidth: '100px',
+                      boxShadow: '-4px 0 8px rgba(0,0,0,0.08)'
+                    }}>
+                      Acciones
+                    </th>
+                  </tr>
+                </thead>
                 <tbody>
                   {movMes.map((m, i) => (
                     <tr key={m.id} style={s.tablaFila(i)}>
-                      <td style={s.tablaCell}>{new Date(m.fecha + 'T00:00:00').toLocaleDateString('es-AR')}</td>
+                      <td style={{ ...s.tablaCell, whiteSpace: 'nowrap' }}>{new Date(m.fecha + 'T00:00:00').toLocaleDateString('es-AR')}</td>
                       <td style={s.tablaCell}><span style={s.badge(m.tipo === 'ingreso' ? '#d1fae5' : '#fee2e2', m.tipo === 'ingreso' ? '#059669' : '#dc2626')}>{m.tipo}</span></td>
                       <td style={s.tablaCell}>{m.categoria || '—'}</td>
                       <td style={s.tablaCell}>{m.descripcion || '—'}</td>
                       <td style={{ ...s.tablaCell, fontSize: '12px' }}>{cuentas.find(ct => ct.id === m.cuenta_id)?.banco || '—'}</td>
                       <td style={s.tablaCell}>{m.forma_pago || '—'}</td>
                       <td style={{ ...s.tablaCell, fontSize: '12px', color: '#94a3b8' }}>{m.comprobante || '—'}</td>
-                      <td style={{ ...s.tablaCellBold, textAlign: 'right', color: m.tipo === 'ingreso' ? '#059669' : '#dc2626' }}>{m.tipo === 'ingreso' ? '+' : '-'}{Number(m.monto).toLocaleString('es-AR', { style: 'currency', currency: 'ARS' })}</td>
-                      <td style={s.tablaCell}>
-                        <div style={{ display: 'flex', gap: '6px' }}>
-                          <button style={{ ...s.btnPrimario(c.main), padding: '5px 10px', fontSize: '12px' }} onClick={() => abrirEdicion(m)}><Pencil size={14} /></button>
-                          <button style={s.btnPeligro} onClick={() => eliminarMovimiento(m)}><Trash2 size={14} /></button>
+                      <td style={{ ...s.tablaCellBold, textAlign: 'right', whiteSpace: 'nowrap', color: m.tipo === 'ingreso' ? '#059669' : '#dc2626' }}>{m.tipo === 'ingreso' ? '+' : '-'}{Number(m.monto).toLocaleString('es-AR', { style: 'currency', currency: 'ARS' })}</td>
+                      <td style={{
+                        ...s.tablaCell,
+                        position: 'sticky',
+                        right: 0,
+                        background: i % 2 === 0 ? '#FFFFFF' : '#F8FAFC',
+                        zIndex: 2,
+                        textAlign: 'center',
+                        minWidth: '100px',
+                        boxShadow: '-4px 0 8px rgba(0,0,0,0.05)',
+                        whiteSpace: 'nowrap'
+                      }}>
+                        <div style={{ display: 'flex', gap: '6px', justifyContent: 'center' }}>
+                          <button style={{ ...s.btnPrimario(c.main), padding: '5px 10px', fontSize: '12px' }} onClick={() => abrirEdicion(m)} title="Editar"><Pencil size={14} /></button>
+                          <button style={s.btnPeligro} onClick={() => eliminarMovimiento(m)} title="Eliminar"><Trash2 size={14} /></button>
                         </div>
                       </td>
                     </tr>
@@ -740,35 +1319,172 @@ function Finanzas() {
               {diasCobroPago.diasCobro != null && <p style={{ margin: '2px 0 0', fontSize: '11.5px', color: '#3b82f6' }}>Promedio real entre emisión y cobro, sobre {diasCobroPago.muestraCobro} cobro(s) registrado(s)</p>}
             </div>
           </div>
-          <div style={{ ...s.card, padding: 0, overflow: 'hidden' }}>
+
+          {/* Barra de búsqueda y filtros para cuentas por cobrar */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', marginBottom: '14px', flexWrap: 'wrap' }}>
+            <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
+              <div style={{ position: 'relative' }}>
+                <Search size={14} color="#94A3B8" style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)' }} />
+                <input
+                  type="text"
+                  placeholder="Buscar cliente o Nº factura..."
+                  value={busquedaCobrar}
+                  onChange={e => setBusquedaCobrar(e.target.value)}
+                  style={{ ...s.buscador, paddingLeft: '32px', minWidth: '240px' }}
+                />
+              </div>
+              <div style={{ display: 'flex', background: '#F1F5F9', padding: '3px', borderRadius: '8px', gap: '4px' }}>
+                <button
+                  type="button"
+                  onClick={() => setFiltroCobrar('todas')}
+                  style={{
+                    background: filtroCobrar === 'todas' ? '#FFFFFF' : 'transparent',
+                    color: filtroCobrar === 'todas' ? '#0F172A' : '#64748B',
+                    fontWeight: filtroCobrar === 'todas' ? '700' : '500',
+                    border: 'none', borderRadius: '6px', padding: '5px 10px', fontSize: '12px', cursor: 'pointer',
+                    boxShadow: filtroCobrar === 'todas' ? '0 1px 3px rgba(0,0,0,0.06)' : 'none'
+                  }}
+                >
+                  Todas ({facturasCobrarTodas.filter(f => f.estado !== 'anulada').length})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setFiltroCobrar('pendientes')}
+                  style={{
+                    background: filtroCobrar === 'pendientes' ? '#FFFFFF' : 'transparent',
+                    color: filtroCobrar === 'pendientes' ? '#1D4ED8' : '#64748B',
+                    fontWeight: filtroCobrar === 'pendientes' ? '700' : '500',
+                    border: 'none', borderRadius: '6px', padding: '5px 10px', fontSize: '12px', cursor: 'pointer',
+                    boxShadow: filtroCobrar === 'pendientes' ? '0 1px 3px rgba(0,0,0,0.06)' : 'none'
+                  }}
+                >
+                  Pendientes ({facturasCobrarTodas.filter(f => !['pagada','cobrada','anulada'].includes(f.estado)).length})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setFiltroCobrar('cobradas')}
+                  style={{
+                    background: filtroCobrar === 'cobradas' ? '#FFFFFF' : 'transparent',
+                    color: filtroCobrar === 'cobradas' ? '#059669' : '#64748B',
+                    fontWeight: filtroCobrar === 'cobradas' ? '700' : '500',
+                    border: 'none', borderRadius: '6px', padding: '5px 10px', fontSize: '12px', cursor: 'pointer',
+                    boxShadow: filtroCobrar === 'cobradas' ? '0 1px 3px rgba(0,0,0,0.06)' : 'none'
+                  }}
+                >
+                  Cobradas ({facturasCobrarTodas.filter(f => ['pagada','cobrada'].includes(f.estado)).length})
+                </button>
+              </div>
+            </div>
+            <div style={{ fontSize: '12px', color: '#64748B', display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <span style={{ display: 'inline-block', width: '8px', height: '8px', borderRadius: '50%', background: '#0F766E' }}></span>
+              <span>Columna <strong>Acción (Registrar cobro)</strong> fija a la derecha</span>
+            </div>
+          </div>
+
+          <div style={{ ...s.card, padding: 0, overflowX: 'auto', WebkitOverflowScrolling: 'touch', border: '1px solid #E2E8F0', borderRadius: '10px' }}>
             {loading ? <div style={s.empty}>Cargando...</div>
-            : facturasCobrarTodas.length === 0 ? <div style={s.empty}>No hay facturas registradas</div>
-            : (
-              <table style={s.tabla}>
-                <thead><tr>{['Cliente','Nº factura','Emisión','Vencimiento','Total','Saldo','Estado',''].map(h => <th key={h} style={s.tablaCabecera(c.main)}>{h}</th>)}</tr></thead>
-                <tbody>
-                  {facturasCobrarTodas.filter(f => f.estado !== 'anulada').map((f, i) => {
-                    const ec = ESTADO_COLOR[f.estado] || ESTADO_COLOR.pendiente
-                    const saldo = saldoPendienteVenta(f)
-                    const puedeCobrar = !['pagada','cobrada','anulada'].includes(f.estado)
-                    return (
-                      <tr key={f.id} style={s.tablaFila(i)}>
-                        <td style={s.tablaCellBold}>{f.clientes?.razon_social || f.clientes?.nombre_contacto || '—'}</td>
-                        <td style={{ ...s.tablaCell, fontSize: '12px', color: '#94a3b8' }}>{f.numero_factura || '—'}</td>
-                        <td style={s.tablaCell}>{f.fecha_emision ? new Date(f.fecha_emision + 'T00:00:00').toLocaleDateString('es-AR') : '—'}</td>
-                        <td style={s.tablaCell}>{f.fecha_vencimiento ? new Date(f.fecha_vencimiento + 'T00:00:00').toLocaleDateString('es-AR') : '—'}</td>
-                        <td style={s.tablaCell}>{Number(f.total).toLocaleString('es-AR', { style: 'currency', currency: 'ARS' })}</td>
-                        <td style={{ ...s.tablaCellBold, color: saldo > 0 ? '#dc2626' : '#059669' }}>{saldo.toLocaleString('es-AR', { style: 'currency', currency: 'ARS' })}</td>
-                        <td style={s.tablaCell}><span style={s.badge(ec.bg, ec.color)}>{f.estado}</span></td>
-                        <td style={s.tablaCell}>
-                          {puedeCobrar && <button style={{ ...s.btnPrimario(c.main), padding: '6px 12px', fontSize: '12px' }} onClick={() => abrirCobro(f)}>Registrar cobro</button>}
-                        </td>
+            : (() => {
+                const facturasCobrarFiltradas = facturasCobrarTodas.filter(f => {
+                  if (f.estado === 'anulada') return false
+                  if (filtroCobrar === 'pendientes' && ['pagada','cobrada'].includes(f.estado)) return false
+                  if (filtroCobrar === 'cobradas' && !['pagada','cobrada'].includes(f.estado)) return false
+                  if (busquedaCobrar.trim()) {
+                    const q = busquedaCobrar.toLowerCase()
+                    const cli = (f.clientes?.razon_social || f.clientes?.nombre_contacto || '').toLowerCase()
+                    const num = (f.numero_factura || '').toLowerCase()
+                    return cli.includes(q) || num.includes(q)
+                  }
+                  return true
+                })
+                if (facturasCobrarFiltradas.length === 0) {
+                  return (
+                    <div style={s.empty}>
+                      {busquedaCobrar || filtroCobrar !== 'todas'
+                        ? 'No se encontraron facturas con los filtros seleccionados'
+                        : 'No hay facturas registradas'}
+                    </div>
+                  )
+                }
+                return (
+                  <table style={{ ...s.tabla, minWidth: '980px', width: '100%' }}>
+                    <thead>
+                      <tr>
+                        <th style={s.tablaCabecera(c.main)}>Cliente</th>
+                        <th style={{ ...s.tablaCabecera(c.main), width: '110px' }}>Nº factura</th>
+                        <th style={{ ...s.tablaCabecera(c.main), whiteSpace: 'nowrap' }}>Emisión</th>
+                        <th style={{ ...s.tablaCabecera(c.main), whiteSpace: 'nowrap' }}>Vencimiento</th>
+                        <th style={{ ...s.tablaCabecera(c.main), textAlign: 'right', whiteSpace: 'nowrap' }}>Total</th>
+                        <th style={{ ...s.tablaCabecera(c.main), textAlign: 'right', whiteSpace: 'nowrap' }}>Saldo</th>
+                        <th style={{ ...s.tablaCabecera(c.main), textAlign: 'center', whiteSpace: 'nowrap' }}>Estado</th>
+                        <th style={{
+                          ...s.tablaCabecera(c.main),
+                          position: 'sticky',
+                          right: 0,
+                          zIndex: 3,
+                          textAlign: 'center',
+                          minWidth: '150px',
+                          boxShadow: '-4px 0 8px rgba(0,0,0,0.08)'
+                        }}>
+                          Acción
+                        </th>
                       </tr>
-                    )
-                  })}
-                </tbody>
-              </table>
-            )}
+                    </thead>
+                    <tbody>
+                      {facturasCobrarFiltradas.map((f, i) => {
+                        const ec = ESTADO_COLOR[f.estado] || ESTADO_COLOR.pendiente
+                        const saldo = saldoPendienteVenta(f)
+                        const puedeCobrar = !['pagada','cobrada','anulada'].includes(f.estado)
+                        const bgColor = i % 2 === 0 ? '#FFFFFF' : '#F8FAFC'
+                        return (
+                          <tr key={f.id} style={s.tablaFila(i)}>
+                            <td style={s.tablaCellBold}>{f.clientes?.razon_social || f.clientes?.nombre_contacto || '—'}</td>
+                            <td style={{ ...s.tablaCell, fontSize: '12px', color: '#64748B', fontFamily: paleta.fontMono, whiteSpace: 'nowrap' }}>{f.numero_factura || '—'}</td>
+                            <td style={{ ...s.tablaCell, whiteSpace: 'nowrap' }}>{f.fecha_emision ? new Date(f.fecha_emision + 'T00:00:00').toLocaleDateString('es-AR') : '—'}</td>
+                            <td style={{ ...s.tablaCell, whiteSpace: 'nowrap' }}>{f.fecha_vencimiento ? new Date(f.fecha_vencimiento + 'T00:00:00').toLocaleDateString('es-AR') : '—'}</td>
+                            <td style={{ ...s.tablaCell, textAlign: 'right', whiteSpace: 'nowrap' }}>{Number(f.total).toLocaleString('es-AR', { style: 'currency', currency: 'ARS' })}</td>
+                            <td style={{ ...s.tablaCellBold, textAlign: 'right', whiteSpace: 'nowrap', color: saldo > 0 ? '#dc2626' : '#059669' }}>{saldo.toLocaleString('es-AR', { style: 'currency', currency: 'ARS' })}</td>
+                            <td style={{ ...s.tablaCell, textAlign: 'center', whiteSpace: 'nowrap' }}><span style={s.badge(ec.bg, ec.color)}>{f.estado}</span></td>
+                            <td style={{
+                              ...s.tablaCell,
+                              position: 'sticky',
+                              right: 0,
+                              background: bgColor,
+                              zIndex: 2,
+                              textAlign: 'center',
+                              minWidth: '150px',
+                              boxShadow: '-4px 0 8px rgba(0,0,0,0.05)',
+                              whiteSpace: 'nowrap'
+                            }}>
+                              {puedeCobrar ? (
+                                <button
+                                  style={{
+                                    ...s.btnPrimario(c.main),
+                                    padding: '6px 14px',
+                                    fontSize: '12px',
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '6px'
+                                  }}
+                                  onClick={() => abrirCobro(f)}
+                                  title={`Registrar cobro de factura ${f.numero_factura || 's/n'}`}
+                                >
+                                  <DollarSign size={13} />
+                                  <span>Registrar cobro</span>
+                                </button>
+                              ) : (
+                                <span style={{ fontSize: '12px', color: '#059669', fontWeight: '600', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                                  <Check size={13} />
+                                  <span>Cobrada</span>
+                                </span>
+                              )}
+                            </td>
+                          </tr>
+                        )
+                      })}
+                    </tbody>
+                  </table>
+                )
+              })()}
           </div>
         </div>
       )}
@@ -850,38 +1566,174 @@ function Finanzas() {
                   {diasCobroPago.diasPago != null && <p style={{ margin: '2px 0 0', fontSize: '11.5px', color: '#ea580c' }}>Promedio real entre emisión y pago, sobre {diasCobroPago.muestraPago} pago(s) registrado(s)</p>}
                 </div>
               </div>
-              <div style={{ ...s.card, padding: 0, overflow: 'hidden' }}>
+              {/* Barra de búsqueda y filtros para cuentas por pagar */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', marginBottom: '14px', flexWrap: 'wrap' }}>
+                <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
+                  <div style={{ position: 'relative' }}>
+                    <Search size={14} color="#94A3B8" style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)' }} />
+                    <input
+                      type="text"
+                      placeholder="Buscar proveedor o Nº factura..."
+                      value={busquedaPagar}
+                      onChange={e => setBusquedaPagar(e.target.value)}
+                      style={{ ...s.buscador, paddingLeft: '32px', minWidth: '240px' }}
+                    />
+                  </div>
+                  <div style={{ display: 'flex', background: '#F1F5F9', padding: '3px', borderRadius: '8px', gap: '4px' }}>
+                    <button
+                      type="button"
+                      onClick={() => setFiltroPagar('todas')}
+                      style={{
+                        background: filtroPagar === 'todas' ? '#FFFFFF' : 'transparent',
+                        color: filtroPagar === 'todas' ? '#0F172A' : '#64748B',
+                        fontWeight: filtroPagar === 'todas' ? '700' : '500',
+                        border: 'none', borderRadius: '6px', padding: '5px 10px', fontSize: '12px', cursor: 'pointer',
+                        boxShadow: filtroPagar === 'todas' ? '0 1px 3px rgba(0,0,0,0.06)' : 'none'
+                      }}
+                    >
+                      Todas ({facturasCompra.length})
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setFiltroPagar('pendientes')}
+                      style={{
+                        background: filtroPagar === 'pendientes' ? '#FFFFFF' : 'transparent',
+                        color: filtroPagar === 'pendientes' ? '#C2410C' : '#64748B',
+                        fontWeight: filtroPagar === 'pendientes' ? '700' : '500',
+                        border: 'none', borderRadius: '6px', padding: '5px 10px', fontSize: '12px', cursor: 'pointer',
+                        boxShadow: filtroPagar === 'pendientes' ? '0 1px 3px rgba(0,0,0,0.06)' : 'none'
+                      }}
+                    >
+                      Pendientes ({facturasCompra.filter(f => f.estado !== 'pagada' && f.estado !== 'anulada').length})
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setFiltroPagar('pagadas')}
+                      style={{
+                        background: filtroPagar === 'pagadas' ? '#FFFFFF' : 'transparent',
+                        color: filtroPagar === 'pagadas' ? '#059669' : '#64748B',
+                        fontWeight: filtroPagar === 'pagadas' ? '700' : '500',
+                        border: 'none', borderRadius: '6px', padding: '5px 10px', fontSize: '12px', cursor: 'pointer',
+                        boxShadow: filtroPagar === 'pagadas' ? '0 1px 3px rgba(0,0,0,0.06)' : 'none'
+                      }}
+                    >
+                      Pagadas ({facturasCompra.filter(f => f.estado === 'pagada').length})
+                    </button>
+                  </div>
+                </div>
+                <div style={{ fontSize: '12px', color: '#64748B', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <span style={{ display: 'inline-block', width: '8px', height: '8px', borderRadius: '50%', background: '#0F766E' }}></span>
+                  <span>Columna <strong>Acción (Registrar pago)</strong> anclada a la derecha</span>
+                </div>
+              </div>
+
+              <div style={{ ...s.card, padding: 0, overflowX: 'auto', WebkitOverflowScrolling: 'touch', border: '1px solid #E2E8F0', borderRadius: '10px' }}>
                 {loading ? <div style={s.empty}>Cargando...</div>
-                : facturasCompra.length === 0 ? <div style={s.empty}>No hay facturas de compra registradas</div>
-                : (
-                  <table style={s.tabla}>
-                    <thead><tr>{['Proveedor','Nº factura','Categoría','Cliente imputado','Emisión','Vencimiento','Total','Saldo','Estado',''].map(h => <th key={h} style={s.tablaCabecera(c.main)}>{h}</th>)}</tr></thead>
-                    <tbody>
-                      {facturasCompra.map((f, i) => {
-                        const ec = ESTADO_COLOR[f.estado] || ESTADO_COLOR.pendiente
-                        const saldo = saldoPendiente(f)
-                        return (
-                          <tr key={f.id} style={s.tablaFila(i)}>
-                            <td style={s.tablaCellBold}>{f.proveedores?.razon_social || '—'}</td>
-                            <td style={{ ...s.tablaCell, fontSize: '12px', color: '#94a3b8' }}>{f.numero_factura || '—'}</td>
-                            <td style={s.tablaCell}>{f.categoria}</td>
-                            <td style={{ ...s.tablaCell, fontSize: '12px' }}>{f.clientes?.razon_social || f.clientes?.nombre_contacto || '—'}</td>
-                            <td style={s.tablaCell}>{f.fecha_emision ? new Date(f.fecha_emision + 'T00:00:00').toLocaleDateString('es-AR') : '—'}</td>
-                            <td style={s.tablaCell}>{f.fecha_vencimiento ? new Date(f.fecha_vencimiento + 'T00:00:00').toLocaleDateString('es-AR') : '—'}</td>
-                            <td style={s.tablaCell}>{Number(f.total).toLocaleString('es-AR', { style: 'currency', currency: 'ARS' })}</td>
-                            <td style={{ ...s.tablaCellBold, color: saldo > 0 ? '#dc2626' : '#059669' }}>{saldo.toLocaleString('es-AR', { style: 'currency', currency: 'ARS' })}</td>
-                            <td style={s.tablaCell}><span style={s.badge(ec.bg, ec.color)}>{f.estado}</span></td>
-                            <td style={s.tablaCell}>
-                              {f.estado !== 'pagada' && f.estado !== 'anulada' && (
-                                <button style={{ ...s.btnPrimario(c.main), padding: '6px 12px', fontSize: '12px' }} onClick={() => abrirPago(f)}>Registrar pago</button>
-                              )}
-                            </td>
+                : (() => {
+                    const facturasCompraFiltradas = facturasCompra.filter(f => {
+                      if (filtroPagar === 'pendientes' && (f.estado === 'pagada' || f.estado === 'anulada')) return false
+                      if (filtroPagar === 'pagadas' && f.estado !== 'pagada') return false
+                      if (busquedaPagar.trim()) {
+                        const q = busquedaPagar.toLowerCase()
+                        const prov = (f.proveedores?.razon_social || '').toLowerCase()
+                        const num = (f.numero_factura || '').toLowerCase()
+                        const cat = (f.categoria || '').toLowerCase()
+                        return prov.includes(q) || num.includes(q) || cat.includes(q)
+                      }
+                      return true
+                    })
+                    if (facturasCompraFiltradas.length === 0) {
+                      return (
+                        <div style={s.empty}>
+                          {busquedaPagar || filtroPagar !== 'todas'
+                            ? 'No se encontraron facturas con los filtros seleccionados'
+                            : 'No hay facturas de compra registradas'}
+                        </div>
+                      )
+                    }
+                    return (
+                      <table style={{ ...s.tabla, minWidth: '1050px', width: '100%' }}>
+                        <thead>
+                          <tr>
+                            <th style={s.tablaCabecera(c.main)}>Proveedor</th>
+                            <th style={{ ...s.tablaCabecera(c.main), width: '110px' }}>Nº factura</th>
+                            <th style={s.tablaCabecera(c.main)}>Categoría</th>
+                            <th style={s.tablaCabecera(c.main)}>Cliente imputado</th>
+                            <th style={{ ...s.tablaCabecera(c.main), whiteSpace: 'nowrap' }}>Emisión</th>
+                            <th style={{ ...s.tablaCabecera(c.main), whiteSpace: 'nowrap' }}>Vencimiento</th>
+                            <th style={{ ...s.tablaCabecera(c.main), textAlign: 'right', whiteSpace: 'nowrap' }}>Total</th>
+                            <th style={{ ...s.tablaCabecera(c.main), textAlign: 'right', whiteSpace: 'nowrap' }}>Saldo</th>
+                            <th style={{ ...s.tablaCabecera(c.main), textAlign: 'center', whiteSpace: 'nowrap' }}>Estado</th>
+                            <th style={{
+                              ...s.tablaCabecera(c.main),
+                              position: 'sticky',
+                              right: 0,
+                              zIndex: 3,
+                              textAlign: 'center',
+                              minWidth: '150px',
+                              boxShadow: '-4px 0 8px rgba(0,0,0,0.08)'
+                            }}>
+                              Acción
+                            </th>
                           </tr>
-                        )
-                      })}
-                    </tbody>
-                  </table>
-                )}
+                        </thead>
+                        <tbody>
+                          {facturasCompraFiltradas.map((f, i) => {
+                            const ec = ESTADO_COLOR[f.estado] || ESTADO_COLOR.pendiente
+                            const saldo = saldoPendiente(f)
+                            const bgColor = i % 2 === 0 ? '#FFFFFF' : '#F8FAFC'
+                            return (
+                              <tr key={f.id} style={s.tablaFila(i)}>
+                                <td style={s.tablaCellBold}>{f.proveedores?.razon_social || '—'}</td>
+                                <td style={{ ...s.tablaCell, fontSize: '12px', color: '#64748B', fontFamily: paleta.fontMono, whiteSpace: 'nowrap' }}>{f.numero_factura || '—'}</td>
+                                <td style={s.tablaCell}>{f.categoria}</td>
+                                <td style={{ ...s.tablaCell, fontSize: '12px' }}>{f.clientes?.razon_social || f.clientes?.nombre_contacto || '—'}</td>
+                                <td style={{ ...s.tablaCell, whiteSpace: 'nowrap' }}>{f.fecha_emision ? new Date(f.fecha_emision + 'T00:00:00').toLocaleDateString('es-AR') : '—'}</td>
+                                <td style={{ ...s.tablaCell, whiteSpace: 'nowrap' }}>{f.fecha_vencimiento ? new Date(f.fecha_vencimiento + 'T00:00:00').toLocaleDateString('es-AR') : '—'}</td>
+                                <td style={{ ...s.tablaCell, textAlign: 'right', whiteSpace: 'nowrap' }}>{Number(f.total).toLocaleString('es-AR', { style: 'currency', currency: 'ARS' })}</td>
+                                <td style={{ ...s.tablaCellBold, textAlign: 'right', whiteSpace: 'nowrap', color: saldo > 0 ? '#dc2626' : '#059669' }}>{saldo.toLocaleString('es-AR', { style: 'currency', currency: 'ARS' })}</td>
+                                <td style={{ ...s.tablaCell, textAlign: 'center', whiteSpace: 'nowrap' }}><span style={s.badge(ec.bg, ec.color)}>{f.estado}</span></td>
+                                <td style={{
+                                  ...s.tablaCell,
+                                  position: 'sticky',
+                                  right: 0,
+                                  background: bgColor,
+                                  zIndex: 2,
+                                  textAlign: 'center',
+                                  minWidth: '150px',
+                                  boxShadow: '-4px 0 8px rgba(0,0,0,0.05)',
+                                  whiteSpace: 'nowrap'
+                                }}>
+                                  {f.estado !== 'pagada' && f.estado !== 'anulada' ? (
+                                    <button
+                                      style={{
+                                        ...s.btnPrimario(c.main),
+                                        padding: '6px 14px',
+                                        fontSize: '12px',
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        gap: '6px'
+                                      }}
+                                      onClick={() => abrirPago(f)}
+                                      title={`Registrar pago a ${f.proveedores?.razon_social || 'proveedor'}`}
+                                    >
+                                      <DollarSign size={13} />
+                                      <span>Registrar pago</span>
+                                    </button>
+                                  ) : (
+                                    <span style={{ fontSize: '12px', color: '#059669', fontWeight: '600', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                                      <Check size={13} />
+                                      <span>Pagada</span>
+                                    </span>
+                                  )}
+                                </td>
+                              </tr>
+                            )
+                          })}
+                        </tbody>
+                      </table>
+                    )
+                  })()}
               </div>
             </>
           )}
@@ -930,19 +1782,19 @@ function Finanzas() {
                       </div>
                     </div>
 
-                    <div style={{ ...s.card, padding: 0, overflow: 'hidden' }}>
+                    <div style={{ ...s.card, padding: 0, overflowX: 'auto', WebkitOverflowScrolling: 'touch', border: '1px solid #E2E8F0', borderRadius: '10px' }}>
                       {estado.filas.length === 0 ? <div style={s.empty}>Sin movimientos en este período.</div> : (
-                        <table style={s.tabla}>
+                        <table style={{ ...s.tabla, minWidth: '700px', width: '100%' }}>
                           <thead><tr>{['Fecha','Descripción','Categoría','Ingreso','Egreso','Saldo'].map(h => <th key={h} style={s.tablaCabecera(c.main)}>{h}</th>)}</tr></thead>
                           <tbody>
                             {estado.filas.map((f,i) => (
                               <tr key={f.id} style={s.tablaFila(i)}>
-                                <td style={s.tablaCell}>{new Date(f.fecha + 'T00:00:00').toLocaleDateString('es-AR')}</td>
+                                <td style={{ ...s.tablaCell, whiteSpace: 'nowrap' }}>{new Date(f.fecha + 'T00:00:00').toLocaleDateString('es-AR')}</td>
                                 <td style={s.tablaCell}>{f.descripcion || f.categoria || '—'}</td>
                                 <td style={{ ...s.tablaCell, fontSize:'12px' }}>{f.categoria || '—'}</td>
-                                <td style={{ ...s.tablaCell, color:'#059669', fontWeight:'600' }}>{f.tipo==='ingreso' ? Number(f.monto).toLocaleString('es-AR',{style:'currency',currency:'ARS'}) : ''}</td>
-                                <td style={{ ...s.tablaCell, color:'#dc2626', fontWeight:'600' }}>{f.tipo==='egreso' ? Number(f.monto).toLocaleString('es-AR',{style:'currency',currency:'ARS'}) : ''}</td>
-                                <td style={s.tablaCellBold}>{f.saldoCorrido.toLocaleString('es-AR',{style:'currency',currency:'ARS'})}</td>
+                                <td style={{ ...s.tablaCell, color:'#059669', fontWeight:'600', whiteSpace: 'nowrap' }}>{f.tipo==='ingreso' ? Number(f.monto).toLocaleString('es-AR',{style:'currency',currency:'ARS'}) : ''}</td>
+                                <td style={{ ...s.tablaCell, color:'#dc2626', fontWeight:'600', whiteSpace: 'nowrap' }}>{f.tipo==='egreso' ? Number(f.monto).toLocaleString('es-AR',{style:'currency',currency:'ARS'}) : ''}</td>
+                                <td style={{ ...s.tablaCellBold, whiteSpace: 'nowrap' }}>{f.saldoCorrido.toLocaleString('es-AR',{style:'currency',currency:'ARS'})}</td>
                               </tr>
                             ))}
                           </tbody>
@@ -984,8 +1836,8 @@ function Finanzas() {
                 </p>
               </div>
 
-              <div style={{ ...s.card, padding: 0, overflow: 'hidden' }}>
-                <table style={s.tabla}>
+              <div style={{ ...s.card, padding: 0, overflowX: 'auto', WebkitOverflowScrolling: 'touch', border: '1px solid #E2E8F0', borderRadius: '10px' }}>
+                <table style={{ ...s.tabla, minWidth: '750px', width: '100%' }}>
                   <thead><tr>{['Período','Por cobrar','Por pagar','Neto del período','Saldo proyectado acumulado'].map(h => <th key={h} style={s.tablaCabecera(c.main)}>{h}</th>)}</tr></thead>
                   <tbody>
                     {(() => {
@@ -996,10 +1848,10 @@ function Finanzas() {
                         return (
                           <tr key={b.id} style={s.tablaFila(i)}>
                             <td style={s.tablaCellBold}>{b.label}</td>
-                            <td style={{ ...s.tablaCell, color: '#059669' }}>{b.cobrar.toLocaleString('es-AR',{style:'currency',currency:'ARS'})}</td>
-                            <td style={{ ...s.tablaCell, color: '#dc2626' }}>{b.pagar.toLocaleString('es-AR',{style:'currency',currency:'ARS'})}</td>
-                            <td style={{ ...s.tablaCellBold, color: neto >= 0 ? '#059669' : '#dc2626' }}>{neto >= 0 ? '+' : ''}{neto.toLocaleString('es-AR',{style:'currency',currency:'ARS'})}</td>
-                            <td style={{ ...s.tablaCellBold, color: b.id === 'sinfecha' ? '#94a3b8' : (acumulado >= 0 ? paleta.ink : '#dc2626') }}>
+                            <td style={{ ...s.tablaCell, color: '#059669', whiteSpace: 'nowrap' }}>{b.cobrar.toLocaleString('es-AR',{style:'currency',currency:'ARS'})}</td>
+                            <td style={{ ...s.tablaCell, color: '#dc2626', whiteSpace: 'nowrap' }}>{b.pagar.toLocaleString('es-AR',{style:'currency',currency:'ARS'})}</td>
+                            <td style={{ ...s.tablaCellBold, color: neto >= 0 ? '#059669' : '#dc2626', whiteSpace: 'nowrap' }}>{neto >= 0 ? '+' : ''}{neto.toLocaleString('es-AR',{style:'currency',currency:'ARS'})}</td>
+                            <td style={{ ...s.tablaCellBold, whiteSpace: 'nowrap', color: b.id === 'sinfecha' ? '#94a3b8' : (acumulado >= 0 ? paleta.ink : '#dc2626') }}>
                               {b.id === 'sinfecha' ? '—' : acumulado.toLocaleString('es-AR',{style:'currency',currency:'ARS'})}
                             </td>
                           </tr>

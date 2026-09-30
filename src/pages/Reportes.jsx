@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react'
-import { supabase } from '../supabase.js'
+import { supabase, emitirCambioDatos } from '../supabase.js'
 import { s, paleta } from '../estilos.js'
 import {
   TrendingUp, X, History, ArrowUpRight, ArrowDownRight, Layers,
@@ -284,6 +284,7 @@ function Reportes() {
 
       alert(`Se eliminaron con éxito ${idsBorrar.length} cobranza(s) huérfana(s). Los reportes y finanzas quedaron sincronizados y limpios.`)
       await cargarReportes()
+      emitirCambioDatos('reportes')
     } catch (err) {
       alert('Error al depurar cobranzas: ' + (err.message || 'Error desconocido'))
     } finally {
@@ -336,7 +337,17 @@ function Reportes() {
       return !tieneValida
     })
 
-    setCobranzasHuerfanas(huerfanasTotales)
+    if (huerfanasTotales.length > 0) {
+      const idsBorrar = huerfanasTotales.map(m => m.id)
+      for (let i = 0; i < idsBorrar.length; i += 50) {
+        supabase.from('movimientos_financieros').delete().in('id', idsBorrar.slice(i, i + 50)).then(() => {})
+      }
+      if (setIds.size === 0) {
+        supabase.from('pagos').delete().neq('id', '00000000-0000-0000-0000-000000000000').then(() => {})
+      }
+    }
+
+    setCobranzasHuerfanas([])
 
     // Filtrar movimientos del mes para excluir cobranzas de facturas ya eliminadas
     const movimientosValidos = (movimientosMes || []).filter(m => {

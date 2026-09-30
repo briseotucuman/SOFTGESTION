@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { supabase } from '../supabase.js'
+import { supabase, emitirCambioDatos } from '../supabase.js'
 import { s, colores } from '../estilos.js'
 import { Pencil, Plus, Receipt, X, FileUp, Trash2, AlertTriangle, Loader2 } from 'lucide-react'
 import ImportarARCA from './ImportarARCA.jsx'
@@ -143,13 +143,15 @@ function Facturacion()  {
       if (error) { alert('Error: ' + error.message); return }
     }
     cancelar()
-    cargarDatos()
+    await cargarDatos()
+    emitirCambioDatos('facturacion')
   }
 
   async function anularFactura(id) {
     if (!confirm('¿Anular esta factura?')) return
     await supabase.from('facturas').update({ estado: 'anulada' }).eq('id', id)
-    cargarDatos()
+    await cargarDatos()
+    emitirCambioDatos('facturacion')
   }
 
   async function eliminarFacturaIndividual(id, numero) {
@@ -163,6 +165,7 @@ function Facturacion()  {
       const { error } = await supabase.from('facturas').delete().eq('id', id)
       if (error) throw error
       await cargarDatos()
+      emitirCambioDatos('facturacion')
     } catch (err) {
       alert('Error al eliminar la factura: ' + (err.message || 'Error desconocido'))
     }
@@ -186,6 +189,7 @@ function Facturacion()  {
             await supabase.from('movimientos_financieros').delete().in('id', cobranzasHuerfanas.map(c => c.id))
             alert(`Se eliminaron las ${cobranzasHuerfanas.length} cobranzas huérfanas. El módulo de Reportes y Finanzas quedó 100% limpio.`)
             await cargarDatos()
+            emitirCambioDatos('facturacion')
           }
         } else {
           alert('No hay facturas ni cobranzas pendientes de eliminar.')
@@ -216,6 +220,7 @@ function Facturacion()  {
 
       setModalConfirmarBorrado(false)
       await cargarDatos()
+      emitirCambioDatos('facturacion')
       alert(`Se eliminaron correctamente las ${ids.length} facturas de venta y todas sus cobranzas asociadas. Los Reportes y Facturación quedaron 100% limpios para importar desde ARCA.`)
       setVista('importar-arca')
     } catch (err) {
@@ -267,7 +272,8 @@ function Facturacion()  {
     await supabase.from('facturas').update({ estado: nuevoEstado }).eq('id', mostrarPagos.id)
     setFormPago({ monto: '', medio_pago: 'transferencia', referencia: '', cuenta_id: '' })
     verPagos(mostrarPagos)
-    cargarDatos()
+    await cargarDatos()
+    emitirCambioDatos('facturacion')
   }
 
   const estadoColor = {
@@ -550,37 +556,61 @@ function Facturacion()  {
       )}
 
       {/* TABLA */}
-      <div style={{ ...s.card, padding: 0, overflow: 'hidden', marginTop: '20px' }}>
+      <div style={{ ...s.card, padding: 0, overflowX: 'auto', WebkitOverflowScrolling: 'touch', border: '1px solid #E2E8F0', borderRadius: '10px', marginTop: '20px' }}>
         {loading ? <div style={s.empty}>Cargando...</div>
         : facturas.length === 0 ? <div style={s.empty}>No hay facturas registradas</div>
         : (
-          <table style={s.tabla}>
+          <table style={{ ...s.tabla, minWidth: '940px', width: '100%' }}>
             <thead>
-              <tr>{['Número','Cliente','Tipo','Emisión','Vencimiento','Total','Estado',''].map(h => (
-                <th key={h} style={s.tablaCabecera(c.main)}>{h}</th>
-              ))}</tr>
+              <tr>
+                {['Número','Cliente','Tipo','Emisión','Vencimiento','Total','Estado'].map(h => (
+                  <th key={h} style={s.tablaCabecera(c.main)}>{h}</th>
+                ))}
+                <th style={{
+                  ...s.tablaCabecera(c.main),
+                  position: 'sticky',
+                  right: 0,
+                  zIndex: 3,
+                  textAlign: 'center',
+                  minWidth: '175px',
+                  boxShadow: '-4px 0 8px rgba(0,0,0,0.08)'
+                }}>
+                  Acciones
+                </th>
+              </tr>
             </thead>
             <tbody>
               {facturas.map((f, i) => {
                 const ec = estadoColor[f.estado] || { bg: '#f1f5f9', color: '#64748b' }
                 const esPorHora = f.contratos?.tipo_facturacion === 'por_hora'
+                const bgColor = i % 2 === 0 ? '#FFFFFF' : '#F8FAFC'
                 return (
                   <tr key={f.id} style={s.tablaFila(i)}>
-                    <td style={{ ...s.tablaCell, fontFamily: 'monospace', fontSize: '12px', color: '#94a3b8' }}>{f.numero_factura}</td>
+                    <td style={{ ...s.tablaCell, fontFamily: 'monospace', fontSize: '12px', color: '#64748B', whiteSpace: 'nowrap' }}>{f.numero_factura}</td>
                     <td style={s.tablaCellBold}>{f.clientes?.razon_social || f.clientes?.nombre_contacto}</td>
                     <td style={s.tablaCell}>
                       <span style={s.badge(esPorHora ? '#fef3c7' : '#dbeafe', esPorHora ? '#d97706' : '#1d4ed8')}>
                         {esPorHora ? '⏱ Por hora' : 'Fijo'}
                       </span>
                     </td>
-                    <td style={s.tablaCell}>{new Date(f.fecha_emision).toLocaleDateString('es-AR')}</td>
-                    <td style={s.tablaCell}>{f.fecha_vencimiento ? new Date(f.fecha_vencimiento).toLocaleDateString('es-AR') : '—'}</td>
-                    <td style={{ ...s.tablaCellBold, color: '#0f172a' }}>{Number(f.total).toLocaleString('es-AR', { style: 'currency', currency: 'ARS' })}</td>
-                    <td style={s.tablaCell}><span style={s.badge(ec.bg, ec.color)}>{f.estado}</span></td>
-                    <td style={s.tablaCell}>
-                      <div style={{ display: 'flex', gap: '6px' }}>
+                    <td style={{ ...s.tablaCell, whiteSpace: 'nowrap' }}>{new Date(f.fecha_emision).toLocaleDateString('es-AR')}</td>
+                    <td style={{ ...s.tablaCell, whiteSpace: 'nowrap' }}>{f.fecha_vencimiento ? new Date(f.fecha_vencimiento).toLocaleDateString('es-AR') : '—'}</td>
+                    <td style={{ ...s.tablaCellBold, color: '#0f172a', whiteSpace: 'nowrap' }}>{Number(f.total).toLocaleString('es-AR', { style: 'currency', currency: 'ARS' })}</td>
+                    <td style={{ ...s.tablaCell, whiteSpace: 'nowrap' }}><span style={s.badge(ec.bg, ec.color)}>{f.estado}</span></td>
+                    <td style={{
+                      ...s.tablaCell,
+                      position: 'sticky',
+                      right: 0,
+                      background: bgColor,
+                      zIndex: 2,
+                      textAlign: 'center',
+                      minWidth: '175px',
+                      boxShadow: '-4px 0 8px rgba(0,0,0,0.05)',
+                      whiteSpace: 'nowrap'
+                    }}>
+                      <div style={{ display: 'flex', gap: '6px', justifyContent: 'center' }}>
                         <button onClick={() => verPagos(f)} style={{ ...s.btnPrimario('#059669'), padding: '5px 10px', fontSize: '12px' }}>Pagos</button>
-                        <button onClick={() => abrirEdicion(f)} style={{ ...s.btnPrimario(c.main), padding: '5px 10px', fontSize: '12px' }}><Pencil size={14} /></button>
+                        <button onClick={() => abrirEdicion(f)} style={{ ...s.btnPrimario(c.main), padding: '5px 10px', fontSize: '12px' }} title="Editar"><Pencil size={14} /></button>
                         {f.estado !== 'anulada' && (
                           <button onClick={() => anularFactura(f.id)} style={{ ...s.btnPeligro, padding: '5px 10px', fontSize: '12px' }}>Anular</button>
                         )}
