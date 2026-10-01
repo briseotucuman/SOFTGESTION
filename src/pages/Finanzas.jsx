@@ -8,6 +8,7 @@ import {
 } from 'lucide-react'
 import ImportarARCA from './ImportarARCA.jsx'
 import ConciliacionBancaria from './ConciliacionBancaria.jsx'
+import { esCuentaBancaria } from '../finanzasUtils.js'
 
 const c = colores.finanzas
 
@@ -712,7 +713,17 @@ function Finanzas({ vistaInicial = 'movimientos' }) {
         <button onClick={() => setVista('por-pagar')} style={vista === 'por-pagar' ? s.btnPrimario(c.main) : s.btnSecundario}>
           <Wallet2 size={13} style={{ marginRight: 5, verticalAlign: '-2px' }} />Cuentas por pagar
         </button>
-        <button onClick={() => setVista('conciliacion')} style={vista === 'conciliacion' ? s.btnPrimario(c.main) : s.btnSecundario}>
+        <button
+          onClick={() => {
+            const ctActual = cuentas.find(c => c.id === cuentaSeleccionadaId)
+            if (!ctActual || !esCuentaBancaria(ctActual)) {
+              const primeraBanco = cuentas.find(esCuentaBancaria)
+              setCuentaSeleccionadaId(primeraBanco?.id || '')
+            }
+            setVista('conciliacion')
+          }}
+          style={vista === 'conciliacion' ? s.btnPrimario(c.main) : s.btnSecundario}
+        >
           <ShieldCheck size={13} style={{ marginRight: 5, verticalAlign: '-2px' }} />Conciliación bancaria
         </button>
         <button onClick={() => setVista('estado-cuenta')} style={vista === 'estado-cuenta' ? s.btnPrimario(c.main) : s.btnSecundario}>
@@ -1208,17 +1219,26 @@ function Finanzas({ vistaInicial = 'movimientos' }) {
                     <SlidersHorizontal size={12} color="#0F766E" />
                     <span>Ajustar saldo</span>
                   </button>
-                  <button
-                    onClick={() => {
-                      setCuentaSeleccionadaId(ct.id)
-                      setVista('conciliacion')
-                    }}
-                    style={{ flex: 1, background: '#F0FDFA', border: '1px solid #CCFBF1', borderRadius: '6px', padding: '6px 8px', fontSize: '11.5px', fontWeight: '600', color: '#0F766E', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px' }}
-                    title="Cargar extracto bancario y conciliar movimientos"
-                  >
-                    <ShieldCheck size={12} color="#0F766E" />
-                    <span>Conciliar</span>
-                  </button>
+                  {esCuentaBancaria(ct) ? (
+                    <button
+                      onClick={() => {
+                        setCuentaSeleccionadaId(ct.id)
+                        setVista('conciliacion')
+                      }}
+                      style={{ flex: 1, background: '#F0FDFA', border: '1px solid #CCFBF1', borderRadius: '6px', padding: '6px 8px', fontSize: '11.5px', fontWeight: '600', color: '#0F766E', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px' }}
+                      title="Cargar extracto bancario y conciliar movimientos"
+                    >
+                      <ShieldCheck size={12} color="#0F766E" />
+                      <span>Conciliar</span>
+                    </button>
+                  ) : (
+                    <div
+                      style={{ flex: 1, background: '#F8FAFC', border: '1px dashed #E2E8F0', borderRadius: '6px', padding: '6px 8px', fontSize: '11px', fontWeight: '500', color: '#94A3B8', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }}
+                      title="Las cuentas de efectivo y cajas físicas se controlan por arqueo / ajuste manual, no por conciliación bancaria"
+                    >
+                      <span>Caja física</span>
+                    </div>
+                  )}
                 </div>
               </div>
             )
@@ -1232,6 +1252,12 @@ function Finanzas({ vistaInicial = 'movimientos' }) {
           <ConciliacionBancaria
             cuentas={cuentas}
             movimientos={movimientos}
+            facturasCompra={facturasCompra}
+            facturasVenta={facturasCobrarTodas}
+            pagosCompra={pagosCompra}
+            pagosVenta={pagosVenta}
+            proveedores={proveedores}
+            clientes={clientes}
             onActualizarDatos={async () => {
               await cargarDatos()
               emitirCambioDatos('conciliacion')
