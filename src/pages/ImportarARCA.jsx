@@ -6,6 +6,7 @@ import {
   Receipt, ShoppingBag, HelpCircle, Check, Info, AlertCircle, Trash2,
   Package, ShieldAlert
 } from 'lucide-react'
+import { calcularDesgloseFactura } from '../finanzasUtils.js'
 
 const c = colores.facturacion
 
@@ -224,8 +225,21 @@ function ImportarARCA({ tipoInicial = 'ventas', onImportado }) {
 
       const fechaEmision = normalizarFecha(campos[iFecha])
       const total = parseArgNumber(campos[iTotal])
-      const netoGravado = iNetoGravado !== -1 ? parseArgNumber(campos[iNetoGravado]) : total
+      const netoGravado = iNetoGravado !== -1 ? parseArgNumber(campos[iNetoGravado]) : 0
       const iva = iIVA !== -1 ? parseArgNumber(campos[iIVA]) : 0
+
+      // Desglose conforme a la regla fiscal: el Total ya incluye el IVA (Neto = Total / 1,21)
+      let finalNeto = netoGravado
+      let finalIva = iva
+      if ((finalIva === 0 || Math.abs(finalNeto - total) < 0.05) && total > 0) {
+        const d = calcularDesgloseFactura(total, 21)
+        finalNeto = d.neto
+        finalIva = d.iva
+      } else if (finalNeto === 0 && total > 0) {
+        const d = calcularDesgloseFactura(total, 21)
+        finalNeto = d.neto
+        finalIva = d.iva
+      }
 
       let cuit = ''
       let nombreEntidad = ''
@@ -249,8 +263,8 @@ function ImportarARCA({ tipoInicial = 'ventas', onImportado }) {
         cae: iCAE !== -1 ? (campos[iCAE] || '').trim() : '',
         cuit,
         nombreEntidad,
-        subtotal: netoGravado,
-        impuestos: iva,
+        subtotal: finalNeto,
+        impuestos: finalIva,
         total,
         categoria: 'Insumos',
         yaCompletada: false,
@@ -871,7 +885,9 @@ function ImportarARCA({ tipoInicial = 'ventas', onImportado }) {
                   {tipoOperacion === 'compras' && (
                     <th style={s.tablaCabecera(c.main)}>Categoría</th>
                   )}
-                  <th style={{ ...s.tablaCabecera(c.main), textAlign: 'right' }}>Total</th>
+                  <th style={{ ...s.tablaCabecera(c.main), textAlign: 'right' }}>Neto</th>
+                  <th style={{ ...s.tablaCabecera(c.main), textAlign: 'right' }}>IVA</th>
+                  <th style={{ ...s.tablaCabecera(c.main), textAlign: 'right' }}>Total (con IVA)</th>
                   <th style={{ ...s.tablaCabecera(c.main), textAlign: 'center' }}>
                     {tipoOperacion === 'ventas' ? '¿Ya cobrada?' : '¿Ya pagada?'}
                   </th>
@@ -969,6 +985,12 @@ function ImportarARCA({ tipoInicial = 'ventas', onImportado }) {
                         </select>
                       </td>
                     )}
+                    <td style={{ ...s.tablaCell, textAlign: 'right', fontFamily: 'monospace', fontSize: '12px', color: '#475569' }}>
+                      {f.subtotal.toLocaleString('es-AR', { style: 'currency', currency: 'ARS' })}
+                    </td>
+                    <td style={{ ...s.tablaCell, textAlign: 'right', fontFamily: 'monospace', fontSize: '12px', color: '#7C3AED', fontWeight: '600' }}>
+                      {f.impuestos.toLocaleString('es-AR', { style: 'currency', currency: 'ARS' })}
+                    </td>
                     <td style={{ ...s.tablaCellBold, textAlign: 'right', fontFamily: 'monospace', fontSize: '13px' }}>
                       {f.total.toLocaleString('es-AR', { style: 'currency', currency: 'ARS' })}
                     </td>

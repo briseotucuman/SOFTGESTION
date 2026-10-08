@@ -1,8 +1,9 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useMemo } from 'react'
 import { supabase, emitirCambioDatos } from '../supabase.js'
 import { s, colores } from '../estilos.js'
-import { Pencil, Plus, Receipt, X, FileUp, Trash2, AlertTriangle, Loader2 } from 'lucide-react'
+import { Pencil, Plus, Receipt, X, FileUp, Trash2, AlertTriangle, Loader2, Calculator, Info } from 'lucide-react'
 import ImportarARCA from './ImportarARCA.jsx'
+import { calcularDesgloseFactura } from '../finanzasUtils.js'
 
 const c = colores.facturacion
 
@@ -20,7 +21,18 @@ function Facturacion()  {
   const [pagos, setPagos] = useState([])
   const [cuentas, setCuentas] = useState([])
   const [formPago, setFormPago] = useState({ monto: '', medio_pago: 'transferencia', referencia: '', cuenta_id: '' })
-  const [form, setForm] = useState({ contrato_id: '', periodo_desde: '', periodo_hasta: '', fecha_vencimiento: '', subtotal: '', impuestos: '0', observaciones: '', estado: 'emitida' })
+  const [form, setForm] = useState({
+    contrato_id: '',
+    periodo_desde: '',
+    periodo_hasta: '',
+    fecha_vencimiento: '',
+    total: '',
+    subtotal: '',
+    impuestos: '0',
+    alicuota_iva: '21',
+    observaciones: '',
+    estado: 'emitida'
+  })
 
   const [contratosHora, setContratosHora] = useState([])
   const [mesGenerador, setMesGenerador] = useState(new Date().toISOString().slice(0, 7))
@@ -45,15 +57,56 @@ function Facturacion()  {
     setLoading(false)
   }
 
+  // Sincronización bidireccional respetando la regla: Total incluye IVA -> Neto = Total / (1 + Alícuota)
+  function manejarCambioTotal(nuevoTotal, alic = form.alicuota_iva) {
+    const tot = parseFloat(nuevoTotal) || 0
+    const d = calcularDesgloseFactura(tot, parseFloat(alic) || 21)
+    setForm(prev => ({
+      ...prev,
+      total: nuevoTotal,
+      subtotal: d.neto > 0 ? d.neto.toString() : '',
+      impuestos: d.iva > 0 ? d.iva.toString() : '0',
+      alicuota_iva: alic
+    }))
+  }
+
+  function manejarCambioNeto(nuevoNeto, alic = form.alicuota_iva) {
+    const net = parseFloat(nuevoNeto) || 0
+    const factor = 1 + ((parseFloat(alic) || 21) / 100)
+    const tot = Math.round(net * factor * 100) / 100
+    const iva = Math.round((tot - net) * 100) / 100
+    setForm(prev => ({
+      ...prev,
+      subtotal: nuevoNeto,
+      impuestos: iva > 0 ? iva.toString() : '0',
+      total: tot > 0 ? tot.toString() : '',
+      alicuota_iva: alic
+    }))
+  }
+
+  function manejarCambioAlicuota(nuevaAlic) {
+    const tot = parseFloat(form.total) || 0
+    const d = calcularDesgloseFactura(tot, parseFloat(nuevaAlic) || 0)
+    setForm(prev => ({
+      ...prev,
+      alicuota_iva: nuevaAlic,
+      subtotal: d.neto > 0 ? d.neto.toString() : '',
+      impuestos: d.iva > 0 ? d.iva.toString() : '0'
+    }))
+  }
+
   function abrirEdicion(f) {
     setEditando(f)
+    const d = calcularDesgloseFactura(f)
     setForm({
       contrato_id: f.contrato_id || '',
       periodo_desde: f.periodo_desde || '',
       periodo_hasta: f.periodo_hasta || '',
       fecha_vencimiento: f.fecha_vencimiento || '',
-      subtotal: f.subtotal || '',
-      impuestos: f.impuestos || '0',
+      total: d.total > 0 ? d.total.toString() : (f.total?.toString() || ''),
+      subtotal: d.neto > 0 ? d.neto.toString() : (f.subtotal?.toString() || ''),
+      impuestos: d.iva > 0 ? d.iva.toString() : (f.impuestos?.toString() || '0'),
+      alicuota_iva: d.alicuota?.toString() || '21',
       observaciones: f.observaciones || '',
       estado: f.estado || 'emitida'
     })
@@ -65,7 +118,18 @@ function Facturacion()  {
   function cancelar() {
     setMostrarForm(false)
     setEditando(null)
-    setForm({ contrato_id: '', periodo_desde: '', periodo_hasta: '', fecha_vencimiento: '', subtotal: '', impuestos: '0', observaciones: '', estado: 'emitida' })
+    setForm({
+      contrato_id: '',
+      periodo_desde: '',
+      periodo_hasta: '',
+      fecha_vencimiento: '',
+      total: '',
+      subtotal: '',
+      impuestos: '0',
+      alicuota_iva: '21',
+      observaciones: '',
+      estado: 'emitida'
+    })
   }
 
   async function calcularResumenHoras() {
@@ -85,8 +149,21 @@ function Facturacion()  {
         detalleOrdenes.push({ ...orden, horas: horasOrden })
       }
       if (totalHoras > 0) {
-        const subtotal = totalHoras * Number(ct.valor_hora)
-        resultados.push({ contrato: ct, ordenes: detalleOrdenes, totalHoras, valorHora: Number(ct.valor_hora), subtotal, ivaPorc: 21, cliente: ct.clientes })
+        const valorHora = Number(ct.valor_hora)
+        // El valor acordado ya incluye IVA
+        const total = totalHoras * valorHora
+        const desglose = calcularDesgloseFactura(total, 21)
+        resultados.push({
+          contrato: ct,
+          ordenes: detalleOrdenes,
+          totalHoras,
+          valorHora,
+          subtotal: desglose.neto,
+          impuestos: desglose.iva,
+          total,
+          ivaPorc: 21,
+          cliente: ct.clientes
+        })
       }
     }
     setResumenHoras(resultados)
@@ -97,7 +174,7 @@ function Facturacion()  {
     const desde = mesGenerador + '-01'
     const hasta = mesGenerador+'-'+new Date(+mesGenerador.split('-')[0], +mesGenerador.split('-')[1], 0).getDate()
     const detalle = resumen.ordenes.map(o => `${o.numero_orden} (${new Date(o.fecha_programada + 'T00:00:00').toLocaleDateString('es-AR')}): ${o.horas}hs`).join(' | ')
-    const impuestos = resumen.subtotal * (Number(resumen.ivaPorc) || 0) / 100
+    const desglose = calcularDesgloseFactura(resumen.total, parseFloat(resumen.ivaPorc) || 21)
     const { error } = await supabase.from('facturas').insert([{
       numero_factura: 'FAC-' + new Date().getFullYear() + '-' + (Math.floor(Math.random() * 900) + 100),
       contrato_id: resumen.contrato.id,
@@ -105,8 +182,10 @@ function Facturacion()  {
       fecha_emision: new Date().toISOString().split('T')[0],
       periodo_desde: desde, periodo_hasta: hasta,
       fecha_vencimiento: null,
-      subtotal: resumen.subtotal, impuestos, total: resumen.subtotal + impuestos,
-      observaciones: `Facturación por horas — ${resumen.totalHoras}hs × $${resumen.valorHora}/h | ${detalle}`
+      subtotal: desglose.neto,
+      impuestos: desglose.iva,
+      total: desglose.total,
+      observaciones: `Facturación por horas — ${resumen.totalHoras}hs × $${resumen.valorHora}/h (Total incluye IVA) | ${detalle}`
     }])
     if (error) { alert('Error: ' + error.message); return }
     alert(`Factura generada para ${resumen.cliente.razon_social || resumen.cliente.nombre_contacto}`)
@@ -114,31 +193,56 @@ function Facturacion()  {
   }
 
   function actualizarIvaResumen(i, valor) {
-    setResumenHoras(prev => prev.map((r, idx) => idx === i ? { ...r, ivaPorc: valor } : r))
+    setResumenHoras(prev => prev.map((r, idx) => {
+      if (idx !== i) return r
+      const numAlic = parseFloat(valor) || 0
+      const total = r.totalHoras * r.valorHora
+      const d = calcularDesgloseFactura(total, numAlic)
+      return {
+        ...r,
+        ivaPorc: valor,
+        subtotal: d.neto,
+        impuestos: d.iva,
+        total
+      }
+    }))
   }
 
   async function guardarFactura(e) {
     e.preventDefault()
-    const subtotal = parseFloat(form.subtotal)
-    const impuestos = parseFloat(form.impuestos) || 0
+    const total = parseFloat(form.total) || ((parseFloat(form.subtotal) || 0) + (parseFloat(form.impuestos) || 0))
+    const d = calcularDesgloseFactura(total, parseFloat(form.alicuota_iva) || 21)
+    const subtotal = d.neto
+    const impuestos = d.iva
+
     if (editando) {
       const { error } = await supabase.from('facturas').update({
-        ...form,
-        subtotal, impuestos, total: subtotal + impuestos,
         contrato_id: form.contrato_id || null,
-        fecha_vencimiento: form.fecha_vencimiento || null,
         periodo_desde: form.periodo_desde || null,
         periodo_hasta: form.periodo_hasta || null,
+        fecha_vencimiento: form.fecha_vencimiento || null,
+        subtotal,
+        impuestos,
+        total,
+        observaciones: form.observaciones || null,
+        estado: form.estado || 'emitida'
       }).eq('id', editando.id)
       if (error) { alert('Error: ' + error.message); return }
     } else {
       const contrato = contratos.find(ct => ct.id === form.contrato_id)
       const { error } = await supabase.from('facturas').insert([{
-        ...form,
         numero_factura: 'FAC-' + new Date().getFullYear() + '-' + (Math.floor(Math.random() * 900) + 100),
         fecha_emision: new Date().toISOString().split('T')[0],
         cliente_id: contrato?.clientes?.id,
-        subtotal, impuestos, total: subtotal + impuestos
+        contrato_id: form.contrato_id || null,
+        periodo_desde: form.periodo_desde || null,
+        periodo_hasta: form.periodo_hasta || null,
+        fecha_vencimiento: form.fecha_vencimiento || null,
+        subtotal,
+        impuestos,
+        total,
+        observaciones: form.observaciones || null,
+        estado: form.estado || 'emitida'
       }])
       if (error) { alert('Error: ' + error.message); return }
     }
@@ -276,6 +380,43 @@ function Facturacion()  {
     emitirCambioDatos('facturacion')
   }
 
+  const metricasFacturacion = useMemo(() => {
+    let totalFacturado = 0
+    let totalNeto = 0
+    let totalIVA = 0
+    let totalCobrado = 0
+    let totalPendiente = 0
+    let cantidadCobradas = 0
+    let cantidadPendientes = 0
+
+    facturas.forEach(f => {
+      if (f.estado === 'anulada') return
+      const d = calcularDesgloseFactura(f)
+      totalFacturado += d.total
+      totalNeto += d.neto
+      totalIVA += d.iva
+
+      if (['pagada', 'cobrada'].includes(f.estado)) {
+        totalCobrado += d.total
+        cantidadCobradas++
+      } else {
+        totalPendiente += d.total
+        cantidadPendientes++
+      }
+    })
+
+    return {
+      totalFacturado: Math.round(totalFacturado * 100) / 100,
+      totalNeto: Math.round(totalNeto * 100) / 100,
+      totalIVA: Math.round(totalIVA * 100) / 100,
+      totalCobrado: Math.round(totalCobrado * 100) / 100,
+      totalPendiente: Math.round(totalPendiente * 100) / 100,
+      cantidadCobradas,
+      cantidadPendientes,
+      totalFacturasActivas: facturas.filter(f => f.estado !== 'anulada').length
+    }
+  }, [facturas])
+
   const estadoColor = {
     emitida:  { bg: '#fef3c7', color: '#d97706' },
     pendiente:{ bg: '#fef3c7', color: '#d97706' },
@@ -285,8 +426,6 @@ function Facturacion()  {
     vencida:  { bg: '#fee2e2', color: '#dc2626' },
     anulada:  { bg: '#f1f5f9', color: '#64748b' },
   }
-
-  const totalPendiente = facturas.filter(f => ['pendiente','parcial','vencida','emitida'].includes(f.estado)).reduce((a, f) => a + Number(f.total), 0)
 
   return (
     <div style={{ fontFamily: "'Segoe UI', sans-serif" }}>
@@ -343,27 +482,99 @@ function Facturacion()  {
       {vista === 'importar-arca' && <ImportarARCA tipoInicial="ventas" onImportado={cargarDatos} />}
 
       {vista === 'facturas' && (<>
-      {/* KPIs */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: '14px', marginBottom: '20px' }}>
-        <div style={s.card}>
-          <p style={{ ...s.label, color: '#64748b' }}>Total facturas</p>
-          <p style={{ fontSize: '28px', fontWeight: '800', color: '#0f172a', margin: 0 }}>{facturas.length}</p>
+      {/* KPIs DE FACTURACIÓN: TOTAL CON IVA, NETO GRAVADO E IVA */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '14px', marginBottom: '14px' }}>
+        <div style={{ ...s.card, borderTop: `3px solid ${c.main}` }}>
+          <p style={{ ...s.label, color: '#64748B', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <span>Total Facturado</span>
+            <span style={{ fontSize: '10px', background: '#FFF1F2', color: c.main, padding: '2px 6px', borderRadius: '4px', fontWeight: '700' }}>Con IVA</span>
+          </p>
+          <p style={{ fontSize: '24px', fontWeight: '800', color: '#0F172A', margin: '4px 0 2px', fontFamily: 'monospace' }}>
+            {metricasFacturacion.totalFacturado.toLocaleString('es-AR', { style: 'currency', currency: 'ARS' })}
+          </p>
+          <span style={{ fontSize: '11.5px', color: '#64748B' }}>
+            {metricasFacturacion.totalFacturasActivas} facturas emitidas
+          </span>
         </div>
-        <div style={{ ...s.card, background: '#f0fdf4' }}>
-          <p style={{ ...s.label, color: '#059669' }}>Pagadas / Cobradas</p>
-          <p style={{ fontSize: '28px', fontWeight: '800', color: '#059669', margin: 0 }}>{facturas.filter(f => ['pagada','cobrada'].includes(f.estado)).length}</p>
+
+        <div style={{ ...s.card, borderTop: '3px solid #0284C7' }}>
+          <p style={{ ...s.label, color: '#0369A1', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <span>Neto Gravado</span>
+            <span style={{ fontSize: '10px', background: '#F0F9FF', color: '#0284C7', padding: '2px 6px', borderRadius: '4px', fontWeight: '700' }}>Total / 1,21</span>
+          </p>
+          <p style={{ fontSize: '24px', fontWeight: '800', color: '#0284C7', margin: '4px 0 2px', fontFamily: 'monospace' }}>
+            {metricasFacturacion.totalNeto.toLocaleString('es-AR', { style: 'currency', currency: 'ARS' })}
+          </p>
+          <span style={{ fontSize: '11.5px', color: '#64748B' }}>
+            Subtotal sin IVA
+          </span>
         </div>
-        <div style={{ ...s.card, background: '#fff1f2' }}>
-          <p style={{ ...s.label, color: '#dc2626' }}>Pendiente de cobro</p>
-          <p style={{ fontSize: '20px', fontWeight: '800', color: '#dc2626', margin: 0 }}>{totalPendiente.toLocaleString('es-AR', { style: 'currency', currency: 'ARS' })}</p>
+
+        <div style={{ ...s.card, borderTop: '3px solid #7C3AED' }}>
+          <p style={{ ...s.label, color: '#6D28D9', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <span>IVA Débito Fiscal</span>
+            <span style={{ fontSize: '10px', background: '#F5F3FF', color: '#7C3AED', padding: '2px 6px', borderRadius: '4px', fontWeight: '700' }}>Total - Neto</span>
+          </p>
+          <p style={{ fontSize: '24px', fontWeight: '800', color: '#7C3AED', margin: '4px 0 2px', fontFamily: 'monospace' }}>
+            {metricasFacturacion.totalIVA.toLocaleString('es-AR', { style: 'currency', currency: 'ARS' })}
+          </p>
+          <span style={{ fontSize: '11.5px', color: '#64748B' }}>
+            Impuesto liquidado
+          </span>
         </div>
+
+        <div style={{ ...s.card, borderTop: '3px solid #DC2626', background: '#FFF1F2' }}>
+          <p style={{ ...s.label, color: '#DC2626', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <span>Pendiente de Cobro</span>
+            <span style={{ fontSize: '10px', background: '#FEE2E2', color: '#DC2626', padding: '2px 6px', borderRadius: '4px', fontWeight: '700' }}>Por cobrar</span>
+          </p>
+          <p style={{ fontSize: '24px', fontWeight: '800', color: '#DC2626', margin: '4px 0 2px', fontFamily: 'monospace' }}>
+            {metricasFacturacion.totalPendiente.toLocaleString('es-AR', { style: 'currency', currency: 'ARS' })}
+          </p>
+          <span style={{ fontSize: '11.5px', color: '#991B1B' }}>
+            {metricasFacturacion.cantidadPendientes} facturas pendientes · {metricasFacturacion.cantidadCobradas} cobradas
+          </span>
+        </div>
+      </div>
+
+      {/* BANNER EXPLICATIVO DE REGLA FISCAL: NETO + IVA = TOTAL */}
+      <div style={{
+        background: '#F0FDF4',
+        border: '1px solid #BBF7D0',
+        borderRadius: '10px',
+        padding: '10px 16px',
+        marginBottom: '20px',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        flexWrap: 'wrap',
+        gap: '10px',
+        fontSize: '12.5px'
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#166534' }}>
+          <Calculator size={16} color="#16A34A" />
+          <span>
+            <strong>Regla impositiva:</strong> El total que se muestra ya incluye el IVA. A ese valor se lo divide por la alícuota (ej. 1,21 al 21%) para determinar el Neto y el IVA: <strong>Neto + IVA = Total</strong>.
+          </span>
+        </div>
+        <span style={{
+          fontWeight: '800',
+          color: '#15803D',
+          background: '#DCFCE7',
+          padding: '3px 10px',
+          borderRadius: '6px',
+          border: '1px solid #86EFAC',
+          fontFamily: 'monospace'
+        }}>
+          NETO + IVA = TOTAL
+        </span>
       </div>
 
       {/* GENERADOR POR HORAS */}
       {mostrarGenerador && (
         <div style={s.card}>
           <h4 style={{ margin: '0 0 6px', color: '#d97706', fontWeight: '800' }}>⏱ Generador de facturas por horas</h4>
-          <p style={{ margin: '0 0 20px', fontSize: '13px', color: '#64748b' }}>Suma las horas registradas en la Agenda y genera la factura automáticamente.</p>
+          <p style={{ margin: '0 0 20px', fontSize: '13px', color: '#64748b' }}>Suma las horas registradas en la Agenda y genera la factura automáticamente con el desglose exacto de Neto + IVA = Total.</p>
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '20px' }}>
             <div>
               <label style={s.label}>Período a facturar</label>
@@ -406,21 +617,21 @@ function Facturacion()  {
                   <p style={{ margin: 0, fontSize: '22px', fontWeight: '800', color: '#d97706' }}>{r.totalHoras} hs</p>
                 </div>
                 <div style={{ background: '#dbeafe', borderRadius: '10px', padding: '12px', textAlign: 'center' }}>
-                  <p style={{ margin: '0 0 4px', fontSize: '11px', color: '#1d4ed8', fontWeight: '700', textTransform: 'uppercase' }}>Subtotal</p>
-                  <p style={{ margin: 0, fontSize: '20px', fontWeight: '800', color: '#1d4ed8' }}>{r.subtotal.toLocaleString('es-AR', { style: 'currency', currency: 'ARS' })}</p>
+                  <p style={{ margin: '0 0 4px', fontSize: '11px', color: '#1d4ed8', fontWeight: '700', textTransform: 'uppercase' }}>Neto Gravado (Total / {(1 + (Number(r.ivaPorc)||0)/100).toFixed(2)})</p>
+                  <p style={{ margin: 0, fontSize: '20px', fontWeight: '800', color: '#1d4ed8', fontFamily: 'monospace' }}>{r.subtotal.toLocaleString('es-AR', { style: 'currency', currency: 'ARS' })}</p>
                 </div>
                 <div style={{ background: '#ede9fe', borderRadius: '10px', padding: '12px', textAlign: 'center' }}>
-                  <p style={{ margin: '0 0 6px', fontSize: '11px', color: '#7c3aed', fontWeight: '700', textTransform: 'uppercase' }}>IVA</p>
+                  <p style={{ margin: '0 0 6px', fontSize: '11px', color: '#7c3aed', fontWeight: '700', textTransform: 'uppercase' }}>IVA discriminado</p>
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }}>
-                    <input type="number" step="0.01" value={r.ivaPorc} onChange={e => actualizarIvaResumen(i, e.target.value)}
-                      style={{ width: '52px', textAlign: 'center', fontWeight: '800', fontSize: '15px', color: '#7c3aed', border: '1.5px solid #ddd6fe', borderRadius: '6px', padding: '3px' }} />
+                    <input type="number" step="0.5" value={r.ivaPorc} onChange={e => actualizarIvaResumen(i, e.target.value)}
+                      style={{ width: '56px', textAlign: 'center', fontWeight: '800', fontSize: '15px', color: '#7c3aed', border: '1.5px solid #ddd6fe', borderRadius: '6px', padding: '3px' }} />
                     <span style={{ fontSize: '13px', color: '#7c3aed', fontWeight: '700' }}>%</span>
                   </div>
-                  <p style={{ margin: '4px 0 0', fontSize: '12px', color: '#7c3aed' }}>{(r.subtotal * (Number(r.ivaPorc)||0) / 100).toLocaleString('es-AR', { style: 'currency', currency: 'ARS' })}</p>
+                  <p style={{ margin: '4px 0 0', fontSize: '12px', color: '#7c3aed', fontFamily: 'monospace' }}>{r.impuestos.toLocaleString('es-AR', { style: 'currency', currency: 'ARS' })}</p>
                 </div>
                 <div style={{ background: '#d1fae5', borderRadius: '10px', padding: '12px', textAlign: 'center', border: '2px solid #6ee7b7' }}>
-                  <p style={{ margin: '0 0 4px', fontSize: '11px', color: '#059669', fontWeight: '700', textTransform: 'uppercase' }}>Total a facturar</p>
-                  <p style={{ margin: 0, fontSize: '20px', fontWeight: '800', color: '#059669' }}>{(r.subtotal * (1 + (Number(r.ivaPorc)||0)/100)).toLocaleString('es-AR', { style: 'currency', currency: 'ARS' })}</p>
+                  <p style={{ margin: '0 0 4px', fontSize: '11px', color: '#059669', fontWeight: '700', textTransform: 'uppercase' }}>Total a facturar (con IVA)</p>
+                  <p style={{ margin: 0, fontSize: '20px', fontWeight: '800', color: '#059669', fontFamily: 'monospace' }}>{r.total.toLocaleString('es-AR', { style: 'currency', currency: 'ARS' })}</p>
                 </div>
               </div>
             </div>
@@ -428,12 +639,16 @@ function Facturacion()  {
         </div>
       )}
 
-      {/* FORMULARIO */}
+      {/* FORMULARIO DE FACTURA MANUAL CON DESGLOSE AUTOMÁTICO */}
       {mostrarForm && (
         <div style={s.card}>
-          <h4 style={{ margin: '0 0 20px', color: c.main, fontWeight: '700' }}>
+          <h4 style={{ margin: '0 0 6px', color: c.main, fontWeight: '800' }}>
             {editando ? <><Pencil size={15} style={{ marginRight: 6, verticalAlign: '-2px' }} />Editando — {editando.numero_factura}</> : 'Nueva factura manual'}
           </h4>
+          <p style={{ margin: '0 0 20px', fontSize: '13px', color: '#64748B' }}>
+            El importe total ingresado ya incluye el IVA. El sistema divide automáticamente por la alícuota para determinar el Neto y el IVA (Neto + IVA = Total).
+          </p>
+
           <form onSubmit={guardarFactura}>
             <div style={s.grid2}>
               <div style={{ gridColumn: '1 / -1' }}>
@@ -441,12 +656,25 @@ function Facturacion()  {
                 <select style={s.input} value={form.contrato_id}
                   onChange={e => {
                     const ct = contratos.find(c => c.id === e.target.value)
-                    setForm({ ...form, contrato_id: e.target.value, subtotal: ct?.precio_acordado || '' })
+                    const precioContrato = ct?.precio_acordado ? ct.precio_acordado.toString() : ''
+                    const d = calcularDesgloseFactura(parseFloat(precioContrato) || 0, parseFloat(form.alicuota_iva) || 21)
+                    setForm(prev => ({
+                      ...prev,
+                      contrato_id: e.target.value,
+                      total: precioContrato,
+                      subtotal: d.neto > 0 ? d.neto.toString() : '',
+                      impuestos: d.iva > 0 ? d.iva.toString() : '0'
+                    }))
                   }} required={!editando}>
                   <option value="">Seleccionar contrato</option>
-                  {contratos.map(ct => <option key={ct.id} value={ct.id}>{ct.numero_contrato} — {ct.clientes?.razon_social || ct.clientes?.nombre_contacto}</option>)}
+                  {contratos.map(ct => (
+                    <option key={ct.id} value={ct.id}>
+                      {ct.numero_contrato} — {ct.clientes?.razon_social || ct.clientes?.nombre_contacto} {ct.precio_acordado ? `($${Number(ct.precio_acordado).toLocaleString('es-AR')})` : ''}
+                    </option>
+                  ))}
                 </select>
               </div>
+
               {[['Período desde','periodo_desde','date'],['Período hasta','periodo_hasta','date'],['Fecha vencimiento','fecha_vencimiento','date']].map(([lbl,key,type]) => (
                 <div key={key}>
                   <label style={s.label}>{lbl}</label>
@@ -454,16 +682,7 @@ function Facturacion()  {
                     onFocus={e => e.target.style.borderColor = c.main} onBlur={e => e.target.style.borderColor = '#e2e8f0'} />
                 </div>
               ))}
-              <div>
-                <label style={s.label}>Subtotal ($)</label>
-                <input type="number" style={s.input} value={form.subtotal} onChange={e => setForm({...form, subtotal: e.target.value})} required
-                  onFocus={e => e.target.style.borderColor = c.main} onBlur={e => e.target.style.borderColor = '#e2e8f0'} />
-              </div>
-              <div>
-                <label style={s.label}>Impuestos ($)</label>
-                <input type="number" style={s.input} value={form.impuestos} onChange={e => setForm({...form, impuestos: e.target.value})}
-                  onFocus={e => e.target.style.borderColor = c.main} onBlur={e => e.target.style.borderColor = '#e2e8f0'} />
-              </div>
+
               {editando && (
                 <div>
                   <label style={s.label}>Estado</label>
@@ -478,12 +697,107 @@ function Facturacion()  {
                   </select>
                 </div>
               )}
-              <div style={{ background: c.light, borderRadius: '12px', padding: '14px 18px' }}>
-                <p style={{ margin: '0 0 4px', fontSize: '11px', color: c.main, fontWeight: '700', textTransform: 'uppercase' }}>Total</p>
-                <p style={{ margin: 0, fontSize: '24px', fontWeight: '800', color: c.main }}>
-                  {((parseFloat(form.subtotal)||0) + (parseFloat(form.impuestos)||0)).toLocaleString('es-AR', { style: 'currency', currency: 'ARS' })}
-                </p>
+
+              {/* CAMPO PRINCIPAL: TOTAL CON IVA INCLUIDO */}
+              <div>
+                <label style={{ ...s.label, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <span>Total con IVA ($) · Importe final</span>
+                  <span style={{ fontSize: '10.5px', color: c.main, fontWeight: '700' }}>Ya incluye IVA</span>
+                </label>
+                <input
+                  type="number"
+                  step="0.01"
+                  style={{ ...s.input, borderColor: c.main, fontWeight: '700', fontSize: '15px' }}
+                  value={form.total}
+                  onChange={e => manejarCambioTotal(e.target.value)}
+                  placeholder="Ej: 121000"
+                  required
+                />
               </div>
+
+              {/* SELECTOR DE ALÍCUOTA DE IVA */}
+              <div>
+                <label style={s.label}>Alícuota IVA (%)</label>
+                <select
+                  style={s.input}
+                  value={form.alicuota_iva}
+                  onChange={e => manejarCambioAlicuota(e.target.value)}
+                >
+                  <option value="21">21% — Estándar (General)</option>
+                  <option value="10.5">10.5% — Reducida</option>
+                  <option value="27">27% — Incrementada (Servicios públicos)</option>
+                  <option value="0">0% — Exento / No gravado</option>
+                </select>
+              </div>
+
+              {/* CAMPO SECUNDARIO: NETO GRAVADO (Sincronizado) */}
+              <div>
+                <label style={{ ...s.label, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <span>Neto Gravado ($)</span>
+                  <span style={{ fontSize: '10.5px', color: '#64748B' }}>Total / {(1 + (parseFloat(form.alicuota_iva) || 21) / 100).toFixed(2)}</span>
+                </label>
+                <input
+                  type="number"
+                  step="0.01"
+                  style={s.input}
+                  value={form.subtotal}
+                  onChange={e => manejarCambioNeto(e.target.value)}
+                  placeholder="Auto-calculado al escribir el total"
+                />
+              </div>
+
+              {/* CAMPO SECUNDARIO: IVA CALCULADO (Informativo) */}
+              <div>
+                <label style={{ ...s.label, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <span>IVA discriminado ($)</span>
+                  <span style={{ fontSize: '10.5px', color: '#7C3AED' }}>Total - Neto</span>
+                </label>
+                <input
+                  type="number"
+                  step="0.01"
+                  readOnly
+                  style={{ ...s.input, background: '#FAF5FF', color: '#7C3AED', fontWeight: '700' }}
+                  value={form.impuestos}
+                />
+              </div>
+
+              {/* RECUADRO DINÁMICO DE DESGLOSE CONTABLE */}
+              <div style={{
+                gridColumn: '1 / -1',
+                background: '#F8FAFC',
+                border: '1.5px solid #E2E8F0',
+                borderRadius: '12px',
+                padding: '16px',
+                display: 'grid',
+                gridTemplateColumns: 'repeat(3, 1fr)',
+                gap: '12px',
+                textAlign: 'center'
+              }}>
+                <div style={{ background: '#FFFFFF', padding: '12px', borderRadius: '8px', border: '1px solid #CBD5E1' }}>
+                  <p style={{ margin: '0 0 2px', fontSize: '11px', color: '#64748B', fontWeight: '700', textTransform: 'uppercase' }}>Neto Gravado</p>
+                  <p style={{ margin: 0, fontSize: '19px', fontWeight: '800', color: '#0F172A', fontFamily: 'monospace' }}>
+                    {(parseFloat(form.subtotal) || 0).toLocaleString('es-AR', { style: 'currency', currency: 'ARS' })}
+                  </p>
+                  <span style={{ fontSize: '10.5px', color: '#94A3B8' }}>Total / {(1 + (parseFloat(form.alicuota_iva) || 21) / 100).toFixed(2)}</span>
+                </div>
+
+                <div style={{ background: '#FAF5FF', padding: '12px', borderRadius: '8px', border: '1px solid #DDD6FE' }}>
+                  <p style={{ margin: '0 0 2px', fontSize: '11px', color: '#7C3AED', fontWeight: '700', textTransform: 'uppercase' }}>IVA ({form.alicuota_iva}%)</p>
+                  <p style={{ margin: 0, fontSize: '19px', fontWeight: '800', color: '#7C3AED', fontFamily: 'monospace' }}>
+                    {(parseFloat(form.impuestos) || 0).toLocaleString('es-AR', { style: 'currency', currency: 'ARS' })}
+                  </p>
+                  <span style={{ fontSize: '10.5px', color: '#A78BFA' }}>Total - Neto</span>
+                </div>
+
+                <div style={{ background: '#FFF1F2', padding: '12px', borderRadius: '8px', border: '2px solid #FDA4AF' }}>
+                  <p style={{ margin: '0 0 2px', fontSize: '11px', color: c.main, fontWeight: '800', textTransform: 'uppercase' }}>Total Facturado</p>
+                  <p style={{ margin: 0, fontSize: '21px', fontWeight: '900', color: c.main, fontFamily: 'monospace' }}>
+                    {(parseFloat(form.total) || 0).toLocaleString('es-AR', { style: 'currency', currency: 'ARS' })}
+                  </p>
+                  <span style={{ fontSize: '10.5px', color: '#BE123C', fontWeight: '700' }}>Neto + IVA = Total</span>
+                </div>
+              </div>
+
               <div style={{ gridColumn: '1 / -1' }}>
                 <label style={s.label}>Observaciones</label>
                 <textarea style={{ ...s.input, resize: 'vertical' }} rows={2} value={form.observaciones}
@@ -491,6 +805,7 @@ function Facturacion()  {
                   onFocus={e => e.target.style.borderColor = c.main} onBlur={e => e.target.style.borderColor = '#e2e8f0'} />
               </div>
             </div>
+
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '20px' }}>
               <button type="button" style={s.btnSecundario} onClick={cancelar}>Cancelar</button>
               <button type="submit" style={s.btnPrimario(c.main)}>{editando ? 'Guardar cambios' : 'Emitir factura'}</button>
@@ -499,73 +814,117 @@ function Facturacion()  {
         </div>
       )}
 
-      {/* MODAL PAGOS */}
-      {mostrarPagos && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50 }}>
-          <div style={{ background: '#fff', borderRadius: '20px', padding: '28px', width: '100%', maxWidth: '480px', boxShadow: '0 20px 60px rgba(0,0,0,0.2)' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-              <h4 style={{ margin: 0, color: '#0f172a', fontWeight: '700' }}>Pagos — {mostrarPagos.numero_factura}</h4>
-              <button onClick={() => setMostrarPagos(null)} style={{ background: 'none', border: 'none', fontSize: '20px', cursor: 'pointer', color: '#94a3b8' }}><X size={16} /></button>
-            </div>
-            <div style={{ background: '#f8fafc', borderRadius: '10px', padding: '14px', marginBottom: '16px', fontSize: '13px' }}>
-              <p style={{ margin: '0 0 4px', color: '#64748b' }}>Total: <strong style={{ color: '#0f172a' }}>{Number(mostrarPagos.total).toLocaleString('es-AR', { style: 'currency', currency: 'ARS' })}</strong></p>
-              <p style={{ margin: '0 0 4px', color: '#64748b' }}>Cobrado: <strong style={{ color: '#059669' }}>{pagos.reduce((a,p) => a+Number(p.monto),0).toLocaleString('es-AR', { style: 'currency', currency: 'ARS' })}</strong></p>
-              <p style={{ margin: 0, color: '#64748b' }}>Pendiente: <strong style={{ color: '#dc2626' }}>{(Number(mostrarPagos.total) - pagos.reduce((a,p) => a+Number(p.monto),0)).toLocaleString('es-AR', { style: 'currency', currency: 'ARS' })}</strong></p>
-            </div>
-            {pagos.map(p => (
-              <div key={p.id} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid #f1f5f9', fontSize: '13px' }}>
-                <span style={{ color: '#64748b' }}>{new Date(p.fecha_pago).toLocaleDateString('es-AR')}</span>
-                <span style={{ color: '#64748b', textTransform: 'capitalize' }}>{p.medio_pago}{p.cuenta_id ? ` · ${cuentas.find(ct => ct.id === p.cuenta_id)?.banco || ''}` : ''}</span>
-                <strong style={{ color: '#059669' }}>{Number(p.monto).toLocaleString('es-AR', { style: 'currency', currency: 'ARS' })}</strong>
-              </div>
-            ))}
-            <form onSubmit={registrarPago} style={{ marginTop: '16px' }}>
-              <div style={s.grid2}>
-                <div>
-                  <label style={s.label}>Monto ($)</label>
-                  <input type="number" style={s.input} value={formPago.monto} onChange={e => setFormPago({...formPago, monto: e.target.value})} required />
-                </div>
-                <div>
-                  <label style={s.label}>Medio de pago</label>
-                  <select style={s.input} value={formPago.medio_pago} onChange={e => setFormPago({...formPago, medio_pago: e.target.value})}>
-                    <option value="transferencia">Transferencia</option>
-                    <option value="efectivo">Efectivo</option>
-                    <option value="cheque">Cheque</option>
-                    <option value="tarjeta">Tarjeta</option>
-                  </select>
-                </div>
-                <div style={{ gridColumn: '1 / -1' }}>
-                  <label style={s.label}>Cuenta / caja que recibe el pago</label>
-                  <select style={s.input} value={formPago.cuenta_id} onChange={e => setFormPago({...formPago, cuenta_id: e.target.value})} required>
-                    <option value="">Seleccionar cuenta</option>
-                    {cuentas.map(ct => <option key={ct.id} value={ct.id}>{ct.banco} — {ct.tipo}</option>)}
-                  </select>
-                </div>
-                <div style={{ gridColumn: '1 / -1' }}>
-                  <label style={s.label}>Referencia</label>
-                  <input style={s.input} value={formPago.referencia} onChange={e => setFormPago({...formPago, referencia: e.target.value})} placeholder="Nro. transferencia, cheque..." />
-                </div>
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '14px' }}>
-                <button type="button" style={s.btnSecundario} onClick={() => setMostrarPagos(null)}>Cerrar</button>
-                <button type="submit" style={s.btnPrimario('#059669')}>Registrar pago</button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+      {/* MODAL PAGOS CON DESGLOSE COMPLETO */}
+      {mostrarPagos && (() => {
+        const d = calcularDesgloseFactura(mostrarPagos)
+        const totalCobrado = pagos.reduce((a, p) => a + Number(p.monto), 0)
+        const saldoPendiente = Math.max(0, d.total - totalCobrado)
 
-      {/* TABLA */}
+        return (
+          <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50, padding: '16px' }}>
+            <div style={{ background: '#fff', borderRadius: '20px', padding: '28px', width: '100%', maxWidth: '520px', boxShadow: '0 20px 60px rgba(0,0,0,0.2)' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+                <div>
+                  <h4 style={{ margin: 0, color: '#0f172a', fontWeight: '800' }}>Pagos y Cobranzas</h4>
+                  <p style={{ margin: '2px 0 0', fontSize: '12.5px', color: '#64748B' }}>Factura {mostrarPagos.numero_factura} · {mostrarPagos.clientes?.razon_social || mostrarPagos.clientes?.nombre_contacto}</p>
+                </div>
+                <button onClick={() => setMostrarPagos(null)} style={{ background: 'none', border: 'none', fontSize: '20px', cursor: 'pointer', color: '#94a3b8' }}><X size={18} /></button>
+              </div>
+
+              <div style={{ background: '#f8fafc', borderRadius: '12px', padding: '16px', marginBottom: '16px', fontSize: '13px', border: '1px solid #E2E8F0' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px', marginBottom: '12px', paddingBottom: '12px', borderBottom: '1px solid #E2E8F0', textAlign: 'center' }}>
+                  <div style={{ background: '#FFFFFF', padding: '8px', borderRadius: '6px', border: '1px solid #E2E8F0' }}>
+                    <span style={{ fontSize: '10.5px', color: '#64748B', display: 'block', textTransform: 'uppercase' }}>Neto Gravado</span>
+                    <strong style={{ fontSize: '13.5px', color: '#0F172A', fontFamily: 'monospace' }}>{d.neto.toLocaleString('es-AR', { style: 'currency', currency: 'ARS' })}</strong>
+                  </div>
+                  <div style={{ background: '#FAF5FF', padding: '8px', borderRadius: '6px', border: '1px solid #DDD6FE' }}>
+                    <span style={{ fontSize: '10.5px', color: '#7C3AED', display: 'block', textTransform: 'uppercase' }}>IVA ({d.alicuota}%)</span>
+                    <strong style={{ fontSize: '13.5px', color: '#7C3AED', fontFamily: 'monospace' }}>{d.iva.toLocaleString('es-AR', { style: 'currency', currency: 'ARS' })}</strong>
+                  </div>
+                  <div style={{ background: '#FFF1F2', padding: '8px', borderRadius: '6px', border: '1px solid #FDA4AF' }}>
+                    <span style={{ fontSize: '10.5px', color: c.main, display: 'block', textTransform: 'uppercase' }}>Total con IVA</span>
+                    <strong style={{ fontSize: '13.5px', color: c.main, fontFamily: 'monospace' }}>{d.total.toLocaleString('es-AR', { style: 'currency', currency: 'ARS' })}</strong>
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
+                  <span style={{ color: '#64748B' }}>Total Facturado:</span>
+                  <strong style={{ color: '#0F172A', fontFamily: 'monospace' }}>{d.total.toLocaleString('es-AR', { style: 'currency', currency: 'ARS' })}</strong>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
+                  <span style={{ color: '#64748B' }}>Cobrado acumulado:</span>
+                  <strong style={{ color: '#059669', fontFamily: 'monospace' }}>{totalCobrado.toLocaleString('es-AR', { style: 'currency', currency: 'ARS' })}</strong>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px dashed #CBD5E1', paddingTop: '6px', marginTop: '6px' }}>
+                  <span style={{ color: '#64748B', fontWeight: '700' }}>Saldo pendiente:</span>
+                  <strong style={{ color: saldoPendiente > 0 ? '#DC2626' : '#059669', fontSize: '14px', fontFamily: 'monospace' }}>
+                    {saldoPendiente.toLocaleString('es-AR', { style: 'currency', currency: 'ARS' })}
+                  </strong>
+                </div>
+              </div>
+
+              {pagos.map(p => (
+                <div key={p.id} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid #f1f5f9', fontSize: '13px' }}>
+                  <span style={{ color: '#64748b' }}>{new Date(p.fecha_pago).toLocaleDateString('es-AR')}</span>
+                  <span style={{ color: '#64748b', textTransform: 'capitalize' }}>{p.medio_pago}{p.cuenta_id ? ` · ${cuentas.find(ct => ct.id === p.cuenta_id)?.banco || ''}` : ''}</span>
+                  <strong style={{ color: '#059669', fontFamily: 'monospace' }}>{Number(p.monto).toLocaleString('es-AR', { style: 'currency', currency: 'ARS' })}</strong>
+                </div>
+              ))}
+
+              <form onSubmit={registrarPago} style={{ marginTop: '16px' }}>
+                <div style={s.grid2}>
+                  <div>
+                    <label style={s.label}>Monto ($)</label>
+                    <input type="number" step="0.01" style={s.input} value={formPago.monto} onChange={e => setFormPago({...formPago, monto: e.target.value})} required />
+                  </div>
+                  <div>
+                    <label style={s.label}>Medio de pago</label>
+                    <select style={s.input} value={formPago.medio_pago} onChange={e => setFormPago({...formPago, medio_pago: e.target.value})}>
+                      <option value="transferencia">Transferencia</option>
+                      <option value="efectivo">Efectivo</option>
+                      <option value="cheque">Cheque</option>
+                      <option value="tarjeta">Tarjeta</option>
+                    </select>
+                  </div>
+                  <div style={{ gridColumn: '1 / -1' }}>
+                    <label style={s.label}>Cuenta / caja que recibe el pago</label>
+                    <select style={s.input} value={formPago.cuenta_id} onChange={e => setFormPago({...formPago, cuenta_id: e.target.value})} required>
+                      <option value="">Seleccionar cuenta</option>
+                      {cuentas.map(ct => <option key={ct.id} value={ct.id}>{ct.banco} — {ct.tipo}</option>)}
+                    </select>
+                  </div>
+                  <div style={{ gridColumn: '1 / -1' }}>
+                    <label style={s.label}>Referencia</label>
+                    <input style={s.input} value={formPago.referencia} onChange={e => setFormPago({...formPago, referencia: e.target.value})} placeholder="Nro. transferencia, cheque..." />
+                  </div>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '14px' }}>
+                  <button type="button" style={s.btnSecundario} onClick={() => setMostrarPagos(null)}>Cerrar</button>
+                  <button type="submit" style={s.btnPrimario('#059669')}>Registrar pago</button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )
+      })()}
+
+      {/* TABLA DE FACTURAS CON DESGLOSE: NETO, IVA Y TOTAL */}
       <div style={{ ...s.card, padding: 0, overflowX: 'auto', WebkitOverflowScrolling: 'touch', border: '1px solid #E2E8F0', borderRadius: '10px', marginTop: '20px' }}>
         {loading ? <div style={s.empty}>Cargando...</div>
         : facturas.length === 0 ? <div style={s.empty}>No hay facturas registradas</div>
         : (
-          <table style={{ ...s.tabla, minWidth: '940px', width: '100%' }}>
+          <table style={{ ...s.tabla, minWidth: '1080px', width: '100%' }}>
             <thead>
               <tr>
-                {['Número','Cliente','Tipo','Emisión','Vencimiento','Total','Estado'].map(h => (
-                  <th key={h} style={s.tablaCabecera(c.main)}>{h}</th>
-                ))}
+                <th style={s.tablaCabecera(c.main)}>Número</th>
+                <th style={s.tablaCabecera(c.main)}>Cliente</th>
+                <th style={s.tablaCabecera(c.main)}>Tipo</th>
+                <th style={s.tablaCabecera(c.main)}>Emisión</th>
+                <th style={s.tablaCabecera(c.main)}>Vencimiento</th>
+                <th style={{ ...s.tablaCabecera(c.main), textAlign: 'right' }}>Neto Gravado</th>
+                <th style={{ ...s.tablaCabecera(c.main), textAlign: 'right' }}>IVA</th>
+                <th style={{ ...s.tablaCabecera(c.main), textAlign: 'right' }}>Total (con IVA)</th>
+                <th style={{ ...s.tablaCabecera(c.main), textAlign: 'center' }}>Estado</th>
                 <th style={{
                   ...s.tablaCabecera(c.main),
                   position: 'sticky',
@@ -584,19 +943,45 @@ function Facturacion()  {
                 const ec = estadoColor[f.estado] || { bg: '#f1f5f9', color: '#64748b' }
                 const esPorHora = f.contratos?.tipo_facturacion === 'por_hora'
                 const bgColor = i % 2 === 0 ? '#FFFFFF' : '#F8FAFC'
+                const d = calcularDesgloseFactura(f)
+
                 return (
                   <tr key={f.id} style={s.tablaFila(i)}>
-                    <td style={{ ...s.tablaCell, fontFamily: 'monospace', fontSize: '12px', color: '#64748B', whiteSpace: 'nowrap' }}>{f.numero_factura}</td>
-                    <td style={s.tablaCellBold}>{f.clientes?.razon_social || f.clientes?.nombre_contacto}</td>
+                    <td style={{ ...s.tablaCell, fontFamily: 'monospace', fontSize: '12px', color: '#64748B', whiteSpace: 'nowrap' }}>
+                      {f.numero_factura}
+                    </td>
+                    <td style={s.tablaCellBold}>
+                      {f.clientes?.razon_social || f.clientes?.nombre_contacto || 'Cliente s/n'}
+                    </td>
                     <td style={s.tablaCell}>
                       <span style={s.badge(esPorHora ? '#fef3c7' : '#dbeafe', esPorHora ? '#d97706' : '#1d4ed8')}>
                         {esPorHora ? '⏱ Por hora' : 'Fijo'}
                       </span>
                     </td>
-                    <td style={{ ...s.tablaCell, whiteSpace: 'nowrap' }}>{new Date(f.fecha_emision).toLocaleDateString('es-AR')}</td>
-                    <td style={{ ...s.tablaCell, whiteSpace: 'nowrap' }}>{f.fecha_vencimiento ? new Date(f.fecha_vencimiento).toLocaleDateString('es-AR') : '—'}</td>
-                    <td style={{ ...s.tablaCellBold, color: '#0f172a', whiteSpace: 'nowrap' }}>{Number(f.total).toLocaleString('es-AR', { style: 'currency', currency: 'ARS' })}</td>
-                    <td style={{ ...s.tablaCell, whiteSpace: 'nowrap' }}><span style={s.badge(ec.bg, ec.color)}>{f.estado}</span></td>
+                    <td style={{ ...s.tablaCell, whiteSpace: 'nowrap' }}>
+                      {new Date(f.fecha_emision).toLocaleDateString('es-AR')}
+                    </td>
+                    <td style={{ ...s.tablaCell, whiteSpace: 'nowrap' }}>
+                      {f.fecha_vencimiento ? new Date(f.fecha_vencimiento).toLocaleDateString('es-AR') : '—'}
+                    </td>
+                    {/* NETO GRAVADO (DIVIDIDO POR ALÍCUOTA) */}
+                    <td style={{ ...s.tablaCell, textAlign: 'right', whiteSpace: 'nowrap', fontFamily: 'monospace', color: '#334155' }}>
+                      {d.neto.toLocaleString('es-AR', { style: 'currency', currency: 'ARS' })}
+                    </td>
+                    {/* IVA DISCRIMINADO */}
+                    <td style={{ ...s.tablaCell, textAlign: 'right', whiteSpace: 'nowrap' }}>
+                      <div style={{ fontFamily: 'monospace', color: '#7C3AED', fontWeight: '700' }}>
+                        {d.iva.toLocaleString('es-AR', { style: 'currency', currency: 'ARS' })}
+                      </div>
+                      <span style={{ fontSize: '10px', color: '#94A3B8' }}>{d.alicuota}%</span>
+                    </td>
+                    {/* TOTAL FINAL CON IVA INCLUIDO */}
+                    <td style={{ ...s.tablaCellBold, textAlign: 'right', color: '#0f172a', whiteSpace: 'nowrap', fontFamily: 'monospace', fontSize: '13.5px' }}>
+                      {d.total.toLocaleString('es-AR', { style: 'currency', currency: 'ARS' })}
+                    </td>
+                    <td style={{ ...s.tablaCell, textAlign: 'center', whiteSpace: 'nowrap' }}>
+                      <span style={s.badge(ec.bg, ec.color)}>{f.estado}</span>
+                    </td>
                     <td style={{
                       ...s.tablaCell,
                       position: 'sticky',
@@ -627,6 +1012,26 @@ function Facturacion()  {
                 )
               })}
             </tbody>
+            {/* PIE DE TABLA CON TOTALES ACUMULADOS: NETO + IVA = TOTAL */}
+            <tfoot>
+              <tr style={{ background: '#F8FAFC', borderTop: '2px solid #CBD5E1', fontWeight: '800' }}>
+                <td colSpan={5} style={{ ...s.tablaCell, fontWeight: '800', color: '#0F172A', textAlign: 'right' }}>
+                  Totales facturados (Neto + IVA = Total):
+                </td>
+                <td style={{ ...s.tablaCell, textAlign: 'right', fontFamily: 'monospace', fontWeight: '800', color: '#0284C7' }}>
+                  {metricasFacturacion.totalNeto.toLocaleString('es-AR', { style: 'currency', currency: 'ARS' })}
+                </td>
+                <td style={{ ...s.tablaCell, textAlign: 'right', fontFamily: 'monospace', fontWeight: '800', color: '#7C3AED' }}>
+                  {metricasFacturacion.totalIVA.toLocaleString('es-AR', { style: 'currency', currency: 'ARS' })}
+                </td>
+                <td style={{ ...s.tablaCellBold, textAlign: 'right', fontFamily: 'monospace', fontWeight: '900', color: c.main, fontSize: '14px' }}>
+                  {metricasFacturacion.totalFacturado.toLocaleString('es-AR', { style: 'currency', currency: 'ARS' })}
+                </td>
+                <td colSpan={2} style={{ ...s.tablaCell, textAlign: 'center', fontSize: '11px', color: '#16A34A', fontWeight: '700' }}>
+                  ✓ Cuadrado
+                </td>
+              </tr>
+            </tfoot>
           </table>
         )}
       </div>

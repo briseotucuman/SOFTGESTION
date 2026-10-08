@@ -152,3 +152,72 @@ export function clasificarMovimientoBancario(descripcion, monto) {
   }
 }
 
+/**
+ * Desglosa el importe total de una factura determinando el Neto y el IVA
+ * a partir de la alícuota aplicable (regla: el Total ya incluye el IVA).
+ *
+ * Fórmula:
+ * Factor = 1 + (alicuota / 100) -> ej: 1.21 para alícuota 21%
+ * Neto = Total / Factor
+ * IVA = Total - Neto
+ * Neto + IVA = Total
+ *
+ * @param {number|string|Object} facturaOTotal - Factura con { total, subtotal, impuestos, alicuota_iva } o número total
+ * @param {number} [alicuotaDefault=21] - Alícuota por defecto (21% estándar)
+ * @returns {{ total: number, neto: number, iva: number, alicuota: number, factor: number }}
+ */
+export function calcularDesgloseFactura(facturaOTotal, alicuotaDefault = 21) {
+  let total = 0
+  let subtotal = 0
+  let impuestos = 0
+  let alicuota = alicuotaDefault
+
+  if (typeof facturaOTotal === 'object' && facturaOTotal !== null) {
+    total = parseFloat(facturaOTotal.total) || 0
+    subtotal = parseFloat(facturaOTotal.subtotal) || 0
+    impuestos = parseFloat(facturaOTotal.impuestos) || 0
+    if (facturaOTotal.alicuota_iva !== undefined && facturaOTotal.alicuota_iva !== null && facturaOTotal.alicuota_iva !== '') {
+      alicuota = parseFloat(facturaOTotal.alicuota_iva) || 0
+    }
+  } else {
+    total = parseFloat(facturaOTotal) || 0
+  }
+
+  // Si no hay total pero hay subtotal e impuestos coherentes:
+  if (total === 0 && (subtotal > 0 || impuestos > 0)) {
+    total = subtotal + impuestos
+  }
+
+  // Caso 1: La factura ya tiene guardados explícitamente Neto e IVA válidos tales que Neto + IVA === Total y IVA > 0
+  if (impuestos > 0 && subtotal > 0 && Math.abs((subtotal + impuestos) - total) < 0.05) {
+    const alicCalc = Math.round((impuestos / subtotal) * 1000) / 10
+    return {
+      total: Math.round(total * 100) / 100,
+      neto: Math.round(subtotal * 100) / 100,
+      iva: Math.round(impuestos * 100) / 100,
+      alicuota: alicCalc,
+      factor: subtotal > 0 ? (total / subtotal) : 1
+    }
+  }
+
+  // Caso 2: El valor Total ya incluye el IVA (regla general solicitada).
+  // A eso debe dividirse en la alícuota para determinar el IVA:
+  // Factor = 1 + (alicuota / 100)  -> ej: 1.21
+  // Neto = Total / Factor
+  // IVA = Total - Neto
+  // Neto + IVA = Total
+  const numAlic = parseFloat(alicuota) || 0
+  const factor = 1 + (numAlic / 100)
+  const neto = factor > 0 ? (total / factor) : total
+  const iva = total - neto
+
+  return {
+    total: Math.round(total * 100) / 100,
+    neto: Math.round(neto * 100) / 100,
+    iva: Math.round(iva * 100) / 100,
+    alicuota: numAlic,
+    factor: Math.round(factor * 10000) / 10000
+  }
+}
+
+
