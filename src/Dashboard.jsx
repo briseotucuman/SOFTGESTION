@@ -67,18 +67,128 @@ const alertaEstilo = {
   info:    { dot: '#0369A1', bg: '#E0F2FE', text: '#0369A1', label: 'Aviso' },
 }
 
+function normalizarFechaYMD(f) {
+  if (!f) return ''
+  const limpio = String(f).trim().split('T')[0]
+  if (limpio.includes('-')) {
+    const partes = limpio.split('-')
+    if (partes[0].length === 4) return limpio
+    if (partes[2].length === 4) return `${partes[2]}-${partes[1].padStart(2, '0')}-${partes[0].padStart(2, '0')}`
+  }
+  if (limpio.includes('/')) {
+    const partes = limpio.split('/')
+    if (partes[2].length === 4) return `${partes[2]}-${partes[1].padStart(2, '0')}-${partes[0].padStart(2, '0')}`
+    if (partes[0].length === 4) return `${partes[0]}-${partes[1].padStart(2, '0')}-${partes[2].padStart(2, '0')}`
+  }
+  return limpio
+}
+
+function obtenerRangosPeriodo() {
+  const hoyObj = new Date()
+
+  const anio = hoyObj.getFullYear()
+  const mes = (hoyObj.getMonth() + 1).toString().padStart(2, '0')
+  const dia = hoyObj.getDate().toString().padStart(2, '0')
+  const hoyStr = `${anio}-${mes}-${dia}`
+
+  // Semana actual: de lunes a domingo
+  const diaSemana = hoyObj.getDay() // 0 = Domingo, 1 = Lunes, ..., 6 = Sábado
+  const distanciaLunes = diaSemana === 0 ? -6 : 1 - diaSemana
+  const lunesObj = new Date(hoyObj)
+  lunesObj.setDate(hoyObj.getDate() + distanciaLunes)
+  const domingoObj = new Date(lunesObj)
+  domingoObj.setDate(lunesObj.getDate() + 6)
+
+  const lAnio = lunesObj.getFullYear()
+  const lMes = (lunesObj.getMonth() + 1).toString().padStart(2, '0')
+  const lDia = lunesObj.getDate().toString().padStart(2, '0')
+  const lunesStr = `${lAnio}-${lMes}-${lDia}`
+
+  const dAnio = domingoObj.getFullYear()
+  const dMes = (domingoObj.getMonth() + 1).toString().padStart(2, '0')
+  const dDia = domingoObj.getDate().toString().padStart(2, '0')
+  const domingoStr = `${dAnio}-${dMes}-${dDia}`
+
+  // Mes actual: día 1 al último día
+  const ultimoDiaMes = new Date(anio, hoyObj.getMonth() + 1, 0).getDate()
+  const mesInicioStr = `${anio}-${mes}-01`
+  const mesFinStr = `${anio}-${mes}-${ultimoDiaMes.toString().padStart(2, '0')}`
+
+  return {
+    hoy: { desde: hoyStr, hasta: hoyStr, dia, mes, anio },
+    semana: { desde: lunesStr, hasta: domingoStr, lDia, lMes, dDia, dMes },
+    mes: { desde: mesInicioStr, hasta: mesFinStr, mes, anio }
+  }
+}
+
 function Dashboard({ user }) {
   const [seccionActiva, setSeccionActiva] = useState('inicio')
   const [menuAbierto, setMenuAbierto] = useState(true)
   const [esAdmin, setEsAdmin] = useState(false)
   const [rolCargado, setRolCargado] = useState(false)
-  const [kpis, setKpis] = useState({ clientes: 0, contratos: 0, empleados: 0, serviciosHoy: 0, ingresosMes: 0, facturasPendientes: 0 })
+  const [kpis, setKpis] = useState({
+    clientes: 0,
+    contratos: 0,
+    empleados: 0,
+    serviciosHoy: 0,
+    serviciosSemana: 0,
+    serviciosMes: 0,
+    ingresosHoy: 0,
+    ingresosSemana: 0,
+    ingresosMes: 0,
+    cantIngresosHoy: 0,
+    cantIngresosSemana: 0,
+    cantIngresosMes: 0,
+    facturasPendientes: 0
+  })
   const [alertas, setAlertas] = useState([])
   const [actualizandoKpis, setActualizandoKpis] = useState(false)
   const [filtroPeriodo, setFiltroPeriodo] = useState('mes')
   const [buscadorAbierto, setBuscadorAbierto] = useState(false)
   const [queryBusqueda, setQueryBusqueda] = useState('')
   const [horaActual, setHoraActual] = useState(new Date())
+
+  const rangos = useMemo(() => obtenerRangosPeriodo(), [])
+
+  const metricaPeriodo = useMemo(() => {
+    if (filtroPeriodo === 'hoy') {
+      return {
+        id: 'hoy',
+        ingresos: kpis.ingresosHoy,
+        cantIngresos: kpis.cantIngresosHoy,
+        servicios: kpis.serviciosHoy,
+        tituloIngresos: 'Ingresos de Hoy (Cobrados)',
+        subtituloIngresos: `Cobranzas registradas hoy (${rangos.hoy.dia}/${rangos.hoy.mes})`,
+        etiquetaPeriodo: 'Hoy',
+        tituloServicios: 'Servicios Programados Hoy',
+        subtituloServicios: 'turnos en agenda hoy'
+      }
+    }
+    if (filtroPeriodo === 'semana') {
+      return {
+        id: 'semana',
+        ingresos: kpis.ingresosSemana,
+        cantIngresos: kpis.cantIngresosSemana,
+        servicios: kpis.serviciosSemana,
+        tituloIngresos: 'Ingresos de la Semana (Cobrados)',
+        subtituloIngresos: `Semana del ${rangos.semana.lDia}/${rangos.semana.lMes} al ${rangos.semana.dDia}/${rangos.semana.dMes}`,
+        etiquetaPeriodo: 'Esta semana',
+        tituloServicios: 'Servicios de la Semana',
+        subtituloServicios: 'turnos en agenda esta semana'
+      }
+    }
+    return {
+      id: 'mes',
+      ingresos: kpis.ingresosMes,
+      cantIngresos: kpis.cantIngresosMes,
+      servicios: kpis.serviciosMes,
+      tituloIngresos: 'Ingresos del Mes (Cobrados)',
+      subtituloIngresos: `Mes en curso (${rangos.mes.mes}/${rangos.mes.anio})`,
+      etiquetaPeriodo: 'Mes actual',
+      tituloServicios: 'Servicios del Mes',
+      subtituloServicios: 'turnos en agenda este mes'
+    }
+  }, [filtroPeriodo, kpis, rangos])
 
   // Actualizar reloj en vivo cada segundo
   useEffect(() => {
@@ -188,13 +298,14 @@ function Dashboard({ user }) {
   async function cargarKpis() {
     setActualizandoKpis(true)
     try {
-      const mes = new Date().toISOString().slice(0, 7)
-      const hoy = new Date().toISOString().split('T')[0]
+      const rangosActuales = obtenerRangosPeriodo()
+      const minFecha = rangosActuales.semana.desde < rangosActuales.mes.desde ? rangosActuales.semana.desde : rangosActuales.mes.desde
+
       const [
         { count: clientes },
         { count: contratos },
         { count: empleados },
-        { count: serviciosHoy },
+        { data: ordenesData },
         { data: ingresosRaw },
         { data: facturasPendientesData },
         { data: pagosData },
@@ -203,8 +314,8 @@ function Dashboard({ user }) {
         supabase.from('clientes').select('*', { count: 'exact', head: true }).eq('activo', true),
         supabase.from('contratos').select('*', { count: 'exact', head: true }).eq('estado', 'activo'),
         supabase.from('empleados').select('*', { count: 'exact', head: true }).eq('activo', true),
-        supabase.from('ordenes_trabajo').select('*', { count: 'exact', head: true }).eq('fecha_programada', hoy),
-        supabase.from('movimientos_financieros').select('id, monto, categoria, descripcion, factura_id').eq('tipo', 'ingreso').gte('fecha', mes + '-01').lte('fecha', mes + '-' + new Date(+mes.split('-')[0], +mes.split('-')[1], 0).getDate()),
+        supabase.from('ordenes_trabajo').select('id, fecha_programada').gte('fecha_programada', minFecha),
+        supabase.from('movimientos_financieros').select('id, monto, categoria, descripcion, factura_id, fecha').eq('tipo', 'ingreso').gte('fecha', minFecha),
         supabase.from('facturas').select('id, total, estado').in('estado', ['emitida', 'pendiente', 'parcial', 'vencida']),
         supabase.from('pagos').select('factura_id, monto'),
         supabase.from('facturas').select('id, numero_factura')
@@ -234,6 +345,46 @@ function Dashboard({ user }) {
       // Solo computar ingresos reales que no pertenezcan a facturas eliminadas
       const ingresosValidos = (ingresosRaw || []).filter(m => !huerfanos.some(h => h.id === m.id))
 
+      // Calcular ingresos según los 3 periodos: Hoy, Semana, Mes
+      let ingHoy = 0, cantHoy = 0
+      let ingSem = 0, cantSem = 0
+      let ingMes = 0, cantMes = 0
+
+      ingresosValidos.forEach(m => {
+        const f = normalizarFechaYMD(m.fecha)
+        const monto = Number(m.monto || 0)
+
+        // Hoy
+        if (f === rangosActuales.hoy.desde) {
+          ingHoy += monto
+          cantHoy++
+        }
+
+        // Semana actual (Lunes a Domingo)
+        if (f >= rangosActuales.semana.desde && f <= rangosActuales.semana.hasta) {
+          ingSem += monto
+          cantSem++
+        }
+
+        // Mes actual (1 al fin de mes)
+        if (f >= rangosActuales.mes.desde && f <= rangosActuales.mes.hasta) {
+          ingMes += monto
+          cantMes++
+        }
+      })
+
+      // Calcular servicios según los 3 periodos
+      let servHoy = 0
+      let servSem = 0
+      let servMes = 0
+
+      ;(ordenesData || []).forEach(o => {
+        const f = normalizarFechaYMD(o.fecha_programada)
+        if (f === rangosActuales.hoy.desde) servHoy++
+        if (f >= rangosActuales.semana.desde && f <= rangosActuales.semana.hasta) servSem++
+        if (f >= rangosActuales.mes.desde && f <= rangosActuales.mes.hasta) servMes++
+      })
+
       // Calcular saldo neto pendiente de facturas de venta restando los pagos registrados
       const pagadoPorFact = {}
       ;(pagosData || []).forEach(p => {
@@ -249,8 +400,15 @@ function Dashboard({ user }) {
         clientes: clientes || 0,
         contratos: contratos || 0,
         empleados: empleados || 0,
-        serviciosHoy: serviciosHoy || 0,
-        ingresosMes: ingresosValidos.reduce((a, m) => a + Number(m.monto), 0),
+        serviciosHoy: servHoy,
+        serviciosSemana: servSem,
+        serviciosMes: servMes,
+        ingresosHoy: Math.round(ingHoy * 100) / 100,
+        ingresosSemana: Math.round(ingSem * 100) / 100,
+        ingresosMes: Math.round(ingMes * 100) / 100,
+        cantIngresosHoy: cantHoy,
+        cantIngresosSemana: cantSem,
+        cantIngresosMes: cantMes,
         facturasPendientes: totalPendienteReal
       })
     } catch {
@@ -824,11 +982,12 @@ function Dashboard({ user }) {
                           color: filtroPeriodo === p.id ? '#FFFFFF' : '#94A3B8',
                           border: 'none',
                           borderRadius: '4px',
-                          padding: '5px 11px',
+                          padding: '6px 13px',
                           fontSize: '11.5px',
-                          fontWeight: '600',
+                          fontWeight: filtroPeriodo === p.id ? '700' : '600',
                           cursor: 'pointer',
-                          transition: 'all 0.12s ease'
+                          transition: 'all 0.15s ease',
+                          boxShadow: filtroPeriodo === p.id ? '0 1px 2px rgba(0,0,0,0.2)' : 'none'
                         }}
                       >
                         {p.label}
@@ -870,7 +1029,7 @@ function Dashboard({ user }) {
 
                   {/* BANDA DE KPIS */}
                   <div style={{ display: 'grid', gridTemplateColumns: '1.4fr repeat(2, 1fr)', gap: '14px' }}>
-                    {/* HERO KPI: INGRESOS FACTURADOS */}
+                    {/* HERO KPI: INGRESOS DEL PERIODO (HOY, SEMANA, MES) */}
                     <div
                       onClick={() => setSeccionActiva('finanzas')}
                       style={{
@@ -889,11 +1048,23 @@ function Dashboard({ user }) {
                     >
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                         <div>
-                          <span style={{ fontSize: '11px', fontWeight: '700', color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                            Ingresos del Periodo (Cobrados)
-                          </span>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                            <span style={{ fontSize: '11px', fontWeight: '700', color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                              {metricaPeriodo.tituloIngresos}
+                            </span>
+                            <span style={{
+                              fontSize: '10px',
+                              fontWeight: '700',
+                              background: '#CCFBF1',
+                              color: '#0F766E',
+                              padding: '2px 6px',
+                              borderRadius: '4px'
+                            }}>
+                              {metricaPeriodo.etiquetaPeriodo}
+                            </span>
+                          </div>
                           <p style={{ margin: '4px 0 0', fontSize: '11.5px', color: '#0F766E', fontWeight: '600' }}>
-                            Movimientos Financieros Registrados
+                            {metricaPeriodo.subtituloIngresos} · {metricaPeriodo.cantIngresos} {metricaPeriodo.cantIngresos === 1 ? 'cobranza' : 'cobranzas'}
                           </p>
                         </div>
                         <div style={{ background: '#F0FDFA', padding: '7px', borderRadius: '6px', border: '1px solid #CCFBF1' }}>
@@ -902,10 +1073,10 @@ function Dashboard({ user }) {
                       </div>
                       <div style={{ marginTop: '16px' }}>
                         <div style={{ fontFamily: paleta.fontMono, fontSize: '26px', fontWeight: '700', color: '#0F172A', letterSpacing: '-0.02em' }}>
-                          {kpis.ingresosMes.toLocaleString('es-AR', { style: 'currency', currency: 'ARS', maximumFractionDigits: 0 })}
+                          {metricaPeriodo.ingresos.toLocaleString('es-AR', { style: 'currency', currency: 'ARS', maximumFractionDigits: 0 })}
                         </div>
                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '6px' }}>
-                          <span style={{ fontSize: '11.5px', color: '#64748B' }}>Flujo de ingresos neto</span>
+                          <span style={{ fontSize: '11.5px', color: '#64748B' }}>Flujo de ingresos cobrados</span>
                           <span style={{ fontSize: '11px', color: '#0F766E', fontWeight: '600', display: 'flex', alignItems: 'center' }}>
                             Ver finanzas <ArrowUpRight size={12} />
                           </span>
@@ -1028,7 +1199,7 @@ function Dashboard({ user }) {
                       <span style={{ color: '#15803D', fontSize: '12px', fontWeight: '600' }}>Gestionar →</span>
                     </div>
 
-                    {/* AGENDA HOY */}
+                    {/* AGENDA DEL PERIODO */}
                     <div
                       onClick={() => setSeccionActiva('agenda')}
                       style={{
@@ -1047,9 +1218,16 @@ function Dashboard({ user }) {
                           <CalendarDays size={20} color="#D97706" />
                         </div>
                         <div>
-                          <p style={{ margin: 0, fontSize: '11px', fontWeight: '700', color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Servicios Programados Hoy</p>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                            <p style={{ margin: 0, fontSize: '11px', fontWeight: '700', color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                              {metricaPeriodo.tituloServicios}
+                            </p>
+                            <span style={{ fontSize: '9.5px', fontWeight: '700', color: '#D97706', background: '#FEF3C7', padding: '1px 5px', borderRadius: '4px' }}>
+                              {metricaPeriodo.etiquetaPeriodo}
+                            </span>
+                          </div>
                           <p style={{ margin: '2px 0 0', fontSize: '18px', fontWeight: '700', color: '#0F172A', fontFamily: paleta.fontMono }}>
-                            {kpis.serviciosHoy} <span style={{ fontSize: '12px', color: '#64748B', fontWeight: '400' }}>turnos en agenda</span>
+                            {metricaPeriodo.servicios} <span style={{ fontSize: '12px', color: '#64748B', fontWeight: '400' }}>{metricaPeriodo.subtituloServicios}</span>
                           </p>
                         </div>
                       </div>

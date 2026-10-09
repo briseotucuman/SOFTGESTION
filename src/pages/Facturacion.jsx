@@ -1,11 +1,21 @@
 import { useEffect, useState, useMemo } from 'react'
 import { supabase, emitirCambioDatos } from '../supabase.js'
 import { s, colores } from '../estilos.js'
-import { Pencil, Plus, Receipt, X, FileUp, Trash2, AlertTriangle, Loader2, Calculator, Info } from 'lucide-react'
+import { Pencil, Plus, Receipt, X, FileUp, Trash2, AlertTriangle, Loader2, Calculator, Info, Search } from 'lucide-react'
 import ImportarARCA from './ImportarARCA.jsx'
 import { calcularDesgloseFactura } from '../finanzasUtils.js'
 
 const c = colores.facturacion
+
+function formatearFecha(f) {
+  if (!f) return '—'
+  const str = String(f).split('T')[0]
+  const partes = str.split('-')
+  if (partes.length === 3) {
+    return `${partes[2]}/${partes[1]}/${partes[0]}`
+  }
+  return str
+}
 
 function Facturacion()  {
   const [facturas, setFacturas] = useState([])
@@ -21,6 +31,8 @@ function Facturacion()  {
   const [pagos, setPagos] = useState([])
   const [cuentas, setCuentas] = useState([])
   const [formPago, setFormPago] = useState({ monto: '', medio_pago: 'transferencia', referencia: '', cuenta_id: '' })
+  const [busqueda, setBusqueda] = useState('')
+  const [filtroEstado, setFiltroEstado] = useState('todos')
   const [form, setForm] = useState({
     contrato_id: '',
     periodo_desde: '',
@@ -417,6 +429,60 @@ function Facturacion()  {
     }
   }, [facturas])
 
+  const facturasFiltradas = useMemo(() => {
+    return facturas.filter(f => {
+      // Filtro por estado
+      if (filtroEstado === 'pendiente') {
+        if (['pagada', 'cobrada', 'anulada'].includes(f.estado)) return false
+      } else if (filtroEstado === 'cobrada') {
+        if (!['pagada', 'cobrada'].includes(f.estado)) return false
+      } else if (filtroEstado === 'anulada') {
+        if (f.estado !== 'anulada') return false
+      }
+
+      // Filtro por texto
+      if (busqueda.trim()) {
+        const q = busqueda.trim().toLowerCase()
+        const num = (f.numero_factura || '').toLowerCase()
+        const cliente = (f.clientes?.razon_social || f.clientes?.nombre_contacto || '').toLowerCase()
+        const obs = (f.observaciones || '').toLowerCase()
+        if (!num.includes(q) && !cliente.includes(q) && !obs.includes(q)) return false
+      }
+
+      return true
+    })
+  }, [facturas, filtroEstado, busqueda])
+
+  const conteos = useMemo(() => {
+    const cobradas = facturas.filter(f => ['pagada', 'cobrada'].includes(f.estado))
+    const pendientes = facturas.filter(f => !['pagada', 'cobrada', 'anulada'].includes(f.estado))
+    const anuladas = facturas.filter(f => f.estado === 'anulada')
+    return {
+      todas: facturas.length,
+      cobradas: cobradas.length,
+      pendientes: pendientes.length,
+      anuladas: anuladas.length
+    }
+  }, [facturas])
+
+  const totalesFiltrados = useMemo(() => {
+    let neto = 0
+    let iva = 0
+    let total = 0
+    facturasFiltradas.forEach(f => {
+      if (f.estado === 'anulada') return
+      const d = calcularDesgloseFactura(f)
+      neto += d.neto
+      iva += d.iva
+      total += d.total
+    })
+    return {
+      neto: Math.round(neto * 100) / 100,
+      iva: Math.round(iva * 100) / 100,
+      total: Math.round(total * 100) / 100
+    }
+  }, [facturasFiltradas])
+
   const estadoColor = {
     emitida:  { bg: '#fef3c7', color: '#d97706' },
     pendiente:{ bg: '#fef3c7', color: '#d97706' },
@@ -483,13 +549,13 @@ function Facturacion()  {
 
       {vista === 'facturas' && (<>
       {/* KPIs DE FACTURACIÓN: TOTAL CON IVA, NETO GRAVADO E IVA */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '14px', marginBottom: '14px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(230px, 1fr))', gap: '14px', marginBottom: '14px' }}>
         <div style={{ ...s.card, borderTop: `3px solid ${c.main}` }}>
           <p style={{ ...s.label, color: '#64748B', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <span>Total Facturado</span>
             <span style={{ fontSize: '10px', background: '#FFF1F2', color: c.main, padding: '2px 6px', borderRadius: '4px', fontWeight: '700' }}>Con IVA</span>
           </p>
-          <p style={{ fontSize: '24px', fontWeight: '800', color: '#0F172A', margin: '4px 0 2px', fontFamily: 'monospace' }}>
+          <p style={{ fontSize: '22px', fontWeight: '800', color: '#0F172A', margin: '4px 0 2px', fontFamily: 'monospace', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
             {metricasFacturacion.totalFacturado.toLocaleString('es-AR', { style: 'currency', currency: 'ARS' })}
           </p>
           <span style={{ fontSize: '11.5px', color: '#64748B' }}>
@@ -502,7 +568,7 @@ function Facturacion()  {
             <span>Neto Gravado</span>
             <span style={{ fontSize: '10px', background: '#F0F9FF', color: '#0284C7', padding: '2px 6px', borderRadius: '4px', fontWeight: '700' }}>Total / 1,21</span>
           </p>
-          <p style={{ fontSize: '24px', fontWeight: '800', color: '#0284C7', margin: '4px 0 2px', fontFamily: 'monospace' }}>
+          <p style={{ fontSize: '22px', fontWeight: '800', color: '#0284C7', margin: '4px 0 2px', fontFamily: 'monospace', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
             {metricasFacturacion.totalNeto.toLocaleString('es-AR', { style: 'currency', currency: 'ARS' })}
           </p>
           <span style={{ fontSize: '11.5px', color: '#64748B' }}>
@@ -515,7 +581,7 @@ function Facturacion()  {
             <span>IVA Débito Fiscal</span>
             <span style={{ fontSize: '10px', background: '#F5F3FF', color: '#7C3AED', padding: '2px 6px', borderRadius: '4px', fontWeight: '700' }}>Total - Neto</span>
           </p>
-          <p style={{ fontSize: '24px', fontWeight: '800', color: '#7C3AED', margin: '4px 0 2px', fontFamily: 'monospace' }}>
+          <p style={{ fontSize: '22px', fontWeight: '800', color: '#7C3AED', margin: '4px 0 2px', fontFamily: 'monospace', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
             {metricasFacturacion.totalIVA.toLocaleString('es-AR', { style: 'currency', currency: 'ARS' })}
           </p>
           <span style={{ fontSize: '11.5px', color: '#64748B' }}>
@@ -528,7 +594,7 @@ function Facturacion()  {
             <span>Pendiente de Cobro</span>
             <span style={{ fontSize: '10px', background: '#FEE2E2', color: '#DC2626', padding: '2px 6px', borderRadius: '4px', fontWeight: '700' }}>Por cobrar</span>
           </p>
-          <p style={{ fontSize: '24px', fontWeight: '800', color: '#DC2626', margin: '4px 0 2px', fontFamily: 'monospace' }}>
+          <p style={{ fontSize: '22px', fontWeight: '800', color: '#DC2626', margin: '4px 0 2px', fontFamily: 'monospace', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
             {metricasFacturacion.totalPendiente.toLocaleString('es-AR', { style: 'currency', currency: 'ARS' })}
           </p>
           <span style={{ fontSize: '11.5px', color: '#991B1B' }}>
@@ -865,7 +931,7 @@ function Facturacion()  {
 
               {pagos.map(p => (
                 <div key={p.id} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid #f1f5f9', fontSize: '13px' }}>
-                  <span style={{ color: '#64748b' }}>{new Date(p.fecha_pago).toLocaleDateString('es-AR')}</span>
+                  <span style={{ color: '#64748b' }}>{formatearFecha(p.fecha_pago)}</span>
                   <span style={{ color: '#64748b', textTransform: 'capitalize' }}>{p.medio_pago}{p.cuenta_id ? ` · ${cuentas.find(ct => ct.id === p.cuenta_id)?.banco || ''}` : ''}</span>
                   <strong style={{ color: '#059669', fontFamily: 'monospace' }}>{Number(p.monto).toLocaleString('es-AR', { style: 'currency', currency: 'ARS' })}</strong>
                 </div>
@@ -908,38 +974,157 @@ function Facturacion()  {
         )
       })()}
 
+      {/* BARRA DE BÚSQUEDA Y FILTROS RÁPIDOS */}
+      <div style={{
+        background: '#FFFFFF',
+        borderRadius: '10px',
+        border: '1px solid #E2E8F0',
+        padding: '12px 16px',
+        marginBottom: '16px',
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        flexWrap: 'wrap',
+        gap: '12px',
+        boxShadow: '0 1px 2px rgba(0,0,0,0.03)'
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: '1 1 280px', maxWidth: '420px', position: 'relative' }}>
+          <Search size={16} color="#94A3B8" style={{ position: 'absolute', left: '10px' }} />
+          <input
+            type="text"
+            placeholder="Buscar por Nº factura, cliente u observaciones..."
+            value={busqueda}
+            onChange={e => setBusqueda(e.target.value)}
+            style={{
+              ...s.input,
+              paddingLeft: '34px',
+              paddingRight: busqueda ? '30px' : '12px',
+              fontSize: '13px'
+            }}
+          />
+          {busqueda && (
+            <button
+              onClick={() => setBusqueda('')}
+              style={{
+                position: 'absolute',
+                right: '8px',
+                background: 'none',
+                border: 'none',
+                cursor: 'pointer',
+                color: '#94A3B8',
+                display: 'flex',
+                alignItems: 'center',
+                padding: '2px'
+              }}
+              title="Borrar búsqueda"
+            >
+              <X size={14} />
+            </button>
+          )}
+        </div>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+          <button
+            onClick={() => setFiltroEstado('todos')}
+            style={{
+              ...s.btnSecundario,
+              padding: '6px 12px',
+              fontSize: '12px',
+              background: filtroEstado === 'todos' ? '#0F172A' : '#FFFFFF',
+              color: filtroEstado === 'todos' ? '#FFFFFF' : '#475569',
+              borderColor: filtroEstado === 'todos' ? '#0F172A' : '#CBD5E1'
+            }}
+          >
+            Todas ({conteos.todas})
+          </button>
+          <button
+            onClick={() => setFiltroEstado('pendiente')}
+            style={{
+              ...s.btnSecundario,
+              padding: '6px 12px',
+              fontSize: '12px',
+              background: filtroEstado === 'pendiente' ? '#DC2626' : '#FFFFFF',
+              color: filtroEstado === 'pendiente' ? '#FFFFFF' : '#DC2626',
+              borderColor: filtroEstado === 'pendiente' ? '#DC2626' : '#FECDD3'
+            }}
+          >
+            Por cobrar ({conteos.pendientes})
+          </button>
+          <button
+            onClick={() => setFiltroEstado('cobrada')}
+            style={{
+              ...s.btnSecundario,
+              padding: '6px 12px',
+              fontSize: '12px',
+              background: filtroEstado === 'cobrada' ? '#059669' : '#FFFFFF',
+              color: filtroEstado === 'cobrada' ? '#FFFFFF' : '#059669',
+              borderColor: filtroEstado === 'cobrada' ? '#059669' : '#A7F3D0'
+            }}
+          >
+            Cobradas ({conteos.cobradas})
+          </button>
+          <button
+            onClick={() => setFiltroEstado('anulada')}
+            style={{
+              ...s.btnSecundario,
+              padding: '6px 12px',
+              fontSize: '12px',
+              background: filtroEstado === 'anulada' ? '#64748B' : '#FFFFFF',
+              color: filtroEstado === 'anulada' ? '#FFFFFF' : '#64748B',
+              borderColor: filtroEstado === 'anulada' ? '#64748B' : '#E2E8F0'
+            }}
+          >
+            Anuladas ({conteos.anuladas})
+          </button>
+        </div>
+      </div>
+
       {/* TABLA DE FACTURAS CON DESGLOSE: NETO, IVA Y TOTAL */}
-      <div style={{ ...s.card, padding: 0, overflowX: 'auto', WebkitOverflowScrolling: 'touch', border: '1px solid #E2E8F0', borderRadius: '10px', marginTop: '20px' }}>
+      <div style={{ ...s.card, padding: 0, overflowX: 'auto', WebkitOverflowScrolling: 'touch', border: '1px solid #E2E8F0', borderRadius: '10px' }}>
         {loading ? <div style={s.empty}>Cargando...</div>
         : facturas.length === 0 ? <div style={s.empty}>No hay facturas registradas</div>
-        : (
+        : facturasFiltradas.length === 0 ? (
+          <div style={{ padding: '36px 20px', textAlign: 'center', color: '#64748B', fontSize: '13.5px' }}>
+            No se encontraron facturas que coincidan con la búsqueda o filtro seleccionado.
+            {(busqueda || filtroEstado !== 'todos') && (
+              <div style={{ marginTop: '12px' }}>
+                <button
+                  onClick={() => { setBusqueda(''); setFiltroEstado('todos') }}
+                  style={{ ...s.btnSecundario, fontSize: '12px', padding: '6px 14px' }}
+                >
+                  Limpiar filtros
+                </button>
+              </div>
+            )}
+          </div>
+        ) : (
           <table style={{ ...s.tabla, minWidth: '1080px', width: '100%' }}>
             <thead>
               <tr>
-                <th style={s.tablaCabecera(c.main)}>Número</th>
-                <th style={s.tablaCabecera(c.main)}>Cliente</th>
-                <th style={s.tablaCabecera(c.main)}>Tipo</th>
-                <th style={s.tablaCabecera(c.main)}>Emisión</th>
-                <th style={s.tablaCabecera(c.main)}>Vencimiento</th>
-                <th style={{ ...s.tablaCabecera(c.main), textAlign: 'right' }}>Neto Gravado</th>
-                <th style={{ ...s.tablaCabecera(c.main), textAlign: 'right' }}>IVA</th>
-                <th style={{ ...s.tablaCabecera(c.main), textAlign: 'right' }}>Total (con IVA)</th>
-                <th style={{ ...s.tablaCabecera(c.main), textAlign: 'center' }}>Estado</th>
+                <th style={s.tablaCabecera('#0F172A')}>Número</th>
+                <th style={s.tablaCabecera('#0F172A')}>Cliente</th>
+                <th style={s.tablaCabecera('#0F172A')}>Tipo</th>
+                <th style={s.tablaCabecera('#0F172A')}>Emisión</th>
+                <th style={s.tablaCabecera('#0F172A')}>Vencimiento</th>
+                <th style={{ ...s.tablaCabecera('#0F172A'), textAlign: 'right' }}>Neto Gravado</th>
+                <th style={{ ...s.tablaCabecera('#0F172A'), textAlign: 'right' }}>IVA</th>
+                <th style={{ ...s.tablaCabecera('#0F172A'), textAlign: 'right' }}>Total (con IVA)</th>
+                <th style={{ ...s.tablaCabecera('#0F172A'), textAlign: 'center' }}>Estado</th>
                 <th style={{
-                  ...s.tablaCabecera(c.main),
+                  ...s.tablaCabecera('#0F172A'),
                   position: 'sticky',
                   right: 0,
                   zIndex: 3,
                   textAlign: 'center',
                   minWidth: '175px',
-                  boxShadow: '-4px 0 8px rgba(0,0,0,0.08)'
+                  boxShadow: '-4px 0 8px rgba(0,0,0,0.12)'
                 }}>
                   Acciones
                 </th>
               </tr>
             </thead>
             <tbody>
-              {facturas.map((f, i) => {
+              {facturasFiltradas.map((f, i) => {
                 const ec = estadoColor[f.estado] || { bg: '#f1f5f9', color: '#64748b' }
                 const esPorHora = f.contratos?.tipo_facturacion === 'por_hora'
                 const bgColor = i % 2 === 0 ? '#FFFFFF' : '#F8FAFC'
@@ -959,10 +1144,10 @@ function Facturacion()  {
                       </span>
                     </td>
                     <td style={{ ...s.tablaCell, whiteSpace: 'nowrap' }}>
-                      {new Date(f.fecha_emision).toLocaleDateString('es-AR')}
+                      {formatearFecha(f.fecha_emision)}
                     </td>
                     <td style={{ ...s.tablaCell, whiteSpace: 'nowrap' }}>
-                      {f.fecha_vencimiento ? new Date(f.fecha_vencimiento).toLocaleDateString('es-AR') : '—'}
+                      {formatearFecha(f.fecha_vencimiento)}
                     </td>
                     {/* NETO GRAVADO (DIVIDIDO POR ALÍCUOTA) */}
                     <td style={{ ...s.tablaCell, textAlign: 'right', whiteSpace: 'nowrap', fontFamily: 'monospace', color: '#334155' }}>
@@ -1015,20 +1200,34 @@ function Facturacion()  {
             {/* PIE DE TABLA CON TOTALES ACUMULADOS: NETO + IVA = TOTAL */}
             <tfoot>
               <tr style={{ background: '#F8FAFC', borderTop: '2px solid #CBD5E1', fontWeight: '800' }}>
-                <td colSpan={5} style={{ ...s.tablaCell, fontWeight: '800', color: '#0F172A', textAlign: 'right' }}>
-                  Totales facturados (Neto + IVA = Total):
+                <td colSpan={5} style={{ ...s.tablaCell, fontWeight: '800', color: '#0F172A', textAlign: 'right', fontSize: '12px' }}>
+                  Totales facturados ({busqueda || filtroEstado !== 'todos' ? `${facturasFiltradas.length} de ${facturas.length}` : 'Neto + IVA = Total'}):
                 </td>
-                <td style={{ ...s.tablaCell, textAlign: 'right', fontFamily: 'monospace', fontWeight: '800', color: '#0284C7' }}>
-                  {metricasFacturacion.totalNeto.toLocaleString('es-AR', { style: 'currency', currency: 'ARS' })}
+                <td style={{ ...s.tablaCell, textAlign: 'right', fontFamily: 'monospace', fontWeight: '800', color: '#0284C7', fontSize: '13px' }}>
+                  {totalesFiltrados.neto.toLocaleString('es-AR', { style: 'currency', currency: 'ARS' })}
                 </td>
-                <td style={{ ...s.tablaCell, textAlign: 'right', fontFamily: 'monospace', fontWeight: '800', color: '#7C3AED' }}>
-                  {metricasFacturacion.totalIVA.toLocaleString('es-AR', { style: 'currency', currency: 'ARS' })}
+                <td style={{ ...s.tablaCell, textAlign: 'right', fontFamily: 'monospace', fontWeight: '800', color: '#7C3AED', fontSize: '13px' }}>
+                  {totalesFiltrados.iva.toLocaleString('es-AR', { style: 'currency', currency: 'ARS' })}
                 </td>
                 <td style={{ ...s.tablaCellBold, textAlign: 'right', fontFamily: 'monospace', fontWeight: '900', color: c.main, fontSize: '14px' }}>
-                  {metricasFacturacion.totalFacturado.toLocaleString('es-AR', { style: 'currency', currency: 'ARS' })}
+                  {totalesFiltrados.total.toLocaleString('es-AR', { style: 'currency', currency: 'ARS' })}
                 </td>
-                <td colSpan={2} style={{ ...s.tablaCell, textAlign: 'center', fontSize: '11px', color: '#16A34A', fontWeight: '700' }}>
+                <td style={{ ...s.tablaCell, textAlign: 'center', fontSize: '11px', color: '#16A34A', fontWeight: '700' }}>
                   ✓ Cuadrado
+                </td>
+                <td style={{
+                  ...s.tablaCell,
+                  position: 'sticky',
+                  right: 0,
+                  background: '#F8FAFC',
+                  zIndex: 2,
+                  textAlign: 'center',
+                  minWidth: '175px',
+                  boxShadow: '-4px 0 8px rgba(0,0,0,0.05)',
+                  fontSize: '11px',
+                  color: '#94A3B8'
+                }}>
+                  —
                 </td>
               </tr>
             </tfoot>
