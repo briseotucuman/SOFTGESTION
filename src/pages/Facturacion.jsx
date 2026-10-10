@@ -30,7 +30,7 @@ function Facturacion()  {
   const [editando, setEditando] = useState(null)
   const [pagos, setPagos] = useState([])
   const [cuentas, setCuentas] = useState([])
-  const [formPago, setFormPago] = useState({ monto: '', medio_pago: 'transferencia', referencia: '', cuenta_id: '' })
+  const [formPago, setFormPago] = useState({ monto: '', medio_pago: 'transferencia', referencia: '', cuenta_id: '', fecha_pago: new Date().toISOString().split('T')[0] })
   const [busqueda, setBusqueda] = useState('')
   const [filtroEstado, setFiltroEstado] = useState('todos')
   const [form, setForm] = useState({
@@ -360,19 +360,33 @@ function Facturacion()  {
     if (data) await supabase.from('cuentas_bancarias').update({ saldo: Number(data.saldo) + delta }).eq('id', cuenta_id)
   }
 
+  async function cambiarFechaPago(pago, nuevaFecha) {
+    if (!nuevaFecha || nuevaFecha === (pago.fecha_pago || '').slice(0, 10)) return
+    const fechaVieja = (pago.fecha_pago || '').slice(0, 10)
+    await supabase.from('pagos').update({ fecha_pago: nuevaFecha }).eq('id', pago.id)
+    // Sincroniza el movimiento de caja asociado (es el que usa el tablero y los reportes por mes)
+    let q = supabase.from('movimientos_financieros').update({ fecha: nuevaFecha })
+      .eq('factura_id', pago.factura_id).eq('tipo', 'ingreso').eq('monto', pago.monto)
+    if (fechaVieja) q = q.eq('fecha', fechaVieja)
+    await q
+    await verPagos(mostrarPagos)
+    emitirCambioDatos('facturacion')
+  }
+
   async function registrarPago(e) {
     e.preventDefault()
     const monto = parseFloat(formPago.monto)
+    const fechaCobro = formPago.fecha_pago || new Date().toISOString().split('T')[0]
     await supabase.from('pagos').insert([{
       factura_id: mostrarPagos.id,
-      fecha_pago: new Date().toISOString().split('T')[0],
+      fecha_pago: fechaCobro,
       monto,
       medio_pago: formPago.medio_pago,
       referencia: formPago.referencia,
       cuenta_id: formPago.cuenta_id || null
     }])
     await supabase.from('movimientos_financieros').insert([{
-      fecha: new Date().toISOString().split('T')[0],
+      fecha: fechaCobro,
       tipo: 'ingreso',
       categoria: 'Cobranzas',
       descripcion: `Cobro factura ${mostrarPagos.numero_factura}`,
@@ -386,7 +400,7 @@ function Facturacion()  {
     const totalPagado = pagos.reduce((acc, p) => acc + Number(p.monto), 0) + monto
     const nuevoEstado = totalPagado >= mostrarPagos.total ? 'pagada' : 'parcial'
     await supabase.from('facturas').update({ estado: nuevoEstado }).eq('id', mostrarPagos.id)
-    setFormPago({ monto: '', medio_pago: 'transferencia', referencia: '', cuenta_id: '' })
+    setFormPago({ monto: '', medio_pago: 'transferencia', referencia: '', cuenta_id: '', fecha_pago: new Date().toISOString().split('T')[0] })
     verPagos(mostrarPagos)
     await cargarDatos()
     emitirCambioDatos('facturacion')
@@ -931,7 +945,7 @@ function Facturacion()  {
 
               {pagos.map(p => (
                 <div key={p.id} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid #f1f5f9', fontSize: '13px' }}>
-                  <span style={{ color: '#64748b' }}>{formatearFecha(p.fecha_pago)}</span>
+                  <input type="date" title="Cambiar fecha de pago" value={(p.fecha_pago || '').slice(0, 10)} max={new Date().toISOString().split('T')[0]} onChange={e => cambiarFechaPago(p, e.target.value)} style={{ border: '1px solid #E2E8F0', borderRadius: '6px', padding: '3px 6px', fontSize: '12.5px', color: '#475569', background: '#fff' }} />
                   <span style={{ color: '#64748b', textTransform: 'capitalize' }}>{p.medio_pago}{p.cuenta_id ? ` · ${cuentas.find(ct => ct.id === p.cuenta_id)?.banco || ''}` : ''}</span>
                   <strong style={{ color: '#059669', fontFamily: 'monospace' }}>{Number(p.monto).toLocaleString('es-AR', { style: 'currency', currency: 'ARS' })}</strong>
                 </div>
@@ -958,6 +972,10 @@ function Facturacion()  {
                       <option value="">Seleccionar cuenta</option>
                       {cuentas.map(ct => <option key={ct.id} value={ct.id}>{ct.banco} — {ct.tipo}</option>)}
                     </select>
+                  </div>
+                  <div style={{ gridColumn: '1 / -1' }}>
+                    <label style={s.label}>Fecha de pago</label>
+                    <input type="date" style={s.input} value={formPago.fecha_pago || ''} max={new Date().toISOString().split('T')[0]} onChange={e => setFormPago({...formPago, fecha_pago: e.target.value})} required />
                   </div>
                   <div style={{ gridColumn: '1 / -1' }}>
                     <label style={s.label}>Referencia</label>

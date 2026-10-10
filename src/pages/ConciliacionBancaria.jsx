@@ -523,6 +523,7 @@ function ConciliacionBancaria({
         await supabase.from('pagos_compra').insert([{
           factura_compra_id: factura.id,
           monto: montoFila,
+          fecha_pago: fechaPago,
           medio_pago: 'transferencia',
           cuenta_id: cuentaId,
           referencia: referencia || fila.referencia || null

@@ -74,13 +74,13 @@ function Finanzas({ vistaInicial = 'movimientos' }) {
   const [mostrarImportarCompras, setMostrarImportarCompras] = useState(false)
   const [formCompra, setFormCompra] = useState({ proveedor_id: '', cliente_id: '', numero_factura: '', fecha_emision: new Date().toISOString().split('T')[0], fecha_vencimiento: '', categoria: 'Insumos', total: '', observaciones: '' })
   const [pagandoFactura, setPagandoFactura] = useState(null)
-  const [formPagoCompra, setFormPagoCompra] = useState({ monto: '', medio_pago: 'transferencia', cuenta_id: '', referencia: '' })
+  const [formPagoCompra, setFormPagoCompra] = useState({ monto: '', medio_pago: 'transferencia', cuenta_id: '', referencia: '', fecha_pago: new Date().toISOString().split('T')[0] })
   const [filtroPagar, setFiltroPagar] = useState('todas') // 'todas' | 'pendientes' | 'pagadas'
   const [busquedaPagar, setBusquedaPagar] = useState('')
 
   // ---- Cuentas por cobrar ----
   const [cobrandoFactura, setCobrandoFactura] = useState(null)
-  const [formCobro, setFormCobro] = useState({ monto: '', medio_pago: 'transferencia', cuenta_id: '', referencia: '' })
+  const [formCobro, setFormCobro] = useState({ monto: '', medio_pago: 'transferencia', cuenta_id: '', referencia: '', fecha_pago: new Date().toISOString().split('T')[0] })
   const [diasCobroPago, setDiasCobroPago] = useState({ diasCobro: null, diasPago: null })
   const [filtroCobrar, setFiltroCobrar] = useState('todas') // 'todas' | 'pendientes' | 'cobradas'
   const [busquedaCobrar, setBusquedaCobrar] = useState('')
@@ -525,19 +525,20 @@ function Finanzas({ vistaInicial = 'movimientos' }) {
 
   function abrirPago(factura) {
     setPagandoFactura(factura)
-    setFormPagoCompra({ monto: saldoPendiente(factura).toFixed(2), medio_pago: 'transferencia', cuenta_id: '', referencia: '' })
+    setFormPagoCompra({ monto: saldoPendiente(factura).toFixed(2), medio_pago: 'transferencia', cuenta_id: '', referencia: '', fecha_pago: new Date().toISOString().split('T')[0] })
   }
 
   async function registrarPagoCompra(e) {
     e.preventDefault()
     const monto = parseFloat(formPagoCompra.monto)
     if (!formPagoCompra.cuenta_id) { alert('Elegí de qué cuenta sale el pago'); return }
+    const fechaPagoCompra = formPagoCompra.fecha_pago || new Date().toISOString().split('T')[0]
     await supabase.from('pagos_compra').insert([{
-      factura_compra_id: pagandoFactura.id, monto,
+      factura_compra_id: pagandoFactura.id, monto, fecha_pago: fechaPagoCompra,
       medio_pago: formPagoCompra.medio_pago, cuenta_id: formPagoCompra.cuenta_id, referencia: formPagoCompra.referencia
     }])
     await supabase.from('movimientos_financieros').insert([{
-      fecha: new Date().toISOString().split('T')[0], tipo: 'egreso',
+      fecha: fechaPagoCompra, tipo: 'egreso',
       categoria: pagandoFactura.categoria || 'Otro egreso',
       descripcion: `Pago factura ${pagandoFactura.numero_factura || 's/n'} — ${pagandoFactura.proveedores?.razon_social || ''}`,
       monto, cuenta_id: formPagoCompra.cuenta_id, comprobante: formPagoCompra.referencia,
@@ -555,19 +556,20 @@ function Finanzas({ vistaInicial = 'movimientos' }) {
   // ---------- Cuentas por cobrar ----------
   function abrirCobro(factura) {
     setCobrandoFactura(factura)
-    setFormCobro({ monto: saldoPendienteVenta(factura).toFixed(2), medio_pago: 'transferencia', cuenta_id: '', referencia: '' })
+    setFormCobro({ monto: saldoPendienteVenta(factura).toFixed(2), medio_pago: 'transferencia', cuenta_id: '', referencia: '', fecha_pago: new Date().toISOString().split('T')[0] })
   }
 
   async function registrarCobro(e) {
     e.preventDefault()
     const monto = parseFloat(formCobro.monto)
     if (!formCobro.cuenta_id) { alert('Elegí a qué cuenta entra el cobro'); return }
+    const fechaCobro = formCobro.fecha_pago || new Date().toISOString().split('T')[0]
     await supabase.from('pagos').insert([{
-      factura_id: cobrandoFactura.id, fecha_pago: new Date().toISOString().split('T')[0], monto,
+      factura_id: cobrandoFactura.id, fecha_pago: fechaCobro, monto,
       medio_pago: formCobro.medio_pago, cuenta_id: formCobro.cuenta_id, referencia: formCobro.referencia
     }])
     await supabase.from('movimientos_financieros').insert([{
-      fecha: new Date().toISOString().split('T')[0], tipo: 'ingreso', categoria: 'Cobranzas',
+      fecha: fechaCobro, tipo: 'ingreso', categoria: 'Cobranzas',
       descripcion: `Cobro factura ${cobrandoFactura.numero_factura || 's/n'} — ${cobrandoFactura.clientes?.razon_social || cobrandoFactura.clientes?.nombre_contacto || ''}`,
       monto, cuenta_id: formCobro.cuenta_id, comprobante: formCobro.referencia,
       forma_pago: formCobro.medio_pago.charAt(0).toUpperCase() + formCobro.medio_pago.slice(1),
@@ -861,6 +863,7 @@ function Finanzas({ vistaInicial = 'movimientos' }) {
                     {cuentas.map(ct => <option key={ct.id} value={ct.id}>{ct.banco} — {ct.tipo}</option>)}
                   </select>
                 </div>
+                <div style={{ gridColumn: '1 / -1' }}><label style={s.label}>Fecha de pago</label><input type="date" style={s.input} value={formPagoCompra.fecha_pago || ''} max={new Date().toISOString().split('T')[0]} onChange={e => setFormPagoCompra({...formPagoCompra, fecha_pago: e.target.value})} required /></div>
                 <div style={{ gridColumn: '1 / -1' }}><label style={s.label}>Referencia</label><input style={s.input} value={formPagoCompra.referencia} onChange={e => setFormPagoCompra({...formPagoCompra, referencia: e.target.value})} /></div>
               </div>
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '18px' }}>
@@ -1545,6 +1548,7 @@ function Finanzas({ vistaInicial = 'movimientos' }) {
                     {cuentas.map(ct => <option key={ct.id} value={ct.id}>{ct.banco} — {ct.tipo}</option>)}
                   </select>
                 </div>
+                <div style={{ gridColumn: '1 / -1' }}><label style={s.label}>Fecha de cobro</label><input type="date" style={s.input} value={formCobro.fecha_pago || ''} max={new Date().toISOString().split('T')[0]} onChange={e => setFormCobro({...formCobro, fecha_pago: e.target.value})} required /></div>
                 <div style={{ gridColumn: '1 / -1' }}><label style={s.label}>Referencia</label><input style={s.input} value={formCobro.referencia} onChange={e => setFormCobro({...formCobro, referencia: e.target.value})} /></div>
               </div>
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '18px' }}>
