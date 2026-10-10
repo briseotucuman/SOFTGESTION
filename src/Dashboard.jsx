@@ -6,7 +6,7 @@ import {
   BarChart3, ClipboardList, Briefcase, Factory, TrendingUp, UserCog,
   Bell, CheckCircle2, LogOut, ChevronLeft, ChevronRight, RefreshCw,
   Search, Command, Clock, AlertTriangle, ArrowUpRight,
-  Shield, Check, ExternalLink, Radar, ShieldCheck
+  Shield, Check, ExternalLink, Radar, ShieldCheck, Menu
 } from 'lucide-react'
 import Clientes from './pages/Clientes.jsx'
 import CRM from './pages/CRM.jsx'
@@ -124,6 +124,15 @@ function obtenerRangosPeriodo() {
 function Dashboard({ user }) {
   const [seccionActiva, setSeccionActiva] = useState('inicio')
   const [menuAbierto, setMenuAbierto] = useState(true)
+  const [esMovil, setEsMovil] = useState(() => typeof window !== 'undefined' && window.matchMedia('(max-width: 820px)').matches)
+  const [drawerAbierto, setDrawerAbierto] = useState(false)
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 820px)')
+    const h = (e) => { setEsMovil(e.matches); if (!e.matches) setDrawerAbierto(false) }
+    mq.addEventListener('change', h)
+    return () => mq.removeEventListener('change', h)
+  }, [])
+  const expandido = esMovil ? true : menuAbierto
   const [esAdmin, setEsAdmin] = useState(false)
   const [rolCargado, setRolCargado] = useState(false)
   const [kpis, setKpis] = useState({
@@ -533,27 +542,31 @@ function Dashboard({ user }) {
       {/* ============================================================ */}
       {/* SIDEBAR CORPORATIVO */}
       {/* ============================================================ */}
-      <aside style={{
-        width: menuAbierto ? '250px' : '68px',
+      {esMovil && drawerAbierto && (
+        <div onClick={() => setDrawerAbierto(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.55)', zIndex: 39 }} />
+      )}
+      <aside className="sg-aside" style={{
+        ...(esMovil ? { position: 'fixed', top: 0, bottom: 0, left: 0, height: '100dvh', zIndex: 40, boxShadow: drawerAbierto ? '8px 0 30px rgba(0,0,0,0.35)' : 'none', transform: drawerAbierto ? 'translateX(0)' : 'translateX(-105%)' } : {}),
+        width: esMovil ? 'min(290px, 85vw)' : (expandido ? '250px' : '68px'),
         background: '#0F172A',
         borderRight: '1px solid #1E293B',
         display: 'flex',
         flexDirection: 'column',
-        transition: 'width 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
+        transition: esMovil ? 'transform 0.22s ease' : 'width 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
         flexShrink: 0,
-        zIndex: 30
+        zIndex: esMovil ? 40 : 30
       }}>
         {/* LOGO & BRANDING */}
         <div style={{
           height: '64px',
-          padding: menuAbierto ? '0 18px' : '0 12px',
+          padding: expandido ? '0 18px' : '0 12px',
           display: 'flex',
           alignItems: 'center',
-          justifyContent: menuAbierto ? 'space-between' : 'center',
+          justifyContent: expandido ? 'space-between' : 'center',
           borderBottom: '1px solid #1E293B',
           background: '#0B1120'
         }}>
-          {menuAbierto ? (
+          {expandido ? (
             <div style={{ display: 'flex', alignItems: 'center', gap: '11px', minWidth: 0 }}>
               <div style={{ background: '#FFFFFF', borderRadius: '8px', padding: '3px', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid #334155' }}>
                 <img src="/logo.jpg" alt="Briseo" style={{ height: '26px', width: '26px', objectFit: 'contain', borderRadius: '5px' }} />
@@ -577,14 +590,14 @@ function Dashboard({ user }) {
         <nav style={{ flex: 1, padding: '12px 8px', overflowY: 'auto' }}>
           {/* BOTÓN RESUMEN EJECUTIVO / INICIO */}
           <button
-            onClick={() => setSeccionActiva('inicio')}
+            onClick={() => { setSeccionActiva('inicio'); setDrawerAbierto(false) }}
             style={{
               width: '100%',
               display: 'flex',
               alignItems: 'center',
               gap: '10px',
-              padding: menuAbierto ? '8px 12px' : '9px',
-              justifyContent: menuAbierto ? 'flex-start' : 'center',
+              padding: expandido ? '8px 12px' : '9px',
+              justifyContent: expandido ? 'flex-start' : 'center',
               background: seccionActiva === 'inicio' ? 'rgba(15, 118, 110, 0.25)' : 'transparent',
               border: 'none',
               borderLeft: seccionActiva === 'inicio' ? `3px solid #14B8A6` : '3px solid transparent',
@@ -595,7 +608,7 @@ function Dashboard({ user }) {
             }}
           >
             <Home size={17} color={seccionActiva === 'inicio' ? '#2DD4BF' : '#94A3B8'} />
-            {menuAbierto && (
+            {expandido && (
               <span style={{
                 color: seccionActiva === 'inicio' ? '#FFFFFF' : '#CBD5E1',
                 fontSize: '13px',
@@ -610,7 +623,7 @@ function Dashboard({ user }) {
           {/* GRUPOS MODULARES */}
           {menuVisible.map(grupo => (
             <div key={grupo.label} style={{ marginBottom: '18px' }}>
-              {menuAbierto && (
+              {expandido && (
                 <div style={{
                   padding: '4px 10px 6px',
                   display: 'flex',
@@ -637,15 +650,15 @@ function Dashboard({ user }) {
                   return (
                     <button
                       key={item.id}
-                      onClick={() => setSeccionActiva(item.id)}
-                      title={!menuAbierto ? item.label : undefined}
+                      onClick={() => { setSeccionActiva(item.id); setDrawerAbierto(false) }}
+                      title={!expandido ? item.label : undefined}
                       style={{
                         width: '100%',
                         display: 'flex',
                         alignItems: 'center',
                         gap: '10px',
-                        padding: menuAbierto ? '7px 11px' : '9px',
-                        justifyContent: menuAbierto ? 'flex-start' : 'center',
+                        padding: expandido ? '7px 11px' : '9px',
+                        justifyContent: expandido ? 'flex-start' : 'center',
                         background: activo ? 'rgba(15, 118, 110, 0.22)' : 'transparent',
                         border: 'none',
                         borderLeft: activo ? `3px solid #14B8A6` : '3px solid transparent',
@@ -655,7 +668,7 @@ function Dashboard({ user }) {
                       }}
                     >
                       <Icon size={16} color={activo ? '#2DD4BF' : '#94A3B8'} style={{ flexShrink: 0 }} />
-                      {menuAbierto && (
+                      {expandido && (
                         <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'space-between', minWidth: 0 }}>
                           <span style={{
                             color: activo ? '#FFFFFF' : '#CBD5E1',
@@ -696,7 +709,7 @@ function Dashboard({ user }) {
           borderTop: '1px solid #1E293B',
           background: '#0B1120'
         }}>
-          {menuAbierto ? (
+          {expandido ? (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                 <div style={{
@@ -734,7 +747,7 @@ function Dashboard({ user }) {
               </div>
 
               <div style={{ display: 'flex', gap: '6px' }}>
-                <button
+                {!esMovil && <button
                   onClick={() => setMenuAbierto(false)}
                   style={{
                     flex: 1,
@@ -752,7 +765,7 @@ function Dashboard({ user }) {
                   }}
                 >
                   <ChevronLeft size={13} /> Contraer
-                </button>
+                </button>}
                 <button
                   onClick={() => supabase.auth.signOut()}
                   title="Cerrar sesión"
@@ -819,11 +832,11 @@ function Dashboard({ user }) {
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, overflow: 'hidden' }}>
 
         {/* TOP COMMAND / APP BAR */}
-        <header style={{
-          height: '64px',
+        <header className="sg-header" style={{
+          height: esMovil ? '56px' : '64px',
           background: '#FFFFFF',
           borderBottom: `1px solid ${paleta.line}`,
-          padding: '0 24px',
+          padding: esMovil ? '0 12px' : '0 24px',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
@@ -832,9 +845,14 @@ function Dashboard({ user }) {
         }}>
           {/* BREADCRUMB & CONTEXTO */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0 }}>
-            <span style={{ color: paleta.muted, fontSize: '13px', fontWeight: '500' }}>Briseo ERP</span>
-            <span style={{ color: paleta.lineStrong, fontSize: '13px' }}>/</span>
-            {grupoActivo && (
+            {esMovil && (
+              <button onClick={() => setDrawerAbierto(true)} aria-label="Abrir menú" style={{ background: '#F1F5F9', border: '1px solid #E2E8F0', borderRadius: '8px', width: '40px', height: '40px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0 }}>
+                <Menu size={20} color="#0F172A" />
+              </button>
+            )}
+            {!esMovil && <span style={{ color: paleta.muted, fontSize: '13px', fontWeight: '500' }}>Briseo ERP</span>}
+            {!esMovil && <span style={{ color: paleta.lineStrong, fontSize: '13px' }}>/</span>}
+            {grupoActivo && !esMovil && (
               <>
                 <span style={{ color: paleta.muted, fontSize: '13px', fontWeight: '500' }}>{grupoActivo.label}</span>
                 <span style={{ color: paleta.lineStrong, fontSize: '13px' }}>/</span>
@@ -863,7 +881,8 @@ function Dashboard({ user }) {
           <button
             onClick={() => setBuscadorAbierto(true)}
             style={{
-              flex: '0 1 420px',
+              flex: esMovil ? '0 0 auto' : '0 1 420px',
+              marginLeft: esMovil ? 'auto' : undefined,
               background: '#F1F5F9',
               border: '1px solid #E2E8F0',
               borderRadius: '6px',
@@ -879,9 +898,9 @@ function Dashboard({ user }) {
           >
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
               <Search size={14} color="#94A3B8" />
-              <span>Buscar módulo, clientes o acciones…</span>
+              {!esMovil && <span>Buscar módulo, clientes o acciones…</span>}
             </div>
-            <span style={{
+            {!esMovil && <span style={{
               background: '#FFFFFF',
               border: '1px solid #CBD5E1',
               borderRadius: '4px',
@@ -892,11 +911,11 @@ function Dashboard({ user }) {
               fontFamily: paleta.fontMono
             }}>
               Ctrl K
-            </span>
+            </span>}
           </button>
 
           {/* DERECHA: ESTADO DEL SISTEMA, RELOJ Y ROL */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '14px', flexShrink: 0 }}>
+          <div style={{ display: esMovil ? 'none' : 'flex', alignItems: 'center', gap: '14px', flexShrink: 0 }}>
             {/* Live operational badge */}
             <div style={{ display: 'flex', alignItems: 'center', gap: '6px', background: '#F0FDF4', border: '1px solid #BBF7D0', padding: '4px 9px', borderRadius: '5px' }}>
               <span style={{ width: '7px', height: '7px', borderRadius: '50%', background: '#16A34A', display: 'inline-block' }} />
@@ -935,7 +954,7 @@ function Dashboard({ user }) {
         </header>
 
         {/* CUERPO DEL CONTENIDO */}
-        <main style={{ flex: 1, padding: '24px', overflowY: 'auto', background: paleta.paper }}>
+        <main className="sg-main" style={{ flex: 1, padding: esMovil ? '12px' : '24px', overflowY: 'auto', background: paleta.paper }}>
           {seccionActiva === 'inicio' ? (
             <div style={{ maxWidth: '1440px', margin: '0 auto' }}>
 

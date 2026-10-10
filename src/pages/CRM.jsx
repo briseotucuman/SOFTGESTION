@@ -663,7 +663,7 @@ function CRM() {
 
               {/* KANBAN BOARD */}
               {subVistaPipeline === 'kanban' ? (
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, minmax(230px, 1fr))', gap: '12px', alignItems: 'start', overflowX: 'auto', paddingBottom: '16px' }}>
+                <div className="sg-kanban" style={{ display: 'grid', gridTemplateColumns: 'repeat(6, minmax(230px, 1fr))', gap: '12px', alignItems: 'start', overflowX: 'auto', paddingBottom: '16px' }}>
                   {ETAPAS.map(etapa => {
                     const opsColumna = oportunidadesFiltradas.filter(o => o.etapa === etapa.id)
                     const totalValorColumna = opsColumna.reduce((a, o) => a + Number(o.valor_estimado || 0), 0)
