@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../supabase.js'
 import { s, colores, paleta } from '../estilos.js'
-import { Link2, Copy, Check, Circle, Send, PackageCheck } from 'lucide-react'
+import { Link2, Copy, Check, Circle, Send, PackageCheck, FileSpreadsheet, FileText } from 'lucide-react'
+import { armarFilas, exportarExcel, exportarPDF, fechaLocalISO } from '../exportarInsumos.js'
 
 const c = colores.insumos
 
@@ -20,6 +21,9 @@ function SolicitudesInsumos() {
   const [loading, setLoading] = useState(true)
   const [copiado, setCopiado] = useState(false)
   const [filtroEstado, setFiltroEstado] = useState('en-curso')
+  const [desde, setDesde] = useState('')
+  const [hasta, setHasta] = useState('')
+  const [exportando, setExportando] = useState('')
 
   const linkPublico = `${window.location.origin}/solicitud-insumos`
 
@@ -71,10 +75,28 @@ function SolicitudesInsumos() {
   })).map(sol => ({ ...sol, estadoCalculado: estadoSolicitud(sol.itemsSol) }))
 
   const solicitudesFiltradas = solicitudesConEstado.filter(sol => {
+    const dia = fechaLocalISO(sol.fecha_solicitud)
+    if (desde && dia < desde) return false
+    if (hasta && dia > hasta) return false
     if (filtroEstado === 'todas') return true
     if (filtroEstado === 'en-curso') return sol.estadoCalculado !== 'recibido'
     return sol.estadoCalculado === filtroEstado
   })
+
+  const filasExport = armarFilas(solicitudesFiltradas, sucursales, insumos)
+
+  async function exportar(tipo) {
+    if (filasExport.length === 0) return
+    setExportando(tipo)
+    try {
+      if (tipo === 'excel') await exportarExcel(filasExport, desde, hasta)
+      else await exportarPDF(filasExport, desde, hasta)
+    } catch (e) {
+      console.error(e)
+      alert('No se pudo generar el archivo. Probá de nuevo.')
+    }
+    setExportando('')
+  }
 
   return (
     <div>
@@ -89,10 +111,36 @@ function SolicitudesInsumos() {
         </button>
       </div>
 
-      <div style={{ display: 'flex', gap: '8px', marginBottom: '16px' }}>
+      <div style={{ display: 'flex', gap: '8px', marginBottom: '12px', flexWrap: 'wrap' }}>
         {[['en-curso','En curso'],['pedido','Pedido'],['enviado','Enviado'],['recibido','Recibido'],['todas','Todas']].map(([id,label]) => (
           <button key={id} onClick={() => setFiltroEstado(id)} style={filtroEstado === id ? s.btnPrimario(c.main) : s.btnSecundario}>{label}</button>
         ))}
+      </div>
+
+      <div style={{ ...s.card, display: 'flex', alignItems: 'flex-end', gap: '12px', marginBottom: '16px', flexWrap: 'wrap' }}>
+        <div>
+          <label style={s.label}>Desde</label>
+          <input type="date" value={desde} max={hasta || undefined} onChange={e => setDesde(e.target.value)} style={{ ...s.input, width: '160px' }} />
+        </div>
+        <div>
+          <label style={s.label}>Hasta</label>
+          <input type="date" value={hasta} min={desde || undefined} onChange={e => setHasta(e.target.value)} style={{ ...s.input, width: '160px' }} />
+        </div>
+        {(desde || hasta) && (
+          <button onClick={() => { setDesde(''); setHasta('') }} style={s.btnSecundario}>Limpiar fechas</button>
+        )}
+        <div style={{ flex: 1 }} />
+        <span style={{ fontSize: '12px', color: paleta.muted, alignSelf: 'center' }}>
+          {solicitudesFiltradas.length} pedido{solicitudesFiltradas.length === 1 ? '' : 's'} · {filasExport.length} ítem{filasExport.length === 1 ? '' : 's'}
+        </span>
+        <button onClick={() => exportar('excel')} disabled={filasExport.length === 0 || !!exportando}
+          style={{ ...s.btnPrimario(c.main), display: 'flex', alignItems: 'center', gap: '6px', opacity: filasExport.length === 0 ? 0.5 : 1 }}>
+          <FileSpreadsheet size={14} /> {exportando === 'excel' ? 'Generando…' : 'Exportar Excel'}
+        </button>
+        <button onClick={() => exportar('pdf')} disabled={filasExport.length === 0 || !!exportando}
+          style={{ ...s.btnSecundario, display: 'flex', alignItems: 'center', gap: '6px', opacity: filasExport.length === 0 ? 0.5 : 1 }}>
+          <FileText size={14} /> {exportando === 'pdf' ? 'Generando…' : 'Exportar PDF'}
+        </button>
       </div>
 
       {loading ? <div style={s.empty}>Cargando…</div>
