@@ -12,12 +12,16 @@ import {
 import ImportarARCA from './ImportarARCA.jsx'
 import ConciliacionBancaria from './ConciliacionBancaria.jsx'
 import { esCuentaBancaria } from '../finanzasUtils.js'
+import Compromisos from './Compromisos.jsx'
+import {
+  construirItems, agruparPorTramos, agruparPorMes, totalEgresos as totalEgresosProy, isoLocal, NOMBRE_RUBRO, RUBROS_EGRESO,
+} from '../proyeccionCaja.js'
 
 const c = colores.finanzas
 
 const CATEGORIAS = {
   ingreso: ['Cobranzas', 'Otro ingreso', 'Ajuste de saldo'],
-  egreso: ['Insumos', 'Servicios', 'Haberes', 'Impuestos', 'Alquileres', 'Socios', 'Marketing', 'Otro egreso', 'Ajuste de saldo']
+  egreso: ['Insumos', 'Servicios', 'Haberes', 'Impuestos', 'Préstamos', 'Alquileres', 'Socios', 'Marketing', 'Otro egreso', 'Ajuste de saldo']
 }
 const CATEGORIAS_COMPRA = ['Insumos', 'Servicios', 'Alquiler', 'Impuestos', 'Mantenimiento', 'Otro']
 const FORMAS_PAGO = ['Efectivo', 'Transferencia', 'Cheque', 'Tarjeta', 'Otro']
@@ -92,6 +96,8 @@ function Finanzas({ vistaInicial = 'movimientos' }) {
   const [porCobrar, setPorCobrar] = useState(0)
   const [porPagar, setPorPagar] = useState(0)
   const [proyeccion, setProyeccion] = useState(null)
+  const [vistaProy, setVistaProy] = useState('tramos') // tramos | meses
+  const [incluirCostosMesActual, setIncluirCostosMesActual] = useState(true)
 
   // ---- Estado de cuenta ----
   const [cuentaEstadoId, setCuentaEstadoId] = useState('')
@@ -144,49 +150,19 @@ function Finanzas({ vistaInicial = 'movimientos' }) {
       if (canalRealtime) supabase.removeChannel(canalRealtime)
     }
   }, [])
-  useEffect(() => { if (vista === 'proyeccion' && !proyeccion) cargarProyeccion() }, [vista])
-
-  const BUCKETS = [
-    { id: 'vencido', label: 'Vencido', desde: -99999, hasta: -1 },
-    { id: 'b30', label: '0-30 días', desde: 0, hasta: 30 },
-    { id: 'b60', label: '31-60 días', desde: 31, hasta: 60 },
-    { id: 'b90', label: '61-90 días', desde: 61, hasta: 90 },
-    { id: 'mas90', label: '+90 días', desde: 91, hasta: 99999 },
-    { id: 'sinfecha', label: 'Sin fecha', desde: null, hasta: null },
-  ]
+  useEffect(() => { if (vista === 'proyeccion') cargarProyeccion() }, [vista])
 
   async function cargarProyeccion() {
-    const hoy = new Date(); hoy.setHours(0,0,0,0)
-    const [{ data: fact }, { data: pagosV }, { data: factC }, { data: pagosC }, { data: cf }] = await Promise.all([
+    const [{ data: facturas }, { data: pagosVenta }, { data: facturasCompra }, { data: pagosCompra }, { data: compromisos }, { data: costosFijos }, { data: liquidaciones }] = await Promise.all([
       supabase.from('facturas').select('id,total,fecha_vencimiento').in('estado', ['emitida','pendiente','parcial','vencida']),
       supabase.from('pagos').select('factura_id,monto'),
       supabase.from('facturas_compra').select('id,total,fecha_vencimiento').neq('estado','pagada').neq('estado','anulada'),
       supabase.from('pagos_compra').select('factura_compra_id,monto'),
-      supabase.from('costos_fijos').select('monto').eq('activo', true).eq('mes', new Date().toISOString().slice(0,7)),
+      supabase.from('compromisos_pago').select('tipo,monto,fecha_vencimiento,estado').eq('estado', 'pendiente'),
+      supabase.from('costos_fijos').select('nombre,monto,frecuencia,mes').eq('activo', true),
+      supabase.from('liquidaciones_sueldo').select('total_neto,estado,fecha_pago,periodo').eq('estado', 'pendiente'),
     ])
-    const pagadoV = {}; (pagosV||[]).forEach(p => { pagadoV[p.factura_id] = (pagadoV[p.factura_id]||0) + Number(p.monto) })
-    const pagadoC = {}; (pagosC||[]).forEach(p => { pagadoC[p.factura_compra_id] = (pagadoC[p.factura_compra_id]||0) + Number(p.monto) })
-
-    function bucketDe(fechaVenc) {
-      if (!fechaVenc) return 'sinfecha'
-      const dias = Math.floor((new Date(fechaVenc + 'T00:00:00') - hoy) / (1000*60*60*24))
-      const b = BUCKETS.find(bk => bk.desde !== null && dias >= bk.desde && dias <= bk.hasta)
-      return b ? b.id : 'mas90'
-    }
-
-    const porBucket = {}
-    BUCKETS.forEach(b => { porBucket[b.id] = { cobrar: 0, pagar: 0 } })
-    ;(fact||[]).forEach(f => {
-      const saldo = Number(f.total) - (pagadoV[f.id]||0)
-      if (saldo > 0) porBucket[bucketDe(f.fecha_vencimiento)].cobrar += saldo
-    })
-    ;(factC||[]).forEach(f => {
-      const saldo = Number(f.total) - (pagadoC[f.id]||0)
-      if (saldo > 0) porBucket[bucketDe(f.fecha_vencimiento)].pagar += saldo
-    })
-
-    const costoFijoMensual = (cf||[]).reduce((a,x) => a + Number(x.monto), 0)
-    setProyeccion({ buckets: BUCKETS.map(b => ({ ...b, ...porBucket[b.id] })), costoFijoMensual })
+    setProyeccion({ facturas, pagosVenta, facturasCompra, pagosCompra, compromisos, costosFijos, liquidaciones })
   }
 
   async function cargarDatos() {
@@ -735,6 +711,9 @@ function Finanzas({ vistaInicial = 'movimientos' }) {
           <ArrowRightLeft size={13} style={{ marginRight: 5, verticalAlign: '-2px' }} />Estado de cuenta
         </button>
         <button onClick={() => setVista('retenciones')} style={vista === 'retenciones' ? s.btnPrimario(c.main) : s.btnSecundario}>Retenciones</button>
+        <button onClick={() => setVista('compromisos')} style={vista === 'compromisos' ? s.btnPrimario(c.main) : s.btnSecundario}>
+          <Landmark size={13} style={{ marginRight: 5, verticalAlign: '-2px' }} />Préstamos e impuestos
+        </button>
         <button onClick={() => setVista('proyeccion')} style={vista === 'proyeccion' ? s.btnPrimario(c.main) : s.btnSecundario}>
           <BarChart3 size={13} style={{ marginRight: 5, verticalAlign: '-2px' }} />Proyección de caja
         </button>
@@ -1848,60 +1827,97 @@ function Finanzas({ vistaInicial = 'movimientos' }) {
         )
       })()}
 
+      {/* VISTA PRÉSTAMOS E IMPUESTOS */}
+      {vista === 'compromisos' && (
+        <Compromisos
+          cuentas={cuentas}
+          onCambio={async () => { await cargarDatos(); setProyeccion(null); emitirCambioDatos('finanzas') }}
+        />
+      )}
+
       {/* VISTA PROYECCIÓN DE CAJA */}
       {vista === 'proyeccion' && (
         <div>
-          {!proyeccion ? <div style={s.empty}>Calculando…</div> : (
-            <>
-              <div style={{ ...s.card, background: '#eff6ff', marginBottom: '18px' }}>
-                <p style={{ margin: 0, fontSize: '13px', color: '#1d4ed8' }}>
-                  Proyecta el saldo disponible sumando <strong>lo que hoy tenés en cuentas</strong> ({saldoTotal.toLocaleString('es-AR',{style:'currency',currency:'ARS'})}) más lo que se espera cobrar, menos lo que se espera pagar, según la fecha de vencimiento de cada factura.
-                  {proyeccion.costoFijoMensual > 0 && <> No incluye costos fijos recurrentes (alquiler, sueldos, etc.) — estos rondan <strong>{proyeccion.costoFijoMensual.toLocaleString('es-AR',{style:'currency',currency:'ARS'})}/mes</strong> adicionales según lo cargado en Costos.</>}
-                </p>
-              </div>
-
-              <div style={{ marginBottom: '18px' }}>
-                <p style={{ ...s.label, marginBottom: '10px' }}>Punto de partida — saldo actual por cuenta</p>
-                <div style={{ display: 'grid', gridTemplateColumns: `repeat(${Math.max(cuentas.length,1)}, 1fr)`, gap: '12px' }}>
-                  {cuentas.map(ct => (
-                    <div key={ct.id} style={{ ...s.card, margin: 0, padding: '12px 14px' }}>
-                      <p style={{ ...s.label, color: '#64748b', margin: '0 0 4px' }}>{ct.banco} · {ct.tipo.replace('_',' ')}</p>
-                      <p style={{ fontSize: '15px', fontWeight: '800', color: '#0f172a', margin: 0 }}>{Number(ct.saldo).toLocaleString('es-AR',{style:'currency',currency:'ARS'})}</p>
-                    </div>
-                  ))}
+          {!proyeccion ? <div style={s.empty}>Calculando…</div> : (() => {
+            const hoyISO = isoLocal(new Date())
+            const items = construirItems({ ...proyeccion, hoyISO, meses: 12, incluirCostosMesActual })
+            const filas = vistaProy === 'meses' ? agruparPorMes(items, hoyISO, 12) : agruparPorTramos(items, hoyISO)
+            const moneda = n => n.toLocaleString('es-AR', { style: 'currency', currency: 'ARS' })
+            const colorRubro = { cobrar: '#059669', facturas: '#dc2626', prestamos: '#4338ca', impuestos: '#7c3aed', costosFijos: '#b45309', sueldos: '#0369a1' }
+            const columnas = ['cobrar', ...RUBROS_EGRESO]
+            const totales = Object.fromEntries(columnas.map(r => [r, filas.reduce((a, f) => a + f[r], 0)]))
+            const totalEgr = filas.reduce((a, f) => a + totalEgresosProy(f), 0)
+            let acumulado = saldoTotal
+            return (
+              <>
+                <div style={{ ...s.card, background: '#eff6ff', marginBottom: '18px' }}>
+                  <p style={{ margin: 0, fontSize: '13px', color: '#1d4ed8' }}>
+                    Parte de <strong>lo que hoy tenés en cuentas</strong> ({moneda(saldoTotal)}) y suma lo que se espera cobrar, menos <strong>todos los egresos</strong> según su vencimiento: facturas de proveedores, cuotas de préstamos, impuestos y otros egresos (se cargan en <em>Préstamos e impuestos</em>), costos fijos (se repiten cada mes desde el último importe cargado en Costos) y sueldos pendientes de pago.
+                  </p>
                 </div>
-                <p style={{ fontSize: '11.5px', color: paleta.muted, marginTop: '8px' }}>
-                  La proyección de abajo es a nivel consolidado: una factura pendiente todavía no tiene asignada una cuenta específica (eso se define recién al registrar el cobro o el pago), así que no es posible proyectar el saldo futuro cuenta por cuenta — sí el punto de partida de cada una.
-                </p>
-              </div>
 
-              <div style={{ ...s.card, padding: 0, overflowX: 'auto', WebkitOverflowScrolling: 'touch', border: '1px solid #E2E8F0', borderRadius: '10px' }}>
-                <table style={{ ...s.tabla, minWidth: '750px', width: '100%' }}>
-                  <thead><tr>{['Período','Por cobrar','Por pagar','Neto del período','Saldo proyectado acumulado'].map(h => <th key={h} style={s.tablaCabecera(c.main)}>{h}</th>)}</tr></thead>
-                  <tbody>
-                    {(() => {
-                      let acumulado = saldoTotal
-                      return proyeccion.buckets.map((b, i) => {
-                        const neto = b.cobrar - b.pagar
-                        if (b.id !== 'sinfecha') acumulado += neto
+                <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap', marginBottom: '14px' }}>
+                  <button onClick={() => setVistaProy('tramos')} style={vistaProy === 'tramos' ? s.btnPrimario(c.main) : s.btnSecundario}>Por tramos de días</button>
+                  <button onClick={() => setVistaProy('meses')} style={vistaProy === 'meses' ? s.btnPrimario(c.main) : s.btnSecundario}>Por mes (12 meses)</button>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12.5px', color: paleta.inkSoft, marginLeft: '8px', cursor: 'pointer' }}>
+                    <input type="checkbox" checked={incluirCostosMesActual} onChange={e => setIncluirCostosMesActual(e.target.checked)} />
+                    Incluir costos fijos del mes en curso (desmarcar si ya los pagaste)
+                  </label>
+                </div>
+
+                <div style={{ marginBottom: '18px' }}>
+                  <p style={{ ...s.label, marginBottom: '10px' }}>Punto de partida — saldo actual por cuenta</p>
+                  <div style={{ display: 'grid', gridTemplateColumns: `repeat(${Math.max(cuentas.length,1)}, 1fr)`, gap: '12px' }}>
+                    {cuentas.map(ct => (
+                      <div key={ct.id} style={{ ...s.card, margin: 0, padding: '12px 14px' }}>
+                        <p style={{ ...s.label, color: '#64748b', margin: '0 0 4px' }}>{ct.banco} · {ct.tipo.replace('_',' ')}</p>
+                        <p style={{ fontSize: '15px', fontWeight: '800', color: '#0f172a', margin: 0 }}>{moneda(Number(ct.saldo))}</p>
+                      </div>
+                    ))}
+                  </div>
+                  <p style={{ fontSize: '11.5px', color: paleta.muted, marginTop: '8px' }}>
+                    La proyección es consolidada: los vencimientos pendientes todavía no tienen una cuenta asignada (se define al registrar el pago), así que se proyecta el saldo total.
+                  </p>
+                </div>
+
+                <div style={{ ...s.card, padding: 0, overflowX: 'auto', WebkitOverflowScrolling: 'touch', border: '1px solid #E2E8F0', borderRadius: '10px' }}>
+                  <table style={{ ...s.tabla, minWidth: '1100px', width: '100%' }}>
+                    <thead><tr>{['Período', ...columnas.map(r => NOMBRE_RUBRO[r]), 'Total egresos', 'Neto del período', 'Saldo proyectado'].map(h => <th key={h} style={s.tablaCabecera(c.main)}>{h}</th>)}</tr></thead>
+                    <tbody>
+                      {filas.map((f, i) => {
+                        const egr = totalEgresosProy(f)
+                        const neto = f.cobrar - egr
+                        if (f.id !== 'sinfecha') acumulado += neto
                         return (
-                          <tr key={b.id} style={s.tablaFila(i)}>
-                            <td style={s.tablaCellBold}>{b.label}</td>
-                            <td style={{ ...s.tablaCell, color: '#059669', whiteSpace: 'nowrap' }}>{b.cobrar.toLocaleString('es-AR',{style:'currency',currency:'ARS'})}</td>
-                            <td style={{ ...s.tablaCell, color: '#dc2626', whiteSpace: 'nowrap' }}>{b.pagar.toLocaleString('es-AR',{style:'currency',currency:'ARS'})}</td>
-                            <td style={{ ...s.tablaCellBold, color: neto >= 0 ? '#059669' : '#dc2626', whiteSpace: 'nowrap' }}>{neto >= 0 ? '+' : ''}{neto.toLocaleString('es-AR',{style:'currency',currency:'ARS'})}</td>
-                            <td style={{ ...s.tablaCellBold, whiteSpace: 'nowrap', color: b.id === 'sinfecha' ? '#94a3b8' : (acumulado >= 0 ? paleta.ink : '#dc2626') }}>
-                              {b.id === 'sinfecha' ? '—' : acumulado.toLocaleString('es-AR',{style:'currency',currency:'ARS'})}
+                          <tr key={f.id} style={s.tablaFila(i)}>
+                            <td style={s.tablaCellBold}>{f.label}</td>
+                            {columnas.map(r => (
+                              <td key={r} style={{ ...s.tablaCell, whiteSpace: 'nowrap', color: f[r] ? colorRubro[r] : '#cbd5e1' }}>{f[r] ? moneda(f[r]) : '—'}</td>
+                            ))}
+                            <td style={{ ...s.tablaCellBold, whiteSpace: 'nowrap', color: egr ? '#dc2626' : '#cbd5e1' }}>{egr ? moneda(egr) : '—'}</td>
+                            <td style={{ ...s.tablaCellBold, whiteSpace: 'nowrap', color: neto >= 0 ? '#059669' : '#dc2626' }}>{neto >= 0 ? '+' : ''}{moneda(neto)}</td>
+                            <td style={{ ...s.tablaCellBold, whiteSpace: 'nowrap', color: f.id === 'sinfecha' ? '#94a3b8' : (acumulado >= 0 ? paleta.ink : '#dc2626') }}>
+                              {f.id === 'sinfecha' ? '—' : moneda(acumulado)}
                             </td>
                           </tr>
                         )
-                      })
-                    })()}
-                  </tbody>
-                </table>
-              </div>
-            </>
-          )}
+                      })}
+                      <tr style={{ background: paleta.surfaceMuted }}>
+                        <td style={s.tablaCellBold}>Total</td>
+                        {columnas.map(r => <td key={r} style={{ ...s.tablaCellBold, whiteSpace: 'nowrap', color: colorRubro[r] }}>{moneda(totales[r])}</td>)}
+                        <td style={{ ...s.tablaCellBold, whiteSpace: 'nowrap', color: '#dc2626' }}>{moneda(totalEgr)}</td>
+                        <td style={{ ...s.tablaCellBold, whiteSpace: 'nowrap' }}>{moneda(totales.cobrar - totalEgr)}</td>
+                        <td style={s.tablaCell}></td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+                <p style={{ fontSize: '11.5px', color: paleta.muted, marginTop: '8px' }}>
+                  "Sin fecha" reúne facturas sin vencimiento cargado y no entra en el saldo proyectado. Vencido = vencimientos anteriores a hoy que siguen sin pagarse.
+                </p>
+              </>
+            )
+          })()}
         </div>
       )}
     </div>
