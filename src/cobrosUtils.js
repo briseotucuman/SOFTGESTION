@@ -5,7 +5,7 @@ export const TIPOS_RETENCION = [
   { id: 'ganancias', label: 'Ganancias' },
   { id: 'iva', label: 'IVA' },
   { id: 'iibb', label: 'Ingresos Brutos' },
-  { id: 'tem', label: 'TEM' },
+  { id: 'tem', label: 'TEM (Municipalidad SMT)' },
   { id: 'suss', label: 'SUSS' },
   { id: 'otra', label: 'Otra' }
 ]
