@@ -1,3 +1,6 @@
+import { registrarCobroConRetenciones, retencionesVacias, totalRetenciones } from '../cobrosUtils.js'
+import RetencionesCobro from './RetencionesCobro.jsx'
+import VistaRetenciones from './VistaRetenciones.jsx'
 import { useEffect, useState } from 'react'
 import { supabase, emitirCambioDatos, escucharCambiosDatos } from '../supabase.js'
 import { s, colores, paleta } from '../estilos.js'
@@ -80,7 +83,7 @@ function Finanzas({ vistaInicial = 'movimientos' }) {
 
   // ---- Cuentas por cobrar ----
   const [cobrandoFactura, setCobrandoFactura] = useState(null)
-  const [formCobro, setFormCobro] = useState({ monto: '', medio_pago: 'transferencia', cuenta_id: '', referencia: '', fecha_pago: new Date().toISOString().split('T')[0] })
+  const [formCobro, setFormCobro] = useState({ monto: '', medio_pago: 'transferencia', cuenta_id: '', referencia: '', fecha_pago: new Date().toISOString().split('T')[0], retenciones: retencionesVacias(), certificado: '' })
   const [diasCobroPago, setDiasCobroPago] = useState({ diasCobro: null, diasPago: null })
   const [filtroCobrar, setFiltroCobrar] = useState('todas') // 'todas' | 'pendientes' | 'cobradas'
   const [busquedaCobrar, setBusquedaCobrar] = useState('')
@@ -556,29 +559,29 @@ function Finanzas({ vistaInicial = 'movimientos' }) {
   // ---------- Cuentas por cobrar ----------
   function abrirCobro(factura) {
     setCobrandoFactura(factura)
-    setFormCobro({ monto: saldoPendienteVenta(factura).toFixed(2), medio_pago: 'transferencia', cuenta_id: '', referencia: '', fecha_pago: new Date().toISOString().split('T')[0] })
+    setFormCobro({ monto: saldoPendienteVenta(factura).toFixed(2), medio_pago: 'transferencia', cuenta_id: '', referencia: '', fecha_pago: new Date().toISOString().split('T')[0], retenciones: retencionesVacias(), certificado: '' })
   }
 
   async function registrarCobro(e) {
     e.preventDefault()
-    const monto = parseFloat(formCobro.monto)
-    if (!formCobro.cuenta_id) { alert('Elegí a qué cuenta entra el cobro'); return }
+    const neto = parseFloat(formCobro.monto) || 0
+    const totRet = totalRetenciones(formCobro.retenciones)
+    if (neto <= 0 && totRet <= 0) { alert('Ingresá el importe recibido o alguna retención'); return }
+    if (neto > 0 && !formCobro.cuenta_id) { alert('Elegí a qué cuenta entra el cobro'); return }
     const fechaCobro = formCobro.fecha_pago || new Date().toISOString().split('T')[0]
-    await supabase.from('pagos').insert([{
-      factura_id: cobrandoFactura.id, fecha_pago: fechaCobro, monto,
-      medio_pago: formCobro.medio_pago, cuenta_id: formCobro.cuenta_id, referencia: formCobro.referencia
-    }])
-    await supabase.from('movimientos_financieros').insert([{
-      fecha: fechaCobro, tipo: 'ingreso', categoria: 'Cobranzas',
-      descripcion: `Cobro factura ${cobrandoFactura.numero_factura || 's/n'} — ${cobrandoFactura.clientes?.razon_social || cobrandoFactura.clientes?.nombre_contacto || ''}`,
-      monto, cuenta_id: formCobro.cuenta_id, comprobante: formCobro.referencia,
-      forma_pago: formCobro.medio_pago.charAt(0).toUpperCase() + formCobro.medio_pago.slice(1),
-      factura_id: cobrandoFactura.id
-    }])
-    await ajustarSaldo(formCobro.cuenta_id, monto)
-    const totalCobrado = pagosVenta.filter(p => p.factura_id === cobrandoFactura.id).reduce((a, p) => a + Number(p.monto), 0) + monto
-    const nuevoEstado = totalCobrado >= Number(cobrandoFactura.total) ? 'cobrada' : 'parcial'
-    await supabase.from('facturas').update({ estado: nuevoEstado }).eq('id', cobrandoFactura.id)
+    try {
+      const { imputado } = await registrarCobroConRetenciones({
+        factura: cobrandoFactura, neto, retenciones: formCobro.retenciones, certificado: formCobro.certificado,
+        fecha: fechaCobro, medio_pago: formCobro.medio_pago, cuenta_id: formCobro.cuenta_id, referencia: formCobro.referencia,
+        descripcion: `Cobro factura ${cobrandoFactura.numero_factura || 's/n'} — ${cobrandoFactura.clientes?.razon_social || cobrandoFactura.clientes?.nombre_contacto || ''}`,
+        forma_pago: formCobro.medio_pago.charAt(0).toUpperCase() + formCobro.medio_pago.slice(1)
+      })
+      const totalCobrado = pagosVenta.filter(p => p.factura_id === cobrandoFactura.id).reduce((a, p) => a + Number(p.monto), 0) + imputado
+      const nuevoEstado = totalCobrado >= Number(cobrandoFactura.total) - 0.01 ? 'cobrada' : 'parcial'
+      await supabase.from('facturas').update({ estado: nuevoEstado }).eq('id', cobrandoFactura.id)
+    } catch (err) {
+      alert('No se pudo registrar el cobro: ' + (err.message || err)); return
+    }
     setCobrandoFactura(null)
     await cargarDatos()
     emitirCambioDatos('finanzas')
@@ -731,6 +734,7 @@ function Finanzas({ vistaInicial = 'movimientos' }) {
         <button onClick={() => setVista('estado-cuenta')} style={vista === 'estado-cuenta' ? s.btnPrimario(c.main) : s.btnSecundario}>
           <ArrowRightLeft size={13} style={{ marginRight: 5, verticalAlign: '-2px' }} />Estado de cuenta
         </button>
+        <button onClick={() => setVista('retenciones')} style={vista === 'retenciones' ? s.btnPrimario(c.main) : s.btnSecundario}>Retenciones</button>
         <button onClick={() => setVista('proyeccion')} style={vista === 'proyeccion' ? s.btnPrimario(c.main) : s.btnSecundario}>
           <BarChart3 size={13} style={{ marginRight: 5, verticalAlign: '-2px' }} />Proyección de caja
         </button>
@@ -1531,7 +1535,7 @@ function Finanzas({ vistaInicial = 'movimientos' }) {
             </p>
             <form onSubmit={registrarCobro}>
               <div style={s.grid2}>
-                <div><label style={s.label}>Monto ($)</label><input type="number" style={s.input} value={formCobro.monto} onChange={e => setFormCobro({...formCobro, monto: e.target.value})} required /></div>
+                <div><label style={s.label}>Importe recibido en cuenta ($)</label><input type="number" step="0.01" style={s.input} value={formCobro.monto} onChange={e => setFormCobro({...formCobro, monto: e.target.value})} /></div>
                 <div>
                   <label style={s.label}>Medio de pago</label>
                   <select style={s.input} value={formCobro.medio_pago} onChange={e => setFormCobro({...formCobro, medio_pago: e.target.value})}>
@@ -1543,12 +1547,15 @@ function Finanzas({ vistaInicial = 'movimientos' }) {
                 </div>
                 <div style={{ gridColumn: '1 / -1' }}>
                   <label style={s.label}>Cuenta que recibe el cobro</label>
-                  <select style={s.input} value={formCobro.cuenta_id} onChange={e => setFormCobro({...formCobro, cuenta_id: e.target.value})} required>
+                  <select style={s.input} value={formCobro.cuenta_id} onChange={e => setFormCobro({...formCobro, cuenta_id: e.target.value})}>
                     <option value="">Seleccionar cuenta</option>
                     {cuentas.map(ct => <option key={ct.id} value={ct.id}>{ct.banco} — {ct.tipo}</option>)}
                   </select>
                 </div>
                 <div style={{ gridColumn: '1 / -1' }}><label style={s.label}>Fecha de cobro</label><input type="date" style={s.input} value={formCobro.fecha_pago || ''} max={new Date().toISOString().split('T')[0]} onChange={e => setFormCobro({...formCobro, fecha_pago: e.target.value})} required /></div>
+                <RetencionesCobro retenciones={formCobro.retenciones} certificado={formCobro.certificado} neto={formCobro.monto}
+                  saldo={saldoPendienteVenta(cobrandoFactura)}
+                  onChange={r => setFormCobro({ ...formCobro, retenciones: r })} onCertificado={v => setFormCobro({ ...formCobro, certificado: v })} />
                 <div style={{ gridColumn: '1 / -1' }}><label style={s.label}>Referencia</label><input style={s.input} value={formCobro.referencia} onChange={e => setFormCobro({...formCobro, referencia: e.target.value})} /></div>
               </div>
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '18px' }}>
@@ -1771,6 +1778,8 @@ function Finanzas({ vistaInicial = 'movimientos' }) {
       )}
 
       {/* VISTA ESTADO DE CUENTA */}
+      {vista === 'retenciones' && <VistaRetenciones />}
+
       {vista === 'estado-cuenta' && (() => {
         const cuentaActivaId = cuentaEstadoId || cuentas[0]?.id || ''
         const estado = cuentaActivaId ? calcularEstadoCuenta(cuentaActivaId, rangoDesde, rangoHasta) : null
