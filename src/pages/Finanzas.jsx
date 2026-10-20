@@ -1,6 +1,8 @@
 import { registrarCobroConRetenciones, retencionesVacias, totalRetenciones } from '../cobrosUtils.js'
 import RetencionesCobro from './RetencionesCobro.jsx'
 import VistaRetenciones from './VistaRetenciones.jsx'
+import Cheques from './Cheques.jsx'
+import CuentaCorriente from './CuentaCorriente.jsx'
 import { useEffect, useState } from 'react'
 import { supabase, emitirCambioDatos, escucharCambiosDatos } from '../supabase.js'
 import { s, colores, paleta } from '../estilos.js'
@@ -710,6 +712,8 @@ function Finanzas({ vistaInicial = 'movimientos' }) {
         <button onClick={() => setVista('estado-cuenta')} style={vista === 'estado-cuenta' ? s.btnPrimario(c.main) : s.btnSecundario}>
           <ArrowRightLeft size={13} style={{ marginRight: 5, verticalAlign: '-2px' }} />Estado de cuenta
         </button>
+        <button onClick={() => setVista('cheques')} style={vista === 'cheques' ? s.btnPrimario(c.main) : s.btnSecundario}>Cheques</button>
+        <button onClick={() => setVista('cuenta-corriente')} style={vista === 'cuenta-corriente' ? s.btnPrimario(c.main) : s.btnSecundario}>Cuentas corrientes</button>
         <button onClick={() => setVista('retenciones')} style={vista === 'retenciones' ? s.btnPrimario(c.main) : s.btnSecundario}>Retenciones</button>
         <button onClick={() => setVista('compromisos')} style={vista === 'compromisos' ? s.btnPrimario(c.main) : s.btnSecundario}>
           <Landmark size={13} style={{ marginRight: 5, verticalAlign: '-2px' }} />Préstamos e impuestos
@@ -1757,6 +1761,8 @@ function Finanzas({ vistaInicial = 'movimientos' }) {
       )}
 
       {/* VISTA ESTADO DE CUENTA */}
+      {vista === 'cheques' && <Cheques />}
+      {vista === 'cuenta-corriente' && <CuentaCorriente />}
       {vista === 'retenciones' && <VistaRetenciones />}
 
       {vista === 'estado-cuenta' && (() => {
