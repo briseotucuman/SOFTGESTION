@@ -18,10 +18,11 @@ export default function CuentaCorriente() {
   const [seleccion, setSeleccion] = useState(null)
   const [busqueda, setBusqueda] = useState('')
   const [soloConSaldo, setSoloConSaldo] = useState(true)
+  const [error, setError] = useState('')
 
   useEffect(() => {
     let vivo = true
-    setCargando(true); setSeleccion(null)
+    setCargando(true); setSeleccion(null); setError('')
     const esCli = modo === 'clientes'
     Promise.all([
       esCli
@@ -35,6 +36,8 @@ export default function CuentaCorriente() {
         : supabase.from('proveedores').select('id, razon_social, cuit').order('razon_social')
     ]).then(([f, p, pa]) => {
       if (!vivo) return
+      const fallo = [f, p, pa].find(r => r.error)
+      if (fallo) setError(fallo.error.message || 'No se pudieron cargar los datos')
       setFacturas(f.data || []); setPagos(p.data || []); setPartes(pa.data || []); setCargando(false)
     })
     return () => { vivo = false }
@@ -161,6 +164,7 @@ export default function CuentaCorriente() {
 
   return (
     <div>
+      {error && <div style={{ background: '#FEF2F2', border: '1px solid #FECACA', color: '#B91C1C', borderRadius: '8px', padding: '10px 12px', fontSize: '13px', marginBottom: '12px' }}>No se pudieron cargar las cuentas corrientes: {error}</div>}
       <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center', marginBottom: '12px' }}>
         <button onClick={() => setModo('clientes')} style={modo === 'clientes' ? s.btnPrimario('#0F766E') : s.btnSecundario}>Clientes</button>
         <button onClick={() => setModo('proveedores')} style={modo === 'proveedores' ? s.btnPrimario('#0F766E') : s.btnSecundario}>Proveedores</button>
