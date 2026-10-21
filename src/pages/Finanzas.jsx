@@ -3,7 +3,7 @@ import RetencionesCobro from './RetencionesCobro.jsx'
 import VistaRetenciones from './VistaRetenciones.jsx'
 import Cheques from './Cheques.jsx'
 import CuentaCorriente from './CuentaCorriente.jsx'
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { supabase, emitirCambioDatos, escucharCambiosDatos } from '../supabase.js'
 import { s, colores, paleta } from '../estilos.js'
 import {
@@ -89,6 +89,8 @@ function Finanzas({ vistaInicial = 'movimientos' }) {
 
   // ---- Cuentas por cobrar ----
   const [cobrandoFactura, setCobrandoFactura] = useState(null)
+  const guardandoCobro = useRef(false)
+  const guardandoPagoCompra = useRef(false)
   const [formCobro, setFormCobro] = useState({ monto: '', medio_pago: 'transferencia', cuenta_id: '', referencia: '', fecha_pago: new Date().toISOString().split('T')[0], retenciones: retencionesVacias(), certificado: '' })
   const [diasCobroPago, setDiasCobroPago] = useState({ diasCobro: null, diasPago: null })
   const [filtroCobrar, setFiltroCobrar] = useState('todas') // 'todas' | 'pendientes' | 'cobradas'
@@ -511,8 +513,12 @@ function Finanzas({ vistaInicial = 'movimientos' }) {
 
   async function registrarPagoCompra(e) {
     e.preventDefault()
+    if (guardandoPagoCompra.current) return
     const monto = parseFloat(formPagoCompra.monto)
     if (!formPagoCompra.cuenta_id) { alert('Elegí de qué cuenta sale el pago'); return }
+    const saldoCompra = saldoPendiente(pagandoFactura)
+    if (monto > saldoCompra + 0.01 && !window.confirm(`El pago (${monto.toLocaleString('es-AR', { style: 'currency', currency: 'ARS' })}) supera el saldo pendiente de la factura (${Math.max(0, saldoCompra).toLocaleString('es-AR', { style: 'currency', currency: 'ARS' })}). ¿Registrarlo igual?`)) return
+    guardandoPagoCompra.current = true
     const fechaPagoCompra = formPagoCompra.fecha_pago || new Date().toISOString().split('T')[0]
     await supabase.from('pagos_compra').insert([{
       factura_compra_id: pagandoFactura.id, monto, fecha_pago: fechaPagoCompra,
@@ -529,6 +535,7 @@ function Finanzas({ vistaInicial = 'movimientos' }) {
     const totalPagado = pagosCompra.filter(p => p.factura_compra_id === pagandoFactura.id).reduce((a, p) => a + Number(p.monto), 0) + monto
     const nuevoEstado = totalPagado >= Number(pagandoFactura.total) ? 'pagada' : 'parcial'
     await supabase.from('facturas_compra').update({ estado: nuevoEstado }).eq('id', pagandoFactura.id)
+    guardandoPagoCompra.current = false
     setPagandoFactura(null)
     await cargarDatos()
     emitirCambioDatos('finanzas')
@@ -542,10 +549,14 @@ function Finanzas({ vistaInicial = 'movimientos' }) {
 
   async function registrarCobro(e) {
     e.preventDefault()
+    if (guardandoCobro.current) return
     const neto = parseFloat(formCobro.monto) || 0
     const totRet = totalRetenciones(formCobro.retenciones)
     if (neto <= 0 && totRet <= 0) { alert('Ingresá el importe recibido o alguna retención'); return }
     if (neto > 0 && !formCobro.cuenta_id) { alert('Elegí a qué cuenta entra el cobro'); return }
+    const saldoFactura = saldoPendienteVenta(cobrandoFactura)
+    if (neto + totRet > saldoFactura + 0.01 && !window.confirm(`El cobro (${(neto + totRet).toLocaleString('es-AR', { style: 'currency', currency: 'ARS' })}) supera el saldo pendiente de la factura (${Math.max(0, saldoFactura).toLocaleString('es-AR', { style: 'currency', currency: 'ARS' })}). ¿Registrarlo igual?`)) return
+    guardandoCobro.current = true
     const fechaCobro = formCobro.fecha_pago || new Date().toISOString().split('T')[0]
     try {
       const { imputado } = await registrarCobroConRetenciones({
@@ -558,8 +569,10 @@ function Finanzas({ vistaInicial = 'movimientos' }) {
       const nuevoEstado = totalCobrado >= Number(cobrandoFactura.total) - 0.01 ? 'cobrada' : 'parcial'
       await supabase.from('facturas').update({ estado: nuevoEstado }).eq('id', cobrandoFactura.id)
     } catch (err) {
+      guardandoCobro.current = false
       alert('No se pudo registrar el cobro: ' + (err.message || err)); return
     }
+    guardandoCobro.current = false
     setCobrandoFactura(null)
     await cargarDatos()
     emitirCambioDatos('finanzas')

@@ -1,6 +1,6 @@
 import { registrarCobroConRetenciones, retencionesVacias, totalRetenciones } from '../cobrosUtils.js'
 import RetencionesCobro from './RetencionesCobro.jsx'
-import { useEffect, useState, useMemo } from 'react'
+import { useEffect, useState, useMemo, useRef } from 'react'
 import { supabase, emitirCambioDatos } from '../supabase.js'
 import { s, colores } from '../estilos.js'
 import { Pencil, Plus, Receipt, X, FileUp, Trash2, AlertTriangle, Loader2, Calculator, Info, Search } from 'lucide-react'
@@ -32,6 +32,7 @@ function Facturacion()  {
   const [editando, setEditando] = useState(null)
   const [pagos, setPagos] = useState([])
   const [cuentas, setCuentas] = useState([])
+  const guardandoPago = useRef(false)
   const [formPago, setFormPago] = useState({ monto: '', medio_pago: 'transferencia', referencia: '', cuenta_id: '', fecha_pago: new Date().toISOString().split('T')[0], retenciones: retencionesVacias(), certificado: '' })
   const [busqueda, setBusqueda] = useState('')
   const [filtroEstado, setFiltroEstado] = useState('todos')
@@ -378,10 +379,15 @@ function Facturacion()  {
 
   async function registrarPago(e) {
     e.preventDefault()
+    if (guardandoPago.current) return
     const neto = parseFloat(formPago.monto) || 0
     const totRet = totalRetenciones(formPago.retenciones)
     if (neto <= 0 && totRet <= 0) { alert('Ingresá el importe recibido o alguna retención'); return }
     if (neto > 0 && !formPago.cuenta_id) { alert('Elegí a qué cuenta entra el cobro'); return }
+    const yaCobrado = pagos.reduce((a, p) => a + Number(p.monto), 0)
+    const saldoFactura = Number(mostrarPagos.total) - yaCobrado
+    if (neto + totRet > saldoFactura + 0.01 && !window.confirm(`El cobro (${(neto + totRet).toLocaleString('es-AR', { style: 'currency', currency: 'ARS' })}) supera el saldo pendiente de la factura (${Math.max(0, saldoFactura).toLocaleString('es-AR', { style: 'currency', currency: 'ARS' })}). ¿Registrarlo igual?`)) return
+    guardandoPago.current = true
     const fechaCobro = formPago.fecha_pago || new Date().toISOString().split('T')[0]
     try {
       const { imputado } = await registrarCobroConRetenciones({
@@ -394,8 +400,10 @@ function Facturacion()  {
       const nuevoEstado = totalPagado >= mostrarPagos.total - 0.01 ? 'pagada' : 'parcial'
       await supabase.from('facturas').update({ estado: nuevoEstado }).eq('id', mostrarPagos.id)
     } catch (err) {
+      guardandoPago.current = false
       alert('No se pudo registrar el cobro: ' + (err.message || err)); return
     }
+    guardandoPago.current = false
     setFormPago({ monto: '', medio_pago: 'transferencia', referencia: '', cuenta_id: '', fecha_pago: new Date().toISOString().split('T')[0], retenciones: retencionesVacias(), certificado: '' })
     verPagos(mostrarPagos)
     await cargarDatos()
