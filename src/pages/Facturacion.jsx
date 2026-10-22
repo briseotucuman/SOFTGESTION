@@ -1,5 +1,6 @@
-import { registrarCobroConRetenciones, retencionesVacias, totalRetenciones } from '../cobrosUtils.js'
+import { registrarCobroConRetenciones, retencionesVacias, totalRetenciones, chequeVacio, validarCheque, crearChequeTercero, crearChequePropio } from '../cobrosUtils.js'
 import RetencionesCobro from './RetencionesCobro.jsx'
+import DatosCheque from './DatosCheque.jsx'
 import { useEffect, useState, useMemo, useRef } from 'react'
 import { supabase, emitirCambioDatos } from '../supabase.js'
 import { s, colores } from '../estilos.js'
@@ -33,6 +34,7 @@ function Facturacion()  {
   const [pagos, setPagos] = useState([])
   const [cuentas, setCuentas] = useState([])
   const guardandoPago = useRef(false)
+  const [datosCheque, setDatosCheque] = useState(chequeVacio())
   const [formPago, setFormPago] = useState({ monto: '', medio_pago: 'transferencia', referencia: '', cuenta_id: '', fecha_pago: new Date().toISOString().split('T')[0], retenciones: retencionesVacias(), certificado: '' })
   const [busqueda, setBusqueda] = useState('')
   const [filtroEstado, setFiltroEstado] = useState('todos')
@@ -383,19 +385,26 @@ function Facturacion()  {
     const neto = parseFloat(formPago.monto) || 0
     const totRet = totalRetenciones(formPago.retenciones)
     if (neto <= 0 && totRet <= 0) { alert('Ingresá el importe recibido o alguna retención'); return }
-    if (neto > 0 && !formPago.cuenta_id) { alert('Elegí a qué cuenta entra el cobro'); return }
+    const esCheque = formPago.medio_pago === 'cheque'
+    if (esCheque && neto > 0) { const eCh = validarCheque(datosCheque); if (eCh) { alert(eCh); return } }
+    if (neto > 0 && !esCheque && !formPago.cuenta_id) { alert('Elegí a qué cuenta entra el cobro'); return }
     const yaCobrado = pagos.reduce((a, p) => a + Number(p.monto), 0)
     const saldoFactura = Number(mostrarPagos.total) - yaCobrado
     if (neto + totRet > saldoFactura + 0.01 && !window.confirm(`El cobro (${(neto + totRet).toLocaleString('es-AR', { style: 'currency', currency: 'ARS' })}) supera el saldo pendiente de la factura (${Math.max(0, saldoFactura).toLocaleString('es-AR', { style: 'currency', currency: 'ARS' })}). ¿Registrarlo igual?`)) return
     guardandoPago.current = true
     const fechaCobro = formPago.fecha_pago || new Date().toISOString().split('T')[0]
     try {
-      const { imputado } = await registrarCobroConRetenciones({
-        factura: mostrarPagos, neto, retenciones: formPago.retenciones, certificado: formPago.certificado,
-        fecha: fechaCobro, medio_pago: formPago.medio_pago, cuenta_id: formPago.cuenta_id, referencia: formPago.referencia,
-        descripcion: `Cobro factura ${mostrarPagos.numero_factura}`,
-        forma_pago: FORMA_PAGO_LABEL[formPago.medio_pago] || formPago.medio_pago
-      })
+      let imputado = 0
+      if (esCheque && neto > 0) await crearChequeTercero({ cheque: datosCheque, importe: neto, factura: mostrarPagos })
+      if (!esCheque || totRet > 0) {
+        const r = await registrarCobroConRetenciones({
+          factura: mostrarPagos, neto: esCheque ? 0 : neto, retenciones: formPago.retenciones, certificado: formPago.certificado,
+          fecha: fechaCobro, medio_pago: formPago.medio_pago, cuenta_id: formPago.cuenta_id, referencia: formPago.referencia,
+          descripcion: `Cobro factura ${mostrarPagos.numero_factura}`,
+          forma_pago: FORMA_PAGO_LABEL[formPago.medio_pago] || formPago.medio_pago
+        })
+        imputado = r.imputado
+      }
       const totalPagado = pagos.reduce((acc, p) => acc + Number(p.monto), 0) + imputado
       const nuevoEstado = totalPagado >= mostrarPagos.total - 0.01 ? 'pagada' : 'parcial'
       await supabase.from('facturas').update({ estado: nuevoEstado }).eq('id', mostrarPagos.id)
@@ -404,6 +413,8 @@ function Facturacion()  {
       alert('No se pudo registrar el cobro: ' + (err.message || err)); return
     }
     guardandoPago.current = false
+    setDatosCheque(chequeVacio())
+    if (esCheque && neto > 0) alert('Cheque cargado en cartera. La factura se cancela cuando lo deposites o cobres desde Finanzas > Cheques.')
     setFormPago({ monto: '', medio_pago: 'transferencia', referencia: '', cuenta_id: '', fecha_pago: new Date().toISOString().split('T')[0], retenciones: retencionesVacias(), certificado: '' })
     verPagos(mostrarPagos)
     await cargarDatos()
@@ -977,6 +988,7 @@ function Facturacion()  {
                       {cuentas.map(ct => <option key={ct.id} value={ct.id}>{ct.banco} — {ct.tipo}</option>)}
                     </select>
                   </div>
+                  {formPago.medio_pago === 'cheque' && <DatosCheque valor={datosCheque} onChange={setDatosCheque} />}
                   <RetencionesCobro retenciones={formPago.retenciones} certificado={formPago.certificado} neto={formPago.monto}
                     saldo={saldoPendiente}
                     onChange={r => setFormPago({ ...formPago, retenciones: r })} onCertificado={v => setFormPago({ ...formPago, certificado: v })} />
