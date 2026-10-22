@@ -701,40 +701,46 @@ function Finanzas({ vistaInicial = 'movimientos' }) {
         </div>
       </div>
 
-      <div style={{ display: 'flex', gap: '10px', marginBottom: '16px', flexWrap: 'wrap' }}>
-        <button onClick={() => setVista('movimientos')} style={vista === 'movimientos' ? s.btnPrimario(c.main) : s.btnSecundario}>Movimientos</button>
-        <button onClick={() => setVista('por-cobrar')} style={vista === 'por-cobrar' ? s.btnPrimario(c.main) : s.btnSecundario}>
-          <TrendingUp size={13} style={{ marginRight: 5, verticalAlign: '-2px' }} />Cuentas por cobrar
-        </button>
-        <button onClick={() => setVista('por-pagar')} style={vista === 'por-pagar' ? s.btnPrimario(c.main) : s.btnSecundario}>
-          <Wallet2 size={13} style={{ marginRight: 5, verticalAlign: '-2px' }} />Cuentas por pagar
-        </button>
-        <button
-          onClick={() => {
-            const ctActual = cuentas.find(c => c.id === cuentaSeleccionadaId)
+      {/* NAVEGACIÓN: secciones y, debajo, las vistas de la sección activa */}
+      {(() => {
+        const SECCIONES = [
+          { id: 'resumen', label: 'Resumen', vistas: [['movimientos', 'Movimientos'], ['estado-cuenta', 'Estado de cuenta'], ['proyeccion', 'Proyección de caja']] },
+          { id: 'cobrar-pagar', label: 'Cobrar y pagar', vistas: [['por-cobrar', 'Cuentas por cobrar'], ['por-pagar', 'Cuentas por pagar'], ['cuenta-corriente', 'Cuentas corrientes'], ['compromisos', 'Préstamos e impuestos'], ['retenciones', 'Retenciones']] },
+          { id: 'bancos', label: 'Bancos y cheques', vistas: [['conciliacion', 'Conciliación bancaria'], ['cheques', 'Cheques']] }
+        ]
+        const seccionActiva = SECCIONES.find(sec => sec.vistas.some(([id]) => id === vista)) || SECCIONES[0]
+        const irA = (id) => {
+          if (id === 'conciliacion') {
+            const ctActual = cuentas.find(ct => ct.id === cuentaSeleccionadaId)
             if (!ctActual || !esCuentaBancaria(ctActual)) {
               const primeraBanco = cuentas.find(esCuentaBancaria)
               setCuentaSeleccionadaId(primeraBanco?.id || '')
             }
-            setVista('conciliacion')
-          }}
-          style={vista === 'conciliacion' ? s.btnPrimario(c.main) : s.btnSecundario}
-        >
-          <ShieldCheck size={13} style={{ marginRight: 5, verticalAlign: '-2px' }} />Conciliación bancaria
-        </button>
-        <button onClick={() => setVista('estado-cuenta')} style={vista === 'estado-cuenta' ? s.btnPrimario(c.main) : s.btnSecundario}>
-          <ArrowRightLeft size={13} style={{ marginRight: 5, verticalAlign: '-2px' }} />Estado de cuenta
-        </button>
-        <button onClick={() => setVista('cheques')} style={vista === 'cheques' ? s.btnPrimario(c.main) : s.btnSecundario}>Cheques</button>
-        <button onClick={() => setVista('cuenta-corriente')} style={vista === 'cuenta-corriente' ? s.btnPrimario(c.main) : s.btnSecundario}>Cuentas corrientes</button>
-        <button onClick={() => setVista('retenciones')} style={vista === 'retenciones' ? s.btnPrimario(c.main) : s.btnSecundario}>Retenciones</button>
-        <button onClick={() => setVista('compromisos')} style={vista === 'compromisos' ? s.btnPrimario(c.main) : s.btnSecundario}>
-          <Landmark size={13} style={{ marginRight: 5, verticalAlign: '-2px' }} />Préstamos e impuestos
-        </button>
-        <button onClick={() => setVista('proyeccion')} style={vista === 'proyeccion' ? s.btnPrimario(c.main) : s.btnSecundario}>
-          <BarChart3 size={13} style={{ marginRight: 5, verticalAlign: '-2px' }} />Proyección de caja
-        </button>
-      </div>
+          }
+          setVista(id)
+        }
+        return (
+          <div style={{ marginBottom: '16px' }}>
+            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '10px' }}>
+              {SECCIONES.map(sec => (
+                <button key={sec.id} onClick={() => irA(sec.vistas[0][0])} style={sec.id === seccionActiva.id ? s.btnPrimario(c.main) : s.btnSecundario}>{sec.label}</button>
+              ))}
+            </div>
+            <div style={{ display: 'flex', gap: '2px', flexWrap: 'wrap', borderBottom: '1px solid #E2E8F0' }}>
+              {seccionActiva.vistas.map(([id, label]) => {
+                const activa = vista === id
+                return (
+                  <button key={id} onClick={() => irA(id)} style={{
+                    background: 'none', border: 'none', cursor: 'pointer', padding: '8px 14px', fontSize: '13px',
+                    fontWeight: activa ? 700 : 500, color: activa ? c.main : '#64748B',
+                    borderBottom: activa ? `2px solid ${c.main}` : '2px solid transparent', marginBottom: '-1px'
+                  }}>{label}</button>
+                )
+              })}
+            </div>
+          </div>
+        )
+      })()}
 
       {/* FORM MOVIMIENTO */}
       {vista === 'movimientos' && mostrarForm && (

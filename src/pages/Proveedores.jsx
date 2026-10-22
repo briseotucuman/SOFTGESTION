@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../supabase.js'
+import { useOrden } from '../ordenTabla.jsx'
 import { s, colores } from '../estilos.js'
 import { Factory, Pencil, Plus, X } from 'lucide-react'
 
@@ -69,6 +70,16 @@ function Proveedores() {
     (p.cuit||'').includes(busqueda)
   )
 
+  const { ordenadas, encabezados } = useOrden(filtrados, [
+    { label: 'Proveedor', get: p => p.razon_social },
+    { label: 'CUIT', get: p => p.cuit },
+    { label: 'Rubro', get: p => p.rubro },
+    { label: 'Contacto', get: p => p.nombre_contacto },
+    { label: 'Teléfono', get: p => p.telefono },
+    { label: 'Email', get: p => p.email },
+    { label: 'Localidad', get: p => p.localidad },
+    { label: '' }
+  ])
   return (
     <div style={{ fontFamily: "'Segoe UI', sans-serif" }}>
       <div style={s.cabecera(c.gradient)}>
@@ -155,12 +166,10 @@ function Proveedores() {
         : (
           <table style={s.tabla}>
             <thead>
-              <tr>{['Proveedor','CUIT','Rubro','Contacto','Teléfono','Email','Localidad',''].map(h => (
-                <th key={h} style={s.tablaCabecera(c.main)}>{h}</th>
-              ))}</tr>
+              <tr>{encabezados(s.tablaCabecera(c.main))}</tr>
             </thead>
             <tbody>
-              {filtrados.map((p, i) => (
+              {ordenadas.map((p, i) => (
                 <tr key={p.id} style={s.tablaFila(i)}>
                   <td style={s.tablaCellBold}>{p.razon_social}</td>
                   <td style={{ ...s.tablaCell, fontSize: '12px', color: '#94a3b8' }}>{p.cuit || '—'}</td>

@@ -28,11 +28,17 @@ const SOLO_ADMIN = ['facturacion', 'finanzas', 'conciliacion', 'costos', 'sueldo
 
 const GRUPOS_MENU = [
   {
-    label: 'Operación & Servicios',
+    label: 'Clientes y ventas',
     items: [
-      { id: 'clientes',    icon: Users,        label: 'Clientes',    desc: 'Cuentas corporativas, CUIT y sucursales' },
-      { id: 'crm',         icon: Radar,        label: 'CRM',         desc: 'Seguimiento de prospectos y oportunidades' },
-      { id: 'contratos',   icon: FileText,     label: 'Contratos',   desc: 'Acuerdos vigentes, SLAs y renovaciones' },
+      { id: 'clientes',     icon: Users,    label: 'Clientes',     desc: 'Cuentas corporativas, CUIT y sucursales' },
+      { id: 'crm',          icon: Radar,    label: 'CRM',          desc: 'Seguimiento de prospectos y oportunidades' },
+      { id: 'presupuestos', icon: Wallet,   label: 'Presupuestos', desc: 'Cotizaciones comerciales y propuestas' },
+      { id: 'contratos',    icon: FileText, label: 'Contratos',    desc: 'Acuerdos vigentes, SLAs y renovaciones' },
+    ]
+  },
+  {
+    label: 'Operación',
+    items: [
       { id: 'agenda',      icon: CalendarDays, label: 'Agenda',      desc: 'Órdenes de trabajo y cronograma operativo' },
       { id: 'personal',    icon: HardHat,      label: 'Personal',    desc: 'Dotación, legajos y asignación de puestos' },
       { id: 'insumos',     icon: Package,      label: 'Insumos',     desc: 'Control de inventario, stock y reposición' },
@@ -40,18 +46,18 @@ const GRUPOS_MENU = [
     ]
   },
   {
-    label: 'Administración & Finanzas',
+    label: 'Administración',
     items: [
-      { id: 'presupuestos', icon: Wallet,        label: 'Presupuestos',           desc: 'Cotizaciones comerciales y propuestas' },
-      { id: 'facturacion',  icon: Receipt,       label: 'Facturación',            desc: 'Emisión, cuentas corrientes y cobranzas' },
-      { id: 'finanzas',     icon: BarChart3,     label: 'Finanzas',               desc: 'Flujo de caja, ingresos y egresos' },
-      { id: 'conciliacion', icon: ShieldCheck,   label: 'Conciliación Bancaria',  desc: 'Resúmenes bancarios y conciliación' },
-      { id: 'costos',       icon: ClipboardList, label: 'Costos',                 desc: 'Costeo operativo por servicio y cliente' },
-      { id: 'sueldos',      icon: Briefcase,     label: 'Sueldos',                desc: 'Liquidación salarial y jornales' },
+      { id: 'facturacion',  icon: Receipt,       label: 'Facturación',           desc: 'Emisión, cuentas corrientes y cobranzas' },
+      { id: 'finanzas',     icon: BarChart3,     label: 'Finanzas',              desc: 'Caja, cobros y pagos, cheques y bancos' },
+      { id: 'costos',       icon: ClipboardList, label: 'Costos',                desc: 'Costeo operativo por servicio y cliente' },
+      { id: 'sueldos',      icon: Briefcase,     label: 'Sueldos',               desc: 'Liquidación salarial y jornales' },
+      // Atajo a Finanzas > Conciliación bancaria: no se muestra en el menú, sí en el buscador (Ctrl K)
+      { id: 'conciliacion', icon: ShieldCheck,   label: 'Conciliación Bancaria', desc: 'Resúmenes bancarios y conciliación', oculto: true },
     ]
   },
   {
-    label: 'Inteligencia & Auditoría',
+    label: 'Análisis y accesos',
     items: [
       { id: 'reportes', icon: TrendingUp, label: 'Reportes', desc: 'Métricas gerenciales y rentabilidad' },
       { id: 'usuarios', icon: UserCog,    label: 'Usuarios', desc: 'Permisos del sistema y accesos' },
@@ -124,6 +130,7 @@ function obtenerRangosPeriodo() {
 function Dashboard({ user }) {
   const [seccionActiva, setSeccionActiva] = useState('inicio')
   const [menuAbierto, setMenuAbierto] = useState(true)
+  const [mostrarModulos, setMostrarModulos] = useState(false)
   const [esMovil, setEsMovil] = useState(() => typeof window !== 'undefined' && window.matchMedia('(max-width: 820px)').matches)
   const [drawerAbierto, setDrawerAbierto] = useState(false)
   useEffect(() => {
@@ -493,7 +500,7 @@ function Dashboard({ user }) {
   const menuVisible = useMemo(() => {
     return GRUPOS_MENU.map(g => ({
       ...g,
-      items: g.items.filter(i => esAdmin || !SOLO_ADMIN.includes(i.id))
+      items: g.items.filter(i => !i.oculto && (esAdmin || !SOLO_ADMIN.includes(i.id)))
     })).filter(g => g.items.length > 0)
   }, [esAdmin])
 
@@ -1044,7 +1051,7 @@ function Dashboard({ user }) {
               <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 340px', gap: '22px', alignItems: 'start' }}>
 
                 {/* COLUMNA IZQUIERDA: TARJETAS KPI & ACCESOS DIRECTOS */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '22px' }}>
+                <div className="sg-tab-izq" style={{ display: 'flex', flexDirection: 'column', gap: '22px' }}>
 
                   {/* BANDA DE KPIS */}
                   <div style={{ display: 'grid', gridTemplateColumns: '1.4fr repeat(2, 1fr)', gap: '14px' }}>
@@ -1256,21 +1263,21 @@ function Dashboard({ user }) {
 
                   {/* MATRIZ DE MÓDULOS DEL SISTEMA */}
                   <div style={{ background: '#FFFFFF', borderRadius: '10px', padding: '22px', border: '1px solid #E2E8F0', boxShadow: '0 1px 3px 0 rgba(15, 23, 42, 0.04)' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
+                    <div onClick={() => setMostrarModulos(v => !v)} role="button" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: mostrarModulos ? '16px' : 0, cursor: 'pointer' }}>
                       <div>
                         <h3 style={{ margin: 0, fontSize: '15px', fontWeight: '700', color: '#0F172A', letterSpacing: '-0.01em' }}>
-                          Módulos del Sistema ERP
+                          Accesos a módulos
                         </h3>
                         <p style={{ margin: '3px 0 0', fontSize: '12.5px', color: '#64748B' }}>
-                          Seleccioná un módulo para operar registros y emitir comprobantes
+                          {mostrarModulos ? 'Seleccioná un módulo para operar registros y emitir comprobantes' : 'También los tenés en el menú de la izquierda'}
                         </p>
                       </div>
                       <span style={{ fontSize: '11px', color: '#64748B', background: '#F8FAFC', padding: '4px 8px', borderRadius: '4px', border: '1px solid #E2E8F0' }}>
-                        {todosItemsDisponibles.length} módulos habilitados
+                        {mostrarModulos ? 'Ocultar' : `Mostrar ${todosItemsDisponibles.length} módulos`}
                       </span>
                     </div>
 
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '10px' }}>
+                    {mostrarModulos && <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '10px' }}>
                       {todosItemsDisponibles.map(item => {
                         const Icon = item.icon
                         const colorMod = colores[item.id]?.main || '#0F766E'
@@ -1313,13 +1320,13 @@ function Dashboard({ user }) {
                           </button>
                         )
                       })}
-                    </div>
+                    </div>}
                   </div>
 
                 </div>
 
                 {/* COLUMNA DERECHA: ALERTAS Y AUDITORÍA OPERATIVA */}
-                <div style={{ position: 'sticky', top: '16px' }}>
+                <div className="sg-tab-der" style={{ position: 'sticky', top: '16px' }}>
                   <div style={{
                     background: '#FFFFFF',
                     borderRadius: '10px',

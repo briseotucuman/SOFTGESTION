@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../supabase.js'
+import { useOrden } from '../ordenTabla.jsx'
 import { s, colores } from '../estilos.js'
 import FichaCliente from './FichaCliente.jsx'
 import { Pencil, Plus, Users, X } from 'lucide-react'
@@ -165,6 +166,15 @@ function Clientes() {
     (cl.cuit||'').includes(busqueda)
   )
 
+  const { ordenadas, encabezados } = useOrden(filtrados, [
+    { label: 'Cliente', get: cl => cl.razon_social || cl.nombre_contacto },
+    { label: 'CUIT', get: cl => cl.cuit },
+    { label: 'Contacto', get: cl => cl.nombre_contacto },
+    { label: 'Teléfono', get: cl => cl.telefono },
+    { label: 'Localidad', get: cl => cl.localidad },
+    { label: 'Tipo', get: cl => tiposCliente.find(t => t.id === cl.tipo_cliente_id)?.nombre },
+    { label: 'Sucursales' }, { label: '' }, { label: '' }
+  ])
 
   const inp = (key) => ({
     onFocus: e => e.target.style.borderColor = c.main,
@@ -261,12 +271,10 @@ function Clientes() {
         : (
           <table style={s.tabla}>
             <thead>
-              <tr>{['Cliente','CUIT','Contacto','Teléfono','Localidad','Tipo','Sucursales','',''].map((h,idx) => (
-                <th key={idx} style={s.tablaCabecera(c.main)}>{h}</th>
-              ))}</tr>
+              <tr>{encabezados(s.tablaCabecera(c.main))}</tr>
             </thead>
             <tbody>
-              {filtrados.map((cl, i) => {
+              {ordenadas.map((cl, i) => {
                 const nombreTipo = tiposCliente.find(t => t.id === cl.tipo_cliente_id)?.nombre
                 return (
                   <tr key={cl.id} style={s.tablaFila(i)}>

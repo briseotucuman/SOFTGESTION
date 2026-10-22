@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../supabase.js'
 import { s, colores } from '../estilos.js'
+import { useOrden } from '../ordenTabla.jsx'
 import { FileText, Pencil, Plus, X } from 'lucide-react'
 
 const c = colores.contratos
@@ -106,6 +107,18 @@ function Contratos() {
     cancelar()
     cargarDatos()
   }
+
+  const { ordenadas, encabezados } = useOrden(contratos, [
+    { label: 'Número', get: ct => ct.numero_contrato },
+    { label: 'Cliente', get: ct => ct.clientes?.razon_social || ct.clientes?.nombre_contacto },
+    { label: 'Servicio', get: ct => ct.tipos_servicio?.nombre },
+    { label: 'Facturación', get: ct => ct.tipo_facturacion },
+    { label: 'Valor hora', get: ct => (ct.valor_hora ? Number(ct.valor_hora) : null) },
+    { label: 'Precio ref.', get: ct => Number(ct.precio_acordado) },
+    { label: 'Inicio', get: ct => ct.fecha_inicio },
+    { label: 'Estado', get: ct => ct.estado },
+    { label: '' }
+  ])
 
   const estadoColor = {
     activo:     { bg: '#d1fae5', color: '#059669' },
@@ -266,12 +279,10 @@ function Contratos() {
         : (
           <table style={s.tabla}>
             <thead>
-              <tr>{['Número','Cliente','Servicio','Facturación','Valor hora','Precio ref.','Inicio','Estado',''].map(h => (
-                <th key={h} style={s.tablaCabecera(c.main)}>{h}</th>
-              ))}</tr>
+              <tr>{encabezados(s.tablaCabecera(c.main))}</tr>
             </thead>
             <tbody>
-              {contratos.map((ct, i) => {
+              {ordenadas.map((ct, i) => {
                 const ec = estadoColor[ct.estado] || { bg: '#f1f5f9', color: '#64748b' }
                 const fc = facturacionColor[ct.tipo_facturacion] || facturacionColor.precio_fijo
                 return (

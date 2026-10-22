@@ -115,3 +115,8 @@ html { -webkit-text-size-adjust: 100%; }
   .sg-kanban { display: flex !important; overflow-x: auto; scroll-snap-type: x mandatory; gap: 10px; padding-bottom: 8px; }
   .sg-kanban > * { flex: 0 0 82%; scroll-snap-align: start; }
 }
+
+/* Tablero: en celular las alertas van primero */
+@media (max-width: 820px) {
+  .sg-tab-der { order: -1; position: static !important; }
+}

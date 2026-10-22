@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../supabase.js'
+import { useOrden } from '../ordenTabla.jsx'
 import { s, colores } from '../estilos.js'
 import { HardHat, Pencil, Plus, X } from 'lucide-react'
 
@@ -86,6 +87,16 @@ function Personal() {
     (e.dni || '').includes(busqueda)
   )
 
+  const { ordenadas, encabezados } = useOrden(filtrados, [
+    { label: 'Empleado', get: e => `${e.apellido || ''} ${e.nombre || ''}`.trim() },
+    { label: 'DNI', get: e => e.dni },
+    { label: 'Puesto', get: e => e.puesto },
+    { label: 'Contrato', get: e => e.tipo_contrato },
+    { label: 'Salario', get: e => (e.salario_base ? Number(e.salario_base) : null) },
+    { label: 'Costo/hora', get: e => (e.costo_hora ? Number(e.costo_hora) : null) },
+    { label: 'Teléfono', get: e => e.telefono },
+    { label: '' }
+  ])
   const tipoLabel = { relacion_dependencia: 'Relación dependencia', monotributo: 'Monotributo', eventual: 'Eventual' }
 
   return (
@@ -214,14 +225,10 @@ function Personal() {
         : (
           <table style={s.tabla}>
             <thead>
-              <tr>
-                {['Empleado', 'DNI', 'Puesto', 'Contrato', 'Salario', 'Costo/hora', 'Teléfono', ''].map(h => (
-                  <th key={h} style={s.tablaCabecera(c.main)}>{h}</th>
-                ))}
-              </tr>
+              <tr>{encabezados(s.tablaCabecera(c.main))}</tr>
             </thead>
             <tbody>
-              {filtrados.map((e, i) => (
+              {ordenadas.map((e, i) => (
                 <tr key={e.id} style={s.tablaFila(i)}>
                   <td style={s.tablaCellBold}>{e.apellido}, {e.nombre}</td>
                   <td style={s.tablaCell}>{e.dni}</td>
