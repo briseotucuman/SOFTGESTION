@@ -459,6 +459,24 @@ function Dashboard({ user }) {
         modulo: 'facturacion'
       }))
 
+      // Cheques: recordatorio para depositar (de terceros) y para tener fondos (propios)
+      const hoyLocal = hoy.toLocaleDateString('en-CA')
+      const limiteCh = new Date(hoy); limiteCh.setDate(hoy.getDate() + 5)
+      const { data: chAbiertos } = await supabase.from('cheques').select('numero, banco, importe, fecha_pago, tipo, estado, clientes(razon_social,nombre_contacto), proveedores(razon_social)')
+        .in('estado', ['cartera', 'emitido']).lte('fecha_pago', limiteCh.toLocaleDateString('en-CA')).order('fecha_pago')
+      ;(chAbiertos || []).forEach(ch => {
+        const dias = Math.round((new Date(ch.fecha_pago + 'T12:00:00') - new Date(hoyLocal + 'T12:00:00')) / 86400000)
+        const cuando = dias < 0 ? `venció hace ${-dias} día${dias === -1 ? '' : 's'}` : dias === 0 ? 'vence HOY' : `vence en ${dias} día${dias === 1 ? '' : 's'}`
+        const quien = ch.tipo === 'tercero' ? (ch.clientes?.razon_social || ch.clientes?.nombre_contacto || '') : (ch.proveedores?.razon_social || '')
+        nuevasAlertas.push({
+          tipo: dias <= 0 ? 'danger' : 'warning',
+          titulo: ch.tipo === 'tercero' ? `Depositar cheque ${ch.numero}: ${cuando}` : `Cheque propio ${ch.numero}: ${cuando} (tener fondos)`,
+          detalle: [ch.banco, quien].filter(Boolean).join(' · ') || 'Cheque',
+          monto: Number(ch.importe),
+          modulo: 'finanzas'
+        })
+      })
+
       const { data: empleadosActivos } = await supabase.from('empleados').select('id, nombre, apellido').eq('activo', true)
       const { data: liquidacionesMes } = await supabase.from('liquidaciones_sueldo').select('empleado_id').eq('periodo', mes)
       const liquidados = (liquidacionesMes || []).map(l => l.empleado_id)
