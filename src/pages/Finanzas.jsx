@@ -1,4 +1,4 @@
-import { registrarCobroConRetenciones, retencionesVacias, totalRetenciones, chequeVacio, validarCheque, crearChequeTercero, crearChequePropio } from '../cobrosUtils.js'
+import { registrarCobroConRetenciones, retencionesVacias, totalRetenciones, listaChequesVacia, totalCheques, validarCheques, crearChequesTercero, crearChequesPropios } from '../cobrosUtils.js'
 import RetencionesCobro from './RetencionesCobro.jsx'
 import DatosCheque from './DatosCheque.jsx'
 import VistaRetenciones from './VistaRetenciones.jsx'
@@ -85,7 +85,7 @@ function Finanzas({ vistaInicial = 'movimientos' }) {
   const [mostrarImportarCompras, setMostrarImportarCompras] = useState(false)
   const [formCompra, setFormCompra] = useState({ proveedor_id: '', cliente_id: '', numero_factura: '', fecha_emision: new Date().toISOString().split('T')[0], fecha_vencimiento: '', categoria: 'Insumos', total: '', observaciones: '' })
   const [pagandoFactura, setPagandoFactura] = useState(null)
-  const [datosCheque, setDatosCheque] = useState(chequeVacio())
+  const [datosCheque, setDatosCheque] = useState(listaChequesVacia())
   const [formPagoCompra, setFormPagoCompra] = useState({ monto: '', medio_pago: 'transferencia', cuenta_id: '', referencia: '', fecha_pago: new Date().toISOString().split('T')[0] })
   const [filtroPagar, setFiltroPagar] = useState('todas') // 'todas' | 'pendientes' | 'pagadas'
   const [busquedaPagar, setBusquedaPagar] = useState('')
@@ -510,7 +510,7 @@ function Finanzas({ vistaInicial = 'movimientos' }) {
   }
 
   function abrirPago(factura) {
-    setPagandoFactura(factura); setDatosCheque({ ...chequeVacio(), librador: factura.proveedores?.razon_social || '' })
+    setPagandoFactura(factura); setDatosCheque(listaChequesVacia(factura.proveedores?.razon_social || ''))
     setFormPagoCompra({ monto: saldoPendiente(factura).toFixed(2), medio_pago: 'transferencia', cuenta_id: '', referencia: '', fecha_pago: new Date().toISOString().split('T')[0] })
   }
 
@@ -523,14 +523,14 @@ function Finanzas({ vistaInicial = 'movimientos' }) {
     if (monto > saldoCompra + 0.01 && !window.confirm(`El pago (${monto.toLocaleString('es-AR', { style: 'currency', currency: 'ARS' })}) supera el saldo pendiente de la factura (${Math.max(0, saldoCompra).toLocaleString('es-AR', { style: 'currency', currency: 'ARS' })}). ¿Registrarlo igual?`)) return
     const esChequeCompra = formPagoCompra.medio_pago === 'cheque'
     if (esChequeCompra) {
-      const eCh = validarCheque(datosCheque); if (eCh) { alert(eCh); return }
+      const eCh = validarCheques(datosCheque, monto); if (eCh) { alert(eCh); return }
       guardandoPagoCompra.current = true
       try {
-        await crearChequePropio({ cheque: datosCheque, importe: monto, facturaCompra: pagandoFactura, cuenta_id: formPagoCompra.cuenta_id })
+        await crearChequesPropios({ cheques: datosCheque, facturaCompra: pagandoFactura, cuenta_id: formPagoCompra.cuenta_id })
       } catch (err) { guardandoPagoCompra.current = false; alert('No se pudo cargar el cheque: ' + (err.message || err)); return }
       guardandoPagoCompra.current = false
-      setPagandoFactura(null); setDatosCheque(chequeVacio())
-      alert('Cheque propio cargado como emitido. El pago se registra y sale de la cuenta cuando lo marques como debitado en Bancos y cheques > Cheques.')
+      setPagandoFactura(null); setDatosCheque(listaChequesVacia())
+      alert('Cheque(s) propio(s) cargado(s) como emitido. El pago se registra y sale de la cuenta cuando lo marques como debitado en Bancos y cheques > Cheques.')
       await cargarDatos(); emitirCambioDatos('finanzas')
       return
     }
@@ -560,7 +560,7 @@ function Finanzas({ vistaInicial = 'movimientos' }) {
   // ---------- Cuentas por cobrar ----------
   function abrirCobro(factura) {
     setCobrandoFactura(factura)
-    setDatosCheque({ ...chequeVacio(), librador: factura.clientes?.razon_social || factura.clientes?.nombre_contacto || '' })
+    setDatosCheque(listaChequesVacia(factura.clientes?.razon_social || factura.clientes?.nombre_contacto || ''))
     setFormCobro({ monto: saldoPendienteVenta(factura).toFixed(2), medio_pago: 'transferencia', cuenta_id: '', referencia: '', fecha_pago: new Date().toISOString().split('T')[0], retenciones: retencionesVacias(), certificado: '' })
   }
 
@@ -571,7 +571,7 @@ function Finanzas({ vistaInicial = 'movimientos' }) {
     const totRet = totalRetenciones(formCobro.retenciones)
     if (neto <= 0 && totRet <= 0) { alert('Ingresá el importe recibido o alguna retención'); return }
     const esCheque = formCobro.medio_pago === 'cheque'
-    if (esCheque && neto > 0) { const eCh = validarCheque(datosCheque); if (eCh) { alert(eCh); return } }
+    if (esCheque && neto > 0) { const eCh = validarCheques(datosCheque, neto); if (eCh) { alert(eCh); return } }
     if (neto > 0 && !esCheque && !formCobro.cuenta_id) { alert('Elegí a qué cuenta entra el cobro'); return }
     const saldoFactura = saldoPendienteVenta(cobrandoFactura)
     if (neto + totRet > saldoFactura + 0.01 && !window.confirm(`El cobro (${(neto + totRet).toLocaleString('es-AR', { style: 'currency', currency: 'ARS' })}) supera el saldo pendiente de la factura (${Math.max(0, saldoFactura).toLocaleString('es-AR', { style: 'currency', currency: 'ARS' })}). ¿Registrarlo igual?`)) return
@@ -579,7 +579,7 @@ function Finanzas({ vistaInicial = 'movimientos' }) {
     const fechaCobro = formCobro.fecha_pago || new Date().toISOString().split('T')[0]
     try {
       let imputado = 0
-      if (esCheque && neto > 0) await crearChequeTercero({ cheque: datosCheque, importe: neto, factura: cobrandoFactura })
+      if (esCheque && neto > 0) await crearChequesTercero({ cheques: datosCheque, factura: cobrandoFactura })
       if (!esCheque || totRet > 0) {
         const r = await registrarCobroConRetenciones({
           factura: cobrandoFactura, neto: esCheque ? 0 : neto, retenciones: formCobro.retenciones, certificado: formCobro.certificado,
@@ -598,7 +598,7 @@ function Finanzas({ vistaInicial = 'movimientos' }) {
     }
     guardandoCobro.current = false
     setCobrandoFactura(null)
-    if (esCheque && neto > 0) alert('Cheque cargado en cartera. La factura se cancela cuando lo deposites o cobres desde Bancos y cheques > Cheques.')
+    if (esCheque && neto > 0) alert('Cheque(s) cargado(s) en cartera. La factura se cancela cuando lo deposites o cobres desde Bancos y cheques > Cheques.')
     await cargarDatos()
     emitirCambioDatos('finanzas')
   }
@@ -894,7 +894,7 @@ function Finanzas({ vistaInicial = 'movimientos' }) {
                     {cuentas.map(ct => <option key={ct.id} value={ct.id}>{ct.banco} — {ct.tipo}</option>)}
                   </select>
                 </div>
-                {formPagoCompra.medio_pago === 'cheque' && <DatosCheque propio valor={datosCheque} onChange={setDatosCheque} />}
+                {formPagoCompra.medio_pago === 'cheque' && <DatosCheque propio cheques={datosCheque} onChange={arr => { setDatosCheque(arr); const t = totalCheques(arr); if (t > 0) setFormPagoCompra(f => ({ ...f, monto: t.toFixed(2) })) }} />}
                 <div style={{ gridColumn: '1 / -1' }}><label style={s.label}>Fecha de pago</label><input type="date" style={s.input} value={formPagoCompra.fecha_pago || ''} max={new Date().toISOString().split('T')[0]} onChange={e => setFormPagoCompra({...formPagoCompra, fecha_pago: e.target.value})} required /></div>
                 <div style={{ gridColumn: '1 / -1' }}><label style={s.label}>Referencia</label><input style={s.input} value={formPagoCompra.referencia} onChange={e => setFormPagoCompra({...formPagoCompra, referencia: e.target.value})} /></div>
               </div>
@@ -1581,7 +1581,7 @@ function Finanzas({ vistaInicial = 'movimientos' }) {
                   </select>
                 </div>
                 <div style={{ gridColumn: '1 / -1' }}><label style={s.label}>Fecha de cobro</label><input type="date" style={s.input} value={formCobro.fecha_pago || ''} max={new Date().toISOString().split('T')[0]} onChange={e => setFormCobro({...formCobro, fecha_pago: e.target.value})} required /></div>
-                {formCobro.medio_pago === 'cheque' && <DatosCheque valor={datosCheque} onChange={setDatosCheque} />}
+                {formCobro.medio_pago === 'cheque' && <DatosCheque cheques={datosCheque} onChange={arr => { setDatosCheque(arr); const t = totalCheques(arr); if (t > 0) setFormCobro(f => ({ ...f, monto: t.toFixed(2) })) }} />}
                 <RetencionesCobro retenciones={formCobro.retenciones} certificado={formCobro.certificado} neto={formCobro.monto}
                   saldo={saldoPendienteVenta(cobrandoFactura)}
                   onChange={r => setFormCobro({ ...formCobro, retenciones: r })} onCertificado={v => setFormCobro({ ...formCobro, certificado: v })} />

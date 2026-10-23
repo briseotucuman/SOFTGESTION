@@ -1,4 +1,4 @@
-import { registrarCobroConRetenciones, retencionesVacias, totalRetenciones, chequeVacio, validarCheque, crearChequeTercero, crearChequePropio } from '../cobrosUtils.js'
+import { registrarCobroConRetenciones, retencionesVacias, totalRetenciones, listaChequesVacia, totalCheques, validarCheques, crearChequesTercero, crearChequesPropios } from '../cobrosUtils.js'
 import RetencionesCobro from './RetencionesCobro.jsx'
 import DatosCheque from './DatosCheque.jsx'
 import { useEffect, useState, useMemo, useRef } from 'react'
@@ -34,7 +34,7 @@ function Facturacion()  {
   const [pagos, setPagos] = useState([])
   const [cuentas, setCuentas] = useState([])
   const guardandoPago = useRef(false)
-  const [datosCheque, setDatosCheque] = useState(chequeVacio())
+  const [datosCheque, setDatosCheque] = useState(listaChequesVacia())
   const [formPago, setFormPago] = useState({ monto: '', medio_pago: 'transferencia', referencia: '', cuenta_id: '', fecha_pago: new Date().toISOString().split('T')[0], retenciones: retencionesVacias(), certificado: '' })
   const [busqueda, setBusqueda] = useState('')
   const [filtroEstado, setFiltroEstado] = useState('todos')
@@ -386,7 +386,7 @@ function Facturacion()  {
     const totRet = totalRetenciones(formPago.retenciones)
     if (neto <= 0 && totRet <= 0) { alert('Ingresá el importe recibido o alguna retención'); return }
     const esCheque = formPago.medio_pago === 'cheque'
-    if (esCheque && neto > 0) { const eCh = validarCheque(datosCheque); if (eCh) { alert(eCh); return } }
+    if (esCheque && neto > 0) { const eCh = validarCheques(datosCheque, neto); if (eCh) { alert(eCh); return } }
     if (neto > 0 && !esCheque && !formPago.cuenta_id) { alert('Elegí a qué cuenta entra el cobro'); return }
     const yaCobrado = pagos.reduce((a, p) => a + Number(p.monto), 0)
     const saldoFactura = Number(mostrarPagos.total) - yaCobrado
@@ -395,7 +395,7 @@ function Facturacion()  {
     const fechaCobro = formPago.fecha_pago || new Date().toISOString().split('T')[0]
     try {
       let imputado = 0
-      if (esCheque && neto > 0) await crearChequeTercero({ cheque: datosCheque, importe: neto, factura: mostrarPagos })
+      if (esCheque && neto > 0) await crearChequesTercero({ cheques: datosCheque, factura: mostrarPagos })
       if (!esCheque || totRet > 0) {
         const r = await registrarCobroConRetenciones({
           factura: mostrarPagos, neto: esCheque ? 0 : neto, retenciones: formPago.retenciones, certificado: formPago.certificado,
@@ -413,8 +413,8 @@ function Facturacion()  {
       alert('No se pudo registrar el cobro: ' + (err.message || err)); return
     }
     guardandoPago.current = false
-    setDatosCheque(chequeVacio())
-    if (esCheque && neto > 0) alert('Cheque cargado en cartera. La factura se cancela cuando lo deposites o cobres desde Finanzas > Cheques.')
+    setDatosCheque(listaChequesVacia())
+    if (esCheque && neto > 0) alert('Cheque(s) cargado(s) en cartera. La factura se cancela cuando lo deposites o cobres desde Finanzas > Cheques.')
     setFormPago({ monto: '', medio_pago: 'transferencia', referencia: '', cuenta_id: '', fecha_pago: new Date().toISOString().split('T')[0], retenciones: retencionesVacias(), certificado: '' })
     verPagos(mostrarPagos)
     await cargarDatos()
@@ -988,7 +988,7 @@ function Facturacion()  {
                       {cuentas.map(ct => <option key={ct.id} value={ct.id}>{ct.banco} — {ct.tipo}</option>)}
                     </select>
                   </div>
-                  {formPago.medio_pago === 'cheque' && <DatosCheque valor={datosCheque} onChange={setDatosCheque} />}
+                  {formPago.medio_pago === 'cheque' && <DatosCheque cheques={datosCheque} onChange={arr => { setDatosCheque(arr); const t = totalCheques(arr); if (t > 0) setFormPago(f => ({ ...f, monto: t.toFixed(2) })) }} />}
                   <RetencionesCobro retenciones={formPago.retenciones} certificado={formPago.certificado} neto={formPago.monto}
                     saldo={saldoPendiente}
                     onChange={r => setFormPago({ ...formPago, retenciones: r })} onCertificado={v => setFormPago({ ...formPago, certificado: v })} />

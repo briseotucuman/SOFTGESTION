@@ -57,35 +57,45 @@ export async function registrarCobroConRetenciones({ factura, neto, retenciones,
 }
 
 const hoyChequeISO = () => new Date().toISOString().split('T')[0]
-export const chequeVacio = () => ({ numero: '', banco: '', librador: '', fecha_emision: hoyChequeISO(), fecha_vencimiento: hoyChequeISO() })
+export const chequeVacio = () => ({ numero: '', banco: '', librador: '', importe: '', fecha_emision: hoyChequeISO(), fecha_vencimiento: hoyChequeISO() })
+export const listaChequesVacia = (librador = '') => [{ ...chequeVacio(), librador }]
+export const totalCheques = lista => lista.reduce((a, c) => a + (parseFloat(c.importe) || 0), 0)
 
-/** Valida los datos del cheque cargados en el modal; devuelve un mensaje de error o null. */
-export function validarCheque(ch) {
-  if (!ch.numero?.trim()) return 'Ingresá el número del cheque'
-  if (!ch.fecha_emision || !ch.fecha_vencimiento) return 'Completá la fecha de emisión y la de vencimiento del cheque'
-  if (ch.fecha_vencimiento < ch.fecha_emision) return 'El vencimiento del cheque no puede ser anterior a su emisión'
+/** Valida la lista de cheques cargados; devuelve un mensaje de error o null. */
+export function validarCheques(lista, importeEsperado) {
+  for (let i = 0; i < lista.length; i++) {
+    const ch = lista[i], n = lista.length > 1 ? ` (cheque ${i + 1})` : ''
+    if (!ch.numero?.trim()) return 'Ingresá el número del cheque' + n
+    if (!(parseFloat(ch.importe) > 0)) return 'Ingresá el importe del cheque' + n
+    if (!ch.fecha_emision || !ch.fecha_vencimiento) return 'Completá la fecha de emisión y la de vencimiento' + n
+    if (ch.fecha_vencimiento < ch.fecha_emision) return 'El vencimiento no puede ser anterior a la emisión' + n
+  }
+  const nums = lista.map(c => c.numero.trim())
+  if (new Set(nums).size !== nums.length) return 'Hay números de cheque repetidos'
+  if (importeEsperado !== undefined && Math.abs(totalCheques(lista) - importeEsperado) > 0.01) return 'La suma de los cheques no coincide con el importe a cobrar/pagar'
   return null
 }
 
+const filaCheque = (ch, extra) => ({
+  numero: ch.numero.trim(), banco: ch.banco || null, librador: ch.librador || null,
+  importe: parseFloat(ch.importe), fecha_emision: ch.fecha_emision, fecha_pago: ch.fecha_vencimiento, ...extra
+})
+
 /**
- * Cobro con cheque de tercero: el cheque queda EN CARTERA (no entra plata a ninguna cuenta hasta
- * depositarlo/cobrarlo desde Finanzas > Cheques, que recién ahí registra el cobro de la factura).
+ * Cobro con cheques de tercero (uno o varios, p. ej. diferidos): quedan EN CARTERA y la plata entra
+ * a la cuenta recién al depositarlos/cobrarlos desde Finanzas > Cheques, que ahí registra el cobro.
  */
-export async function crearChequeTercero({ cheque, importe, factura }) {
-  const { error } = await supabase.from('cheques').insert([{
-    tipo: 'tercero', estado: 'cartera', numero: cheque.numero.trim(), banco: cheque.banco || null,
-    librador: cheque.librador || null, importe, fecha_emision: cheque.fecha_emision, fecha_pago: cheque.fecha_vencimiento,
-    cliente_id: factura.cliente_id || null, factura_id: factura.id, cuenta_id: null
-  }])
+export async function crearChequesTercero({ cheques, factura }) {
+  const { error } = await supabase.from('cheques').insert(cheques.map(ch => filaCheque(ch, {
+    tipo: 'tercero', estado: 'cartera', cliente_id: factura.cliente_id || null, factura_id: factura.id, cuenta_id: null
+  })))
   if (error) throw error
 }
 
-/** Pago con cheque propio: queda EMITIDO; sale de la cuenta recién cuando se debita (Finanzas > Cheques). */
-export async function crearChequePropio({ cheque, importe, facturaCompra, cuenta_id }) {
-  const { error } = await supabase.from('cheques').insert([{
-    tipo: 'propio', estado: 'emitido', numero: cheque.numero.trim(), banco: cheque.banco || null,
-    librador: cheque.librador || null, importe, fecha_emision: cheque.fecha_emision, fecha_pago: cheque.fecha_vencimiento,
-    cuenta_id, proveedor_id: facturaCompra.proveedor_id || null, factura_compra_id: facturaCompra.id
-  }])
+/** Pago con cheques propios: quedan EMITIDOS y salen de la cuenta cuando se debitan (Finanzas > Cheques). */
+export async function crearChequesPropios({ cheques, facturaCompra, cuenta_id }) {
+  const { error } = await supabase.from('cheques').insert(cheques.map(ch => filaCheque(ch, {
+    tipo: 'propio', estado: 'emitido', cuenta_id, proveedor_id: facturaCompra.proveedor_id || null, factura_compra_id: facturaCompra.id
+  })))
   if (error) throw error
 }
