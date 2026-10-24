@@ -17,6 +17,7 @@ import ConciliacionBancaria from './ConciliacionBancaria.jsx'
 import { esCuentaBancaria } from '../finanzasUtils.js'
 import Compromisos from './Compromisos.jsx'
 import Resultados from './Resultados.jsx'
+import ResumenSemanal from './ResumenSemanal.jsx'
 import {
   construirItems, agruparPorTramos, agruparPorMes, totalEgresos as totalEgresosProy, isoLocal, NOMBRE_RUBRO, RUBROS_EGRESO,
 } from '../proyeccionCaja.js'
@@ -729,7 +730,7 @@ function Finanzas({ vistaInicial = 'movimientos' }) {
       {/* NAVEGACIÓN: secciones y, debajo, las vistas de la sección activa */}
       {(() => {
         const SECCIONES = [
-          { id: 'resumen', label: 'Resumen', vistas: [['resultados', 'Estado de resultados y cash flow'], ['movimientos', 'Movimientos'], ['estado-cuenta', 'Estado de cuenta'], ['proyeccion', 'Proyección de caja']] },
+          { id: 'resumen', label: 'Resumen', vistas: [['resultados', 'Estado de resultados y cash flow'], ['resumen-semanal', 'Resumen semanal'], ['movimientos', 'Movimientos'], ['estado-cuenta', 'Estado de cuenta'], ['proyeccion', 'Proyección de caja']] },
           { id: 'cobrar-pagar', label: 'Cobrar y pagar', vistas: [['por-cobrar', 'Cuentas por cobrar'], ['por-pagar', 'Cuentas por pagar'], ['cuenta-corriente', 'Cuentas corrientes'], ['compromisos', 'Préstamos e impuestos'], ['retenciones', 'Retenciones']] },
           { id: 'bancos', label: 'Bancos y cheques', vistas: [['conciliacion', 'Conciliación bancaria'], ['cheques', 'Cheques']] }
         ]
@@ -1808,6 +1809,7 @@ function Finanzas({ vistaInicial = 'movimientos' }) {
 
       {/* VISTA ESTADO DE CUENTA */}
       {vista === 'resultados' && <Resultados />}
+      {vista === 'resumen-semanal' && <ResumenSemanal />}
       {vista === 'cheques' && <Cheques />}
       {vista === 'cuenta-corriente' && <CuentaCorriente />}
       {vista === 'retenciones' && <VistaRetenciones />}
