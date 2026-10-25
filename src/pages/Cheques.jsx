@@ -130,7 +130,7 @@ export default function Cheques() {
     await supabase.from('movimientos_financieros').insert([{
       fecha, tipo: 'ingreso', categoria: ch.factura_id ? 'Cobranzas' : 'Otro ingreso',
       descripcion: `Cobro con cheque ${ch.numero} — ${nombreCliente(ch.clientes) || ch.librador || ''}`,
-      monto: ch.importe, cuenta_id: cuenta_id || null, comprobante: ref, forma_pago: 'Cheque', factura_id: ch.factura_id || null
+      monto: ch.importe, cuenta_id: cuenta_id || null, comprobante: ref, forma_pago: 'Cheque', factura_id: ch.factura_id || null, cliente_id: ch.cliente_id || null
     }])
   }
   async function pagoCompra(ch, fecha, cuenta_id, proveedorId, facturaCompraId, medio) {

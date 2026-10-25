@@ -18,6 +18,7 @@ import { esCuentaBancaria } from '../finanzasUtils.js'
 import Compromisos from './Compromisos.jsx'
 import Resultados from './Resultados.jsx'
 import ResumenSemanal from './ResumenSemanal.jsx'
+import RentabilidadClientes from './RentabilidadClientes.jsx'
 import {
   construirItems, agruparPorTramos, agruparPorMes, totalEgresos as totalEgresosProy, isoLocal, NOMBRE_RUBRO, RUBROS_EGRESO,
 } from '../proyeccionCaja.js'
@@ -57,7 +58,7 @@ function Finanzas({ vistaInicial = 'movimientos' }) {
     fecha: new Date().toISOString().split('T')[0],
     tipo: 'ingreso', categoria: '', descripcion: '',
     monto: '', cuenta_id: '', comprobante: '',
-    forma_pago: 'Efectivo', factura_id: ''
+    forma_pago: 'Efectivo', factura_id: '', cliente_id: ''
   })
   const [formCuenta, setFormCuenta] = useState({ banco: '', tipo: 'caja_ahorro', numero: '', cbu: '', saldo: '0' })
 
@@ -325,7 +326,7 @@ function Finanzas({ vistaInicial = 'movimientos' }) {
       fecha: m.fecha || new Date().toISOString().split('T')[0],
       tipo: m.tipo || 'ingreso', categoria: m.categoria || '', descripcion: m.descripcion || '',
       monto: m.monto || '', cuenta_id: m.cuenta_id || '', comprobante: m.comprobante || '',
-      forma_pago: m.forma_pago || 'Efectivo', factura_id: m.factura_id || ''
+      forma_pago: m.forma_pago || 'Efectivo', factura_id: m.factura_id || '', cliente_id: m.cliente_id || ''
     })
     setMostrarForm(true)
     window.scrollTo({ top: 0, behavior: 'smooth' })
@@ -333,12 +334,12 @@ function Finanzas({ vistaInicial = 'movimientos' }) {
 
   function cancelar() {
     setMostrarForm(false); setEditando(null)
-    setForm({ fecha: new Date().toISOString().split('T')[0], tipo: 'ingreso', categoria: '', descripcion: '', monto: '', cuenta_id: '', comprobante: '', forma_pago: 'Efectivo', factura_id: '' })
+    setForm({ fecha: new Date().toISOString().split('T')[0], tipo: 'ingreso', categoria: '', descripcion: '', monto: '', cuenta_id: '', comprobante: '', forma_pago: 'Efectivo', factura_id: '', cliente_id: '' })
   }
 
   async function guardarMovimiento(e) {
     e.preventDefault()
-    const datos = { ...form, monto: parseFloat(form.monto), cuenta_id: form.cuenta_id || null, factura_id: form.factura_id || null }
+    const datos = { ...form, monto: parseFloat(form.monto), cuenta_id: form.cuenta_id || null, factura_id: form.factura_id || null, cliente_id: form.cliente_id || null }
     if (editando) {
       if (editando.cuenta_id) await ajustarSaldo(editando.cuenta_id, -efectoEnSaldo(editando.tipo, editando.monto))
       const { error } = await supabase.from('movimientos_financieros').update(datos).eq('id', editando.id)
@@ -730,7 +731,7 @@ function Finanzas({ vistaInicial = 'movimientos' }) {
       {/* NAVEGACIÓN: secciones y, debajo, las vistas de la sección activa */}
       {(() => {
         const SECCIONES = [
-          { id: 'resumen', label: 'Resumen', vistas: [['resultados', 'Estado de resultados y cash flow'], ['resumen-semanal', 'Resumen semanal'], ['movimientos', 'Movimientos'], ['estado-cuenta', 'Estado de cuenta'], ['proyeccion', 'Proyección de caja']] },
+          { id: 'resumen', label: 'Resumen', vistas: [['resultados', 'Estado de resultados y cash flow'], ['rentabilidad', 'Rentabilidad por cliente'], ['resumen-semanal', 'Resumen semanal'], ['movimientos', 'Movimientos'], ['estado-cuenta', 'Estado de cuenta'], ['proyeccion', 'Proyección de caja']] },
           { id: 'cobrar-pagar', label: 'Cobrar y pagar', vistas: [['por-cobrar', 'Cuentas por cobrar'], ['por-pagar', 'Cuentas por pagar'], ['cuenta-corriente', 'Cuentas corrientes'], ['compromisos', 'Préstamos e impuestos'], ['retenciones', 'Retenciones']] },
           { id: 'bancos', label: 'Bancos y cheques', vistas: [['conciliacion', 'Conciliación bancaria'], ['cheques', 'Cheques']] }
         ]
@@ -789,6 +790,13 @@ function Finanzas({ vistaInicial = 'movimientos' }) {
                 <select style={s.input} value={form.categoria} onChange={e => setForm({...form, categoria: e.target.value})} required>
                   <option value="">Seleccionar</option>
                   {CATEGORIAS[form.tipo].map(cat => <option key={cat} value={cat}>{cat}</option>)}
+                </select>
+              </div>
+              <div>
+                <label style={s.label}>Cliente (centro de costos)</label>
+                <select style={s.input} value={form.cliente_id} onChange={e => setForm({...form, cliente_id: e.target.value})}>
+                  <option value="">Sin asignar (general)</option>
+                  {clientes.map(cl => <option key={cl.id} value={cl.id}>{cl.razon_social || cl.nombre_contacto}</option>)}
                 </select>
               </div>
               <div>
@@ -1317,7 +1325,7 @@ function Finanzas({ vistaInicial = 'movimientos' }) {
               <table style={{ ...s.tabla, minWidth: '880px', width: '100%' }}>
                 <thead>
                   <tr>
-                    {['Fecha','Tipo','Categoría','Descripción','Cuenta','Forma de pago','Comprobante'].map(h => <th key={h} style={s.tablaCabecera(c.main)}>{h}</th>)}
+                    {['Fecha','Tipo','Categoría','Descripción','Cliente','Cuenta','Forma de pago','Comprobante'].map(h => <th key={h} style={s.tablaCabecera(c.main)}>{h}</th>)}
                     <th style={{ ...s.tablaCabecera(c.main), textAlign: 'right', whiteSpace: 'nowrap' }}>Monto</th>
                     <th style={{
                       ...s.tablaCabecera(c.main),
@@ -1339,6 +1347,7 @@ function Finanzas({ vistaInicial = 'movimientos' }) {
                       <td style={s.tablaCell}><span style={s.badge(m.tipo === 'ingreso' ? '#d1fae5' : '#fee2e2', m.tipo === 'ingreso' ? '#059669' : '#dc2626')}>{m.tipo}</span></td>
                       <td style={s.tablaCell}>{m.categoria || '—'}</td>
                       <td style={s.tablaCell}>{m.descripcion || '—'}</td>
+                      <td style={{ ...s.tablaCell, fontSize: '12px' }}>{(() => { const cl = clientes.find(x => x.id === m.cliente_id); return cl ? (cl.razon_social || cl.nombre_contacto) : '—' })()}</td>
                       <td style={{ ...s.tablaCell, fontSize: '12px' }}>{cuentas.find(ct => ct.id === m.cuenta_id)?.banco || '—'}</td>
                       <td style={s.tablaCell}>{m.forma_pago || '—'}</td>
                       <td style={{ ...s.tablaCell, fontSize: '12px', color: '#94a3b8' }}>{m.comprobante || '—'}</td>
@@ -1810,6 +1819,7 @@ function Finanzas({ vistaInicial = 'movimientos' }) {
       {/* VISTA ESTADO DE CUENTA */}
       {vista === 'resultados' && <Resultados />}
       {vista === 'resumen-semanal' && <ResumenSemanal />}
+      {vista === 'rentabilidad' && <RentabilidadClientes />}
       {vista === 'cheques' && <Cheques />}
       {vista === 'cuenta-corriente' && <CuentaCorriente />}
       {vista === 'retenciones' && <VistaRetenciones />}

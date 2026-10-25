@@ -48,7 +48,7 @@ export async function registrarCobroConRetenciones({ factura, neto, retenciones,
   if (netoNum > 0) {
     await supabase.from('movimientos_financieros').insert([{
       fecha, tipo: 'ingreso', categoria: 'Cobranzas', descripcion, monto: netoNum,
-      cuenta_id, comprobante: referencia || null, forma_pago, factura_id: factura.id
+      cuenta_id, comprobante: referencia || null, forma_pago, factura_id: factura.id, cliente_id: factura.cliente_id || null
     }])
     const { data } = await supabase.from('cuentas_bancarias').select('saldo').eq('id', cuenta_id).single()
     if (data) await supabase.from('cuentas_bancarias').update({ saldo: Number(data.saldo) + netoNum }).eq('id', cuenta_id)
