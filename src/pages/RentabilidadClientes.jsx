@@ -28,18 +28,21 @@ export default function RentabilidadClientes() {
       supabase.from('costos_variables').select('cliente_id, monto, nombre, fecha').gte('fecha', desde),
       supabase.from('movimientos_financieros').select('cliente_id, tipo, monto, factura_id, descripcion, fecha').not('cliente_id', 'is', null).is('factura_id', null).gte('fecha', desde),
       supabase.from('liquidaciones_sueldo').select('total_bruto, periodo').gte('periodo', desdePer),
-      supabase.from('costos_fijos').select('monto, frecuencia, mes').eq('activo', true).gte('mes', desdePer)
+      supabase.from('costos_fijos').select('monto, frecuencia, mes').eq('activo', true).gte('mes', desdePer),
+      supabase.from('empleados').select('id, salario_base'),
+      supabase.from('asignaciones_empleado').select('*'),
+      supabase.from('parametros').select('valor').eq('clave', 'cargas_sociales_pct').maybeSingle()
     ])
     const err = res.find(r => r.error); setError(err ? err.error.message : '')
-    const [cl, fa, fc, cv, mv, li, cf] = res.map(r => r.data || [])
-    setClientes(cl); setD({ fa, fc, cv, mv, li, cf }); setCargando(false)
+    const [cl, fa, fc, cv, mv, li, cf, em, asg] = res.map(r => r.data || [])
+    setClientes(cl); setD({ fa, fc, cv, mv, li, cf, em, asg, cargas: Number(res[9].data?.valor || 0), desdePer }); setCargando(false)
   }
   useEffect(() => { cargar() }, [meses]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const calc = useMemo(() => {
     if (!d.fa) return null
     const mapa = {}
-    const get = id => (mapa[id] ||= { id, ventas: 0, compras: 0, variables: 0, otrosEgr: 0, otrosIng: 0, lineas: [] })
+    const get = id => (mapa[id] ||= { id, personal: 0, ventas: 0, compras: 0, variables: 0, otrosEgr: 0, otrosIng: 0, lineas: [] })
     d.fa.forEach(f => { get(f.cliente_id).ventas += Number(f.subtotal ?? f.total) })
     d.fc.filter(f => f.cliente_id).forEach(f => { const x = get(f.cliente_id); const m = Number(f.subtotal ?? f.total); x.compras += m; x.lineas.push({ t: 'Compra', det: `${f.proveedores?.razon_social || ''} ${f.concepto || f.numero_factura || ''}`.trim(), monto: m, fecha: f.fecha_emision }) })
     d.cv.filter(c => c.cliente_id).forEach(c => { const x = get(c.cliente_id); x.variables += Number(c.monto); x.lineas.push({ t: 'Costo variable', det: c.nombre, monto: Number(c.monto), fecha: c.fecha }) })
@@ -48,12 +51,27 @@ export default function RentabilidadClientes() {
       if (m.tipo === 'egreso') { x.otrosEgr += Number(m.monto); x.lineas.push({ t: 'Egreso imputado', det: m.descripcion, monto: Number(m.monto), fecha: m.fecha }) }
       else x.otrosIng += Number(m.monto)
     })
+    // Personal: costo mensual de cada empleado (liquidado del mes, o sueldo base + cargas) repartido según sus asignaciones
+    const mesesPer = []; { let m = d.desdePer; const fin = new Date().toLocaleDateString('en-CA').slice(0, 7); while (m <= fin) { mesesPer.push(m); const [y, mm] = m.split('-').map(Number); m = mm === 12 ? `${y + 1}-01` : `${y}-${String(mm + 1).padStart(2, '0')}` } }
+    const liqMes = {}; d.li.forEach(l => { const k = String(l.periodo).slice(0, 7); liqMes[k] = (liqMes[k] || 0) + Number(l.total_bruto || 0) })
+    let personalTotal = 0, personalAsignado = 0
+    mesesPer.forEach(mes => {
+      const ini = mes + '-01', fin = mes + '-31'
+      const costoEmp = d.em.map(e => ({ id: e.id, costo: Number(e.salario_base || 0) * (1 + d.cargas / 100) }))
+      const base = liqMes[mes] ?? costoEmp.reduce((a, e) => a + e.costo, 0)
+      const k = base / (costoEmp.reduce((a, e) => a + e.costo, 0) || 1) // escala al liquidado real si existe
+      personalTotal += base
+      costoEmp.forEach(e => d.asg.filter(a => a.empleado_id === e.id && a.desde <= fin && (!a.hasta || a.hasta >= ini)).forEach(a => {
+        const monto = e.costo * (liqMes[mes] != null ? k : 1) * Number(a.porcentaje) / 100
+        const x = get(a.cliente_id); x.personal += monto; personalAsignado += monto; x.lineas.push({ t: 'Personal', det: `Sueldo asignado (${Number(a.porcentaje)}%)`, monto, fecha: ini })
+      }))
+    })
     const ventasTot = Object.values(mapa).reduce((a, x) => a + x.ventas, 0)
-    const indirectos = d.li.reduce((a, l) => a + Number(l.total_bruto || 0), 0) +
+    const indirectos = (personalTotal - personalAsignado) +
       d.cf.reduce((a, c) => a + (c.frecuencia === 'anual' ? Number(c.monto) / 12 : Number(c.monto)), 0)
     const filas = Object.values(mapa).map(x => {
       const ing = x.ventas + x.otrosIng
-      const directos = x.compras + x.variables + x.otrosEgr
+      const directos = x.compras + x.variables + x.otrosEgr + x.personal
       const indir = prorratear && ventasTot > 0 ? indirectos * (x.ventas / ventasTot) : 0
       const res = ing - directos - indir
       const cli = clientes.find(c => c.id === x.id)
@@ -93,7 +111,7 @@ export default function RentabilidadClientes() {
         </select>
         <label style={{ fontSize: 13, display: 'flex', alignItems: 'center', gap: 6 }}>
           <input type="checkbox" checked={prorratear} onChange={e => setProrratear(e.target.checked)} />
-          Prorratear sueldos y gastos fijos ({ars(calc.indirectos)}) según ventas
+          Prorratear gastos generales: personal no asignado y fijos ({ars(calc.indirectos)}) según ventas
         </label>
         <button style={{ ...s.btnSecundario, marginLeft: 'auto' }} onClick={exportar}><Download size={13} style={{ verticalAlign: '-2px' }} /> Exportar</button>
       </div>
@@ -150,7 +168,7 @@ export default function RentabilidadClientes() {
           ))}
         </div>
       )}
-      <p style={{ fontSize: 12, color: '#94a3b8', marginTop: 8 }}>Ingresos: ventas netas por fecha de factura (más otros ingresos imputados al cliente). Costos directos: compras imputadas, costos variables y egresos cargados a mano con ese cliente. Hacé clic en un cliente para ver su detalle.</p>
+      <p style={{ fontSize: 12, color: '#94a3b8', marginTop: 8 }}>Ingresos: ventas netas por fecha de factura (más otros ingresos imputados al cliente). Costos directos: compras imputadas, costos variables, egresos cargados a mano y el personal asignado (Finanzas > Personal por cliente). Hacé clic en un cliente para ver su detalle.</p>
     </div>
   )
 }
