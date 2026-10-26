@@ -31,11 +31,12 @@ export default function RentabilidadClientes() {
       supabase.from('costos_fijos').select('monto, frecuencia, mes').eq('activo', true).gte('mes', desdePer),
       supabase.from('empleados').select('id, salario_base'),
       supabase.from('asignaciones_empleado').select('*'),
-      supabase.from('parametros').select('valor').eq('clave', 'cargas_sociales_pct').maybeSingle()
+      supabase.from('parametros').select('valor').eq('clave', 'cargas_sociales_pct').maybeSingle(),
+      supabase.from('horarios_servicio').select('empleado_id, cliente_id, dias, hora_desde, hora_hasta').eq('activo', true)
     ])
     const err = res.find(r => r.error); setError(err ? err.error.message : '')
     const [cl, fa, fc, cv, mv, li, cf, em, asg] = res.map(r => r.data || [])
-    setClientes(cl); setD({ fa, fc, cv, mv, li, cf, em, asg, cargas: Number(res[9].data?.valor || 0), desdePer }); setCargando(false)
+    setClientes(cl); setD({ fa, fc, cv, mv, li, cf, em, asg, cargas: Number(res[9].data?.valor || 0), hor: res[10].data || [], desdePer }); setCargando(false)
   }
   useEffect(() => { cargar() }, [meses]) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -61,10 +62,31 @@ export default function RentabilidadClientes() {
       const base = liqMes[mes] ?? costoEmp.reduce((a, e) => a + e.costo, 0)
       const k = base / (costoEmp.reduce((a, e) => a + e.costo, 0) || 1) // escala al liquidado real si existe
       personalTotal += base
-      costoEmp.forEach(e => d.asg.filter(a => a.empleado_id === e.id && a.desde <= fin && (!a.hasta || a.hasta >= ini)).forEach(a => {
-        const monto = e.costo * (liqMes[mes] != null ? k : 1) * Number(a.porcentaje) / 100
-        const x = get(a.cliente_id); x.personal += monto; personalAsignado += monto; x.lineas.push({ t: 'Personal', det: `Sueldo asignado (${Number(a.porcentaje)}%)`, monto, fecha: ini })
-      }))
+      const [anio, mesN] = mes.split('-').map(Number)
+      const diasMes = new Date(anio, mesN, 0).getDate()
+      const cuenta = Array(8).fill(0) // cantidad de cada día de la semana (1=lun..7=dom) en el mes
+      for (let i = 1; i <= diasMes; i++) cuenta[new Date(anio, mesN - 1, i).getDay() || 7]++
+      const horasHor = h => { const t = x => { const [a, b] = String(x).split(':'); return Number(a) + Number(b) / 60 }; return (t(h.hora_hasta) - t(h.hora_desde)) * (h.dias || []).reduce((a, n) => a + cuenta[n], 0) }
+      costoEmp.forEach(e => {
+        const monto = e.costo * (liqMes[mes] != null ? k : 1)
+        const asigs = d.asg.filter(a => a.empleado_id === e.id && a.desde <= fin && (!a.hasta || a.hasta >= ini))
+        if (asigs.length) {
+          asigs.forEach(a => {
+            const m = monto * Number(a.porcentaje) / 100
+            const x = get(a.cliente_id); x.personal += m; personalAsignado += m; x.lineas.push({ t: 'Personal', det: `Sueldo asignado (${Number(a.porcentaje)}%)`, monto: m, fecha: ini })
+          })
+          return
+        }
+        const hs = d.hor.filter(h => h.empleado_id === e.id)
+        const totalH = hs.reduce((a, h) => a + horasHor(h), 0)
+        if (!totalH) return
+        const porCli = {}
+        hs.forEach(h => { if (h.cliente_id) porCli[h.cliente_id] = (porCli[h.cliente_id] || 0) + horasHor(h) })
+        Object.entries(porCli).forEach(([cid, h]) => {
+          const m = monto * h / totalH
+          const x = get(cid); x.personal += m; personalAsignado += m; x.lineas.push({ t: 'Personal', det: `${Math.round(h * 10) / 10} hs del mes`, monto: m, fecha: ini })
+        })
+      })
     })
     const ventasTot = Object.values(mapa).reduce((a, x) => a + x.ventas, 0)
     const indirectos = (personalTotal - personalAsignado) +
