@@ -53,14 +53,14 @@ export const colores = {
 export const s = {
   cabecera: (fondo) => ({
     background: fondo,
-    borderRadius: '10px',
-    padding: '16px 20px',
+    borderRadius: '22px',
+    padding: '18px 24px',
     marginBottom: '20px',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'space-between',
-    boxShadow: '0 1px 3px 0 rgba(15, 23, 42, 0.08), 0 1px 2px -1px rgba(15, 23, 42, 0.06)',
-    border: '1px solid rgba(255, 255, 255, 0.12)'
+    boxShadow: '0 12px 28px -14px rgba(37, 99, 235, 0.45)',
+    border: '1px solid rgba(255, 255, 255, 0.25)'
   }),
   cabeceraTexto: {
     color: '#FFFFFF',
@@ -80,8 +80,8 @@ export const s = {
   btnPrimario: (color) => ({
     background: color || paleta.brand,
     color: '#FFFFFF',
-    border: '1px solid rgba(0, 0, 0, 0.12)',
-    borderRadius: '6px',
+    border: '1px solid rgba(255, 255, 255, 0.35)',
+    borderRadius: '12px',
     padding: '8px 16px',
     fontWeight: '600',
     fontSize: '13px',
@@ -92,13 +92,15 @@ export const s = {
     alignItems: 'center',
     justifyContent: 'center',
     gap: '6px',
-    boxShadow: '0 1px 2px 0 rgba(0, 0, 0, 0.05)'
+    boxShadow: '0 6px 14px -6px rgba(37, 99, 235, 0.45)'
   }),
   btnSecundario: {
-    background: '#FFFFFF',
+    background: 'rgba(255, 255, 255, 0.7)',
     color: paleta.inkSoft,
-    border: `1px solid ${paleta.lineStrong}`,
-    borderRadius: '6px',
+    border: '1px solid rgba(255, 255, 255, 0.9)',
+    backdropFilter: 'blur(10px)',
+    WebkitBackdropFilter: 'blur(10px)',
+    borderRadius: '12px',
     padding: '8px 15px',
     fontWeight: '600',
     fontSize: '13px',
@@ -114,7 +116,7 @@ export const s = {
     background: '#FFF1F2',
     color: paleta.danger,
     border: '1px solid #FECDD3',
-    borderRadius: '6px',
+    borderRadius: '12px',
     padding: '5px 11px',
     fontWeight: '600',
     fontSize: '12px',
@@ -123,12 +125,14 @@ export const s = {
   },
 
   card: {
-    background: paleta.surface,
-    borderRadius: '10px',
+    background: 'rgba(255, 255, 255, 0.6)',
+    backdropFilter: 'blur(18px) saturate(160%)',
+    WebkitBackdropFilter: 'blur(18px) saturate(160%)',
+    borderRadius: '22px',
     padding: '22px',
     marginBottom: '18px',
-    boxShadow: '0 1px 3px 0 rgba(15, 23, 42, 0.04), 0 1px 2px -1px rgba(15, 23, 42, 0.03)',
-    border: `1px solid ${paleta.line}`
+    boxShadow: '0 10px 30px -14px rgba(37, 99, 235, 0.25)',
+    border: '1px solid rgba(255, 255, 255, 0.85)'
   },
   label: {
     display: 'block',
@@ -142,9 +146,9 @@ export const s = {
     width: '100%',
     padding: '9px 12px',
     boxSizing: 'border-box',
-    background: paleta.surface,
-    border: `1px solid ${paleta.lineStrong}`,
-    borderRadius: '6px',
+    background: 'rgba(255, 255, 255, 0.8)',
+    border: '1px solid rgba(148, 163, 184, 0.45)',
+    borderRadius: '12px',
     color: paleta.ink,
     fontSize: '13.5px',
     outline: 'none',
@@ -169,40 +173,40 @@ export const s = {
     fontSize: '13px',
     fontVariantNumeric: 'tabular-nums'
   },
-  tablaCabecera: (color) => ({
-    background: color || '#1E293B',
-    color: '#FFFFFF',
+  tablaCabecera: () => ({
+    background: 'rgba(37, 99, 235, 0.09)',
+    color: '#1E3A8A',
     padding: '10px 14px',
     textAlign: 'left',
     fontWeight: '600',
     fontSize: '11.5px',
     letterSpacing: '0.04em',
     textTransform: 'uppercase',
-    borderBottom: `1px solid ${paleta.line}`
+    borderBottom: '1px solid rgba(37, 99, 235, 0.12)'
   }),
   tablaFila: (i) => ({
-    background: i % 2 === 0 ? '#FFFFFF' : '#F8FAFC',
+    background: i % 2 === 0 ? 'rgba(255, 255, 255, 0.55)' : 'rgba(255, 255, 255, 0.3)',
     transition: 'background 0.12s ease'
   }),
   tablaCell: {
     padding: '11px 14px',
     color: paleta.inkSoft,
-    borderBottom: `1px solid ${paleta.line}`,
+    borderBottom: '1px solid rgba(148, 163, 184, 0.22)',
     fontSize: '13px'
   },
   tablaCellBold: {
     padding: '11px 14px',
     color: paleta.ink,
     fontWeight: '600',
-    borderBottom: `1px solid ${paleta.line}`,
+    borderBottom: '1px solid rgba(148, 163, 184, 0.22)',
     fontSize: '13px'
   },
 
   badge: (bg, color) => ({
     background: bg || paleta.surfaceMuted,
     color: color || paleta.inkSoft,
-    padding: '2px 8px',
-    borderRadius: '4px',
+    padding: '2px 10px',
+    borderRadius: '999px',
     fontSize: '11px',
     fontWeight: '600',
     display: 'inline-flex',
@@ -216,9 +220,9 @@ export const s = {
     width: '100%',
     maxWidth: '340px',
     padding: '8px 13px',
-    background: paleta.surface,
-    border: `1px solid ${paleta.lineStrong}`,
-    borderRadius: '6px',
+    background: 'rgba(255, 255, 255, 0.8)',
+    border: '1px solid rgba(148, 163, 184, 0.45)',
+    borderRadius: '999px',
     fontSize: '13px',
     outline: 'none',
     color: paleta.ink,

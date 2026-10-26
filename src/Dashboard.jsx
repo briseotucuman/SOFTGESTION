@@ -25,6 +25,7 @@ import Reportes from './pages/Reportes.jsx'
 import Usuarios from './pages/Usuarios.jsx'
 
 // Módulos restringidos a rol admin (coincide con las políticas RLS en Supabase)
+const FONDO_GLASS = 'radial-gradient(900px 500px at 8% -10%, rgba(147,197,253,0.55), transparent 60%), radial-gradient(800px 500px at 100% 0%, rgba(191,219,254,0.7), transparent 55%), linear-gradient(160deg, #f8fbff 0%, #e8f0fe 100%) fixed'
 const SOLO_ADMIN = ['facturacion', 'finanzas', 'conciliacion', 'costos', 'sueldos', 'usuarios']
 
 const GRUPOS_MENU = [
@@ -980,7 +981,7 @@ function Dashboard({ user }) {
         </header>
 
         {/* CUERPO DEL CONTENIDO */}
-        <main className="sg-main" style={{ flex: 1, padding: esMovil ? '12px' : '24px', overflowY: 'auto', background: paleta.paper }}>
+        <main className="sg-main" style={{ flex: 1, padding: esMovil ? '12px' : '24px', overflowY: 'auto', background: FONDO_GLASS }}>
           {seccionActiva === 'inicio' ? (
             <div style={{ maxWidth: '1440px', margin: '0 auto' }}>
               <InicioGlass
