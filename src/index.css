@@ -123,3 +123,7 @@ html { -webkit-text-size-adjust: 100%; }
 
 @keyframes sg-giro { to { transform: rotate(360deg) } }
 .sg-girar { animation: sg-giro 1s linear infinite }
+
+/* Tablas anchas (movimientos): celdas más compactas y sin cortar encabezados */
+.sg-tabla-compacta th, .sg-tabla-compacta td { padding-left: 9px !important; padding-right: 9px !important; }
+.sg-tabla-compacta th { white-space: nowrap; }

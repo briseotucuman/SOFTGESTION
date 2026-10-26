@@ -1324,14 +1324,14 @@ function Finanzas({ vistaInicial = 'movimientos' }) {
             {loading ? <div style={s.empty}>Cargando...</div>
             : movMes.length === 0 ? <div style={s.empty}>No hay movimientos este mes</div>
             : (
-              <table style={{ ...s.tabla, minWidth: '880px', width: '100%' }}>
+              <table className="sg-tabla-compacta" style={{ ...s.tabla, minWidth: '1000px', width: '100%' }}>
                 <thead>
                   <tr>
                     {['Fecha','Tipo','Categoría','Descripción','Cliente','Cuenta','Forma de pago','Comprobante'].map(h => <th key={h} style={s.tablaCabecera(c.main)}>{h}</th>)}
                     <th style={{ ...s.tablaCabecera(c.main), textAlign: 'right', whiteSpace: 'nowrap' }}>Monto</th>
                     <th style={{
                       ...s.tablaCabecera(c.main),
-                      position: 'sticky',
+                      position: 'static',
                       right: 0,
                       zIndex: 3,
                       textAlign: 'center',
@@ -1356,9 +1356,9 @@ function Finanzas({ vistaInicial = 'movimientos' }) {
                       <td style={{ ...s.tablaCellBold, textAlign: 'right', whiteSpace: 'nowrap', color: m.tipo === 'ingreso' ? '#059669' : '#dc2626' }}>{m.tipo === 'ingreso' ? '+' : '-'}{Number(m.monto).toLocaleString('es-AR', { style: 'currency', currency: 'ARS' })}</td>
                       <td style={{
                         ...s.tablaCell,
-                        position: 'sticky',
+                        position: 'static',
                         right: 0,
-                        background: i % 2 === 0 ? '#FFFFFF' : '#F8FAFC',
+                        background: 'transparent',
                         zIndex: 2,
                         textAlign: 'center',
                         minWidth: '100px',
@@ -1491,7 +1491,7 @@ function Finanzas({ vistaInicial = 'movimientos' }) {
                         <th style={{ ...s.tablaCabecera(c.main), textAlign: 'center', whiteSpace: 'nowrap' }}>Estado</th>
                         <th style={{
                           ...s.tablaCabecera(c.main),
-                          position: 'sticky',
+                          position: 'static',
                           right: 0,
                           zIndex: 3,
                           textAlign: 'center',
@@ -1519,7 +1519,7 @@ function Finanzas({ vistaInicial = 'movimientos' }) {
                             <td style={{ ...s.tablaCell, textAlign: 'center', whiteSpace: 'nowrap' }}><span style={s.badge(ec.bg, ec.color)}>{f.estado}</span></td>
                             <td style={{
                               ...s.tablaCell,
-                              position: 'sticky',
+                              position: 'static',
                               right: 0,
                               background: bgColor,
                               zIndex: 2,
@@ -1744,7 +1744,7 @@ function Finanzas({ vistaInicial = 'movimientos' }) {
                             <th style={{ ...s.tablaCabecera(c.main), textAlign: 'center', whiteSpace: 'nowrap' }}>Estado</th>
                             <th style={{
                               ...s.tablaCabecera(c.main),
-                              position: 'sticky',
+                              position: 'static',
                               right: 0,
                               zIndex: 3,
                               textAlign: 'center',
@@ -1773,7 +1773,7 @@ function Finanzas({ vistaInicial = 'movimientos' }) {
                                 <td style={{ ...s.tablaCell, textAlign: 'center', whiteSpace: 'nowrap' }}><span style={s.badge(ec.bg, ec.color)}>{f.estado}</span></td>
                                 <td style={{
                                   ...s.tablaCell,
-                                  position: 'sticky',
+                                  position: 'static',
                                   right: 0,
                                   background: bgColor,
                                   zIndex: 2,
