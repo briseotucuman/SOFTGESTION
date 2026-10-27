@@ -6,7 +6,7 @@ import {
   BarChart3, ClipboardList, Briefcase, Factory, TrendingUp, UserCog,
   Bell, CheckCircle2, LogOut, ChevronLeft, ChevronRight, RefreshCw,
   Search, Command, Clock, AlertTriangle, ArrowUpRight,
-  Shield, Check, ExternalLink, Radar, ShieldCheck, Menu
+  Shield, Check, ExternalLink, Radar, ShieldCheck, Menu, ClipboardCheck, FolderOpen
 } from 'lucide-react'
 import Clientes from './pages/Clientes.jsx'
 import CRM from './pages/CRM.jsx'
@@ -18,6 +18,8 @@ import Facturacion from './pages/Facturacion.jsx'
 import Insumos from './pages/Insumos.jsx'
 import Finanzas from './pages/Finanzas.jsx'
 import InicioGlass from './pages/InicioGlass.jsx'
+import ControlDatos from './pages/ControlDatos.jsx'
+import Documentos from './pages/Documentos.jsx'
 import Costos from './pages/Costos.jsx'
 import Sueldos from './pages/Sueldos.jsx'
 import Proveedores from './pages/Proveedores.jsx'
@@ -26,7 +28,7 @@ import Usuarios from './pages/Usuarios.jsx'
 
 // Módulos restringidos a rol admin (coincide con las políticas RLS en Supabase)
 const FONDO_GLASS = 'radial-gradient(900px 500px at 8% -10%, rgba(147,197,253,0.55), transparent 60%), radial-gradient(800px 500px at 100% 0%, rgba(191,219,254,0.7), transparent 55%), linear-gradient(160deg, #f8fbff 0%, #e8f0fe 100%) fixed'
-const SOLO_ADMIN = ['facturacion', 'finanzas', 'conciliacion', 'costos', 'sueldos', 'usuarios']
+const SOLO_ADMIN = ['control', 'documentos', 'facturacion', 'finanzas', 'conciliacion', 'costos', 'sueldos', 'usuarios']
 
 const GRUPOS_MENU = [
   {
@@ -61,6 +63,8 @@ const GRUPOS_MENU = [
   {
     label: 'Análisis y accesos',
     items: [
+      { id: 'control',   icon: ClipboardCheck, label: 'Control y cierre', desc: 'Qué falta cargar o revisar para que los números cierren' },
+      { id: 'documentos', icon: FolderOpen,    label: 'Documentos',       desc: 'Archivo digital de facturas, cheques y contratos' },
       { id: 'reportes', icon: TrendingUp, label: 'Reportes', desc: 'Métricas gerenciales y rentabilidad' },
       { id: 'usuarios', icon: UserCog,    label: 'Usuarios', desc: 'Permisos del sistema y accesos' },
     ]
@@ -1005,6 +1009,8 @@ function Dashboard({ user }) {
               {seccionActiva === 'facturacion' && esAdmin && <Facturacion />}
               {seccionActiva === 'insumos' && <Insumos />}
               {seccionActiva === 'finanzas' && esAdmin && <Finanzas />}
+              {seccionActiva === 'control' && esAdmin && <ControlDatos onIr={id => setSeccionActiva(id)} />}
+              {seccionActiva === 'documentos' && esAdmin && <Documentos />}
               {seccionActiva === 'conciliacion' && esAdmin && <Finanzas vistaInicial="conciliacion" />}
               {seccionActiva === 'costos' && esAdmin && <Costos />}
               {seccionActiva === 'sueldos' && esAdmin && <Sueldos />}
