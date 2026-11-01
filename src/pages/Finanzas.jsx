@@ -21,6 +21,8 @@ import ResumenSemanal from './ResumenSemanal.jsx'
 import RentabilidadClientes from './RentabilidadClientes.jsx'
 import AsignacionPersonal from './AsignacionPersonal.jsx'
 import HorariosServicio from './HorariosServicio.jsx'
+import Facturacion from './Facturacion.jsx'
+import Costos from './Costos.jsx'
 import {
   construirItems, agruparPorTramos, agruparPorMes, totalEgresos as totalEgresosProy, isoLocal, NOMBRE_RUBRO, RUBROS_EGRESO,
 } from '../proyeccionCaja.js'
@@ -735,6 +737,7 @@ function Finanzas({ vistaInicial = 'movimientos' }) {
         const SECCIONES = [
           { id: 'resumen', label: 'Resumen', vistas: [['resultados', 'Estado de resultados y cash flow'], ['rentabilidad', 'Rentabilidad por cliente'], ['asignacion-personal', 'Personal por cliente'], ['horarios', 'Horarios de servicio'], ['resumen-semanal', 'Resumen semanal'], ['movimientos', 'Movimientos'], ['estado-cuenta', 'Estado de cuenta'], ['proyeccion', 'Proyección de caja']] },
           { id: 'cobrar-pagar', label: 'Cobrar y pagar', vistas: [['por-cobrar', 'Cuentas por cobrar'], ['por-pagar', 'Cuentas por pagar'], ['cuenta-corriente', 'Cuentas corrientes'], ['compromisos', 'Préstamos e impuestos'], ['retenciones', 'Retenciones']] },
+          { id: 'facturacion-costos', label: 'Facturación y costos', vistas: [['facturacion', 'Facturación'], ['costos', 'Costos']] },
           { id: 'bancos', label: 'Bancos y cheques', vistas: [['conciliacion', 'Conciliación bancaria'], ['cheques', 'Cheques']] }
         ]
         const seccionActiva = SECCIONES.find(sec => sec.vistas.some(([id]) => id === vista)) || SECCIONES[0]
@@ -1824,6 +1827,8 @@ function Finanzas({ vistaInicial = 'movimientos' }) {
       {vista === 'rentabilidad' && <RentabilidadClientes />}
       {vista === 'asignacion-personal' && <AsignacionPersonal />}
       {vista === 'horarios' && <HorariosServicio />}
+      {vista === 'facturacion' && <Facturacion />}
+      {vista === 'costos' && <Costos />}
       {vista === 'cheques' && <Cheques />}
       {vista === 'cuenta-corriente' && <CuentaCorriente />}
       {vista === 'retenciones' && <VistaRetenciones />}

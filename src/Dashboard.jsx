@@ -19,6 +19,7 @@ import Insumos from './pages/Insumos.jsx'
 import Finanzas from './pages/Finanzas.jsx'
 import InicioGlass from './pages/InicioGlass.jsx'
 import ControlDatos from './pages/ControlDatos.jsx'
+import ModuloTabs from './ModuloTabs.jsx'
 import Documentos from './pages/Documentos.jsx'
 import Costos from './pages/Costos.jsx'
 import Sueldos from './pages/Sueldos.jsx'
@@ -28,9 +29,9 @@ import Usuarios from './pages/Usuarios.jsx'
 
 // Módulos restringidos a rol admin (coincide con las políticas RLS en Supabase)
 const FONDO_GLASS = 'radial-gradient(900px 500px at 8% -10%, rgba(147,197,253,0.55), transparent 60%), radial-gradient(800px 500px at 100% 0%, rgba(191,219,254,0.7), transparent 55%), linear-gradient(160deg, #f8fbff 0%, #e8f0fe 100%) fixed'
-const SOLO_ADMIN = ['control', 'documentos', 'facturacion', 'finanzas', 'conciliacion', 'costos', 'sueldos', 'usuarios']
+const SOLO_ADMIN = ['administracion', 'control', 'documentos', 'facturacion', 'finanzas', 'conciliacion', 'costos', 'sueldos', 'usuarios']
 
-const GRUPOS_MENU = [
+const HOJAS_MENU = [
   {
     label: 'Clientes y ventas',
     items: [
@@ -71,7 +72,43 @@ const GRUPOS_MENU = [
   }
 ]
 
-const TODOS_LOS_ITEMS = GRUPOS_MENU.flatMap(g => g.items)
+const TODOS_LOS_ITEMS = HOJAS_MENU.flatMap(g => g.items)
+
+// Menú principal: tres módulos con solapas + accesos de análisis
+const MENU_PRINCIPAL = [
+  {
+    label: 'Gestión',
+    items: [
+      { id: 'comercial',      icon: Users,     label: 'Comercial',      desc: 'Clientes, contratos, CRM y presupuestos' },
+      { id: 'operaciones',    icon: HardHat,   label: 'Operaciones',    desc: 'Agenda, personal, insumos y proveedores' },
+      { id: 'administracion', icon: BarChart3, label: 'Administración', desc: 'Finanzas, sueldos y contabilidad' },
+    ]
+  },
+  {
+    label: 'Análisis y accesos',
+    items: [
+      { id: 'control',    icon: ClipboardCheck, label: 'Control y cierre', desc: 'Qué falta cargar o revisar para que los números cierren' },
+      { id: 'documentos', icon: FolderOpen,     label: 'Documentos',       desc: 'Archivo digital de facturas, cheques y contratos' },
+      { id: 'reportes',   icon: TrendingUp,     label: 'Reportes',         desc: 'Métricas gerenciales y rentabilidad' },
+      { id: 'usuarios',   icon: UserCog,        label: 'Usuarios',         desc: 'Permisos del sistema y accesos' },
+    ]
+  }
+]
+
+// Solapas de cada módulo: [id, etiqueta, icono]
+const MODULOS = {
+  comercial:      [['clientes', 'Clientes', Users], ['contratos', 'Contratos', FileText], ['crm', 'CRM', Radar], ['presupuestos', 'Presupuestos', Wallet]],
+  operaciones:    [['agenda', 'Agenda', CalendarDays], ['personal', 'Personal', HardHat], ['insumos', 'Insumos', Package], ['proveedores', 'Proveedores', Factory]],
+  administracion: [['finanzas', 'Finanzas', BarChart3], ['sueldos', 'Sueldos', Briefcase]],
+}
+// Atajos: id de pantalla anterior -> [módulo, solapa, vista interna de Finanzas]
+const RUTAS = {
+  clientes: ['comercial', 'clientes'], contratos: ['comercial', 'contratos'], crm: ['comercial', 'crm'], presupuestos: ['comercial', 'presupuestos'],
+  agenda: ['operaciones', 'agenda'], personal: ['operaciones', 'personal'], insumos: ['operaciones', 'insumos'], proveedores: ['operaciones', 'proveedores'],
+  finanzas: ['administracion', 'finanzas', 'movimientos'], facturacion: ['administracion', 'finanzas', 'facturacion'],
+  costos: ['administracion', 'finanzas', 'costos'], conciliacion: ['administracion', 'finanzas', 'conciliacion'],
+  sueldos: ['administracion', 'sueldos'],
+}
 
 const alertaEstilo = {
   danger:  { dot: '#BE123C', bg: '#FFF1F2', text: '#BE123C', label: 'Crítico' },
@@ -134,7 +171,18 @@ function obtenerRangosPeriodo() {
 }
 
 function Dashboard({ user }) {
-  const [seccionActiva, setSeccionActiva] = useState('inicio')
+  const [seccionActiva, setSeccionBase] = useState('inicio')
+  const [tabsModulo, setTabsModulo] = useState({ comercial: 'clientes', operaciones: 'agenda', administracion: 'finanzas' })
+  const [finVista, setFinVista] = useState('movimientos')
+  const [finClave, setFinClave] = useState(0)
+  // Navegar a una sección (o a una pantalla que ahora vive dentro de un módulo)
+  function setSeccionActiva(id) {
+    const r = RUTAS[id]
+    if (!r) { setSeccionBase(id); return }
+    setSeccionBase(r[0])
+    setTabsModulo(t => ({ ...t, [r[0]]: r[1] }))
+    if (r[2]) { setFinVista(r[2]); setFinClave(k => k + 1) }
+  }
   const [menuAbierto, setMenuAbierto] = useState(true)
   const [mostrarModulos, setMostrarModulos] = useState(false)
   const [esMovil, setEsMovil] = useState(() => typeof window !== 'undefined' && window.matchMedia('(max-width: 820px)').matches)
@@ -522,7 +570,7 @@ function Dashboard({ user }) {
   }
 
   const menuVisible = useMemo(() => {
-    return GRUPOS_MENU.map(g => ({
+    return MENU_PRINCIPAL.map(g => ({
       ...g,
       items: g.items.filter(i => !i.oculto && (esAdmin || !SOLO_ADMIN.includes(i.id)))
     })).filter(g => g.items.length > 0)
@@ -541,8 +589,8 @@ function Dashboard({ user }) {
     )
   }, [queryBusqueda, todosItemsDisponibles])
 
-  const itemActivo = TODOS_LOS_ITEMS.find(m => m.id === seccionActiva)
-  const grupoActivo = GRUPOS_MENU.find(g => g.items.some(it => it.id === seccionActiva))
+  const itemActivo = MENU_PRINCIPAL.flatMap(g => g.items).find(m => m.id === seccionActiva)
+  const grupoActivo = MENU_PRINCIPAL.find(g => g.items.some(it => it.id === seccionActiva))
   const nombreUsuario = user.email.split('@')[0]
   const iniciales = nombreUsuario.slice(0, 2).toUpperCase()
 
@@ -550,7 +598,8 @@ function Dashboard({ user }) {
   const conteoAlertasPorModulo = useMemo(() => {
     const mapa = {}
     alertas.forEach(a => {
-      mapa[a.modulo] = (mapa[a.modulo] || 0) + 1
+      const k = RUTAS[a.modulo]?.[0] || a.modulo
+      mapa[k] = (mapa[k] || 0) + 1
     })
     return mapa
   }, [alertas])
@@ -993,28 +1042,34 @@ function Dashboard({ user }) {
                 nombre={nombreUsuario.charAt(0).toUpperCase() + nombreUsuario.slice(1)}
                 filtroPeriodo={filtroPeriodo} setFiltroPeriodo={setFiltroPeriodo}
                 onIr={id => setSeccionActiva(id)}
-                grupos={GRUPOS_MENU.map(g => ({ ...g, items: g.items.filter(i => !i.oculto && (esAdmin || !SOLO_ADMIN.includes(i.id))) })).filter(g => g.items.length)}
+                grupos={HOJAS_MENU.map(g => ({ ...g, items: g.items.filter(i => !i.oculto && (esAdmin || !SOLO_ADMIN.includes(i.id))) })).filter(g => g.items.length)}
                 actualizando={actualizandoKpis} onActualizar={() => { cargarKpis(); cargarAlertas() }}
               />
             </div>
           ) : (
             /* RENDERIZADO DE LOS MÓDULOS ESPECÍFICOS */
             <div style={{ maxWidth: '1440px', margin: '0 auto' }}>
-              {seccionActiva === 'clientes' && <Clientes />}
-              {seccionActiva === 'crm' && <CRM />}
-              {seccionActiva === 'contratos' && <Contratos />}
-              {seccionActiva === 'personal' && <Personal />}
-              {seccionActiva === 'agenda' && <Agenda />}
-              {seccionActiva === 'presupuestos' && <Presupuestos />}
-              {seccionActiva === 'facturacion' && esAdmin && <Facturacion />}
-              {seccionActiva === 'insumos' && <Insumos />}
-              {seccionActiva === 'finanzas' && esAdmin && <Finanzas />}
+              {MODULOS[seccionActiva] && (esAdmin || !SOLO_ADMIN.includes(seccionActiva)) && (() => {
+                const tabs = MODULOS[seccionActiva].filter(t => esAdmin || !SOLO_ADMIN.includes(t[0]))
+                const activa = tabs.some(t => t[0] === tabsModulo[seccionActiva]) ? tabsModulo[seccionActiva] : tabs[0]?.[0]
+                const titulos = { comercial: 'Comercial', operaciones: 'Operaciones', administracion: 'Administración' }
+                return (
+                  <ModuloTabs titulo={titulos[seccionActiva]} tabs={tabs} activa={activa} onCambiar={id => setTabsModulo(t => ({ ...t, [seccionActiva]: id }))}>
+                    {activa === 'clientes' && <Clientes />}
+                    {activa === 'contratos' && <Contratos />}
+                    {activa === 'crm' && <CRM />}
+                    {activa === 'presupuestos' && <Presupuestos />}
+                    {activa === 'agenda' && <Agenda />}
+                    {activa === 'personal' && <Personal />}
+                    {activa === 'insumos' && <Insumos />}
+                    {activa === 'proveedores' && <Proveedores />}
+                    {activa === 'finanzas' && <Finanzas key={finClave} vistaInicial={finVista} />}
+                    {activa === 'sueldos' && <Sueldos />}
+                  </ModuloTabs>
+                )
+              })()}
               {seccionActiva === 'control' && esAdmin && <ControlDatos onIr={id => setSeccionActiva(id)} />}
               {seccionActiva === 'documentos' && esAdmin && <Documentos />}
-              {seccionActiva === 'conciliacion' && esAdmin && <Finanzas vistaInicial="conciliacion" />}
-              {seccionActiva === 'costos' && esAdmin && <Costos />}
-              {seccionActiva === 'sueldos' && esAdmin && <Sueldos />}
-              {seccionActiva === 'proveedores' && <Proveedores />}
               {seccionActiva === 'reportes' && <Reportes />}
               {seccionActiva === 'usuarios' && esAdmin && <Usuarios />}
             </div>
