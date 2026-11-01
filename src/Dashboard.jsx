@@ -7,6 +7,7 @@ import {
   Bell, CheckCircle2, LogOut, ChevronLeft, ChevronRight, RefreshCw,
   Search, Command, Clock, AlertTriangle, ArrowUpRight,
   Shield, Check, ExternalLink, Radar, ShieldCheck, Menu, ClipboardCheck, FolderOpen
+  , Calculator
 } from 'lucide-react'
 import Clientes from './pages/Clientes.jsx'
 import CRM from './pages/CRM.jsx'
@@ -23,13 +24,14 @@ import ModuloTabs from './ModuloTabs.jsx'
 import Documentos from './pages/Documentos.jsx'
 import Costos from './pages/Costos.jsx'
 import Sueldos from './pages/Sueldos.jsx'
+import Contabilidad from './pages/Contabilidad.jsx'
 import Proveedores from './pages/Proveedores.jsx'
 import Reportes from './pages/Reportes.jsx'
 import Usuarios from './pages/Usuarios.jsx'
 
 // Módulos restringidos a rol admin (coincide con las políticas RLS en Supabase)
 const FONDO_GLASS = 'radial-gradient(900px 500px at 8% -10%, rgba(147,197,253,0.55), transparent 60%), radial-gradient(800px 500px at 100% 0%, rgba(191,219,254,0.7), transparent 55%), linear-gradient(160deg, #f8fbff 0%, #e8f0fe 100%) fixed'
-const SOLO_ADMIN = ['administracion', 'control', 'documentos', 'facturacion', 'finanzas', 'conciliacion', 'costos', 'sueldos', 'usuarios']
+const SOLO_ADMIN = ['administracion', 'control', 'documentos', 'facturacion', 'finanzas', 'conciliacion', 'costos', 'sueldos', 'contabilidad', 'usuarios']
 
 const HOJAS_MENU = [
   {
@@ -57,6 +59,7 @@ const HOJAS_MENU = [
       { id: 'finanzas',     icon: BarChart3,     label: 'Finanzas',              desc: 'Caja, cobros y pagos, cheques y bancos' },
       { id: 'costos',       icon: ClipboardList, label: 'Costos',                desc: 'Costeo operativo por servicio y cliente' },
       { id: 'sueldos',      icon: Briefcase,     label: 'Sueldos',               desc: 'Liquidación salarial y jornales' },
+      { id: 'contabilidad', icon: Calculator,    label: 'Contabilidad',          desc: 'Plan de cuentas, asientos, mayor, balances e impuestos' },
       // Atajo a Finanzas > Conciliación bancaria: no se muestra en el menú, sí en el buscador (Ctrl K)
       { id: 'conciliacion', icon: ShieldCheck,   label: 'Conciliación Bancaria', desc: 'Resúmenes bancarios y conciliación', oculto: true },
     ]
@@ -99,7 +102,7 @@ const MENU_PRINCIPAL = [
 const MODULOS = {
   comercial:      [['clientes', 'Clientes', Users], ['contratos', 'Contratos', FileText], ['crm', 'CRM', Radar], ['presupuestos', 'Presupuestos', Wallet]],
   operaciones:    [['agenda', 'Agenda', CalendarDays], ['personal', 'Personal', HardHat], ['insumos', 'Insumos', Package], ['proveedores', 'Proveedores', Factory]],
-  administracion: [['finanzas', 'Finanzas', BarChart3], ['sueldos', 'Sueldos', Briefcase]],
+  administracion: [['finanzas', 'Finanzas', BarChart3], ['sueldos', 'Sueldos', Briefcase], ['contabilidad', 'Contabilidad', Calculator]],
 }
 // Atajos: id de pantalla anterior -> [módulo, solapa, vista interna de Finanzas]
 const RUTAS = {
@@ -107,7 +110,7 @@ const RUTAS = {
   agenda: ['operaciones', 'agenda'], personal: ['operaciones', 'personal'], insumos: ['operaciones', 'insumos'], proveedores: ['operaciones', 'proveedores'],
   finanzas: ['administracion', 'finanzas', 'movimientos'], facturacion: ['administracion', 'finanzas', 'facturacion'],
   costos: ['administracion', 'finanzas', 'costos'], conciliacion: ['administracion', 'finanzas', 'conciliacion'],
-  sueldos: ['administracion', 'sueldos'],
+  sueldos: ['administracion', 'sueldos'], contabilidad: ['administracion', 'contabilidad'],
 }
 
 const alertaEstilo = {
@@ -1065,6 +1068,7 @@ function Dashboard({ user }) {
                     {activa === 'proveedores' && <Proveedores />}
                     {activa === 'finanzas' && <Finanzas key={finClave} vistaInicial={finVista} />}
                     {activa === 'sueldos' && <Sueldos />}
+                    {activa === 'contabilidad' && <Contabilidad />}
                   </ModuloTabs>
                 )
               })()}
