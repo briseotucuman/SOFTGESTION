@@ -101,9 +101,13 @@ export default function InicioGlass({ kpis, metrica, alertas, esAdmin, nombre, f
     }}>
       {/* Encabezado */}
       <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 14, flexWrap: 'wrap', marginBottom: 18 }}>
-        <div>
-          <div style={{ fontSize: 13, color: GRIS, textTransform: 'capitalize' }}>{fechaTxt}</div>
-          <h1 style={{ margin: 0, fontSize: 'clamp(24px, 4vw, 34px)', fontWeight: 600, color: TINTA, letterSpacing: '-0.02em' }}>Hola, {nombre} <span style={{ color: AZUL }}>·</span> Briseo SRL</h1>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+          <div style={{ ...vidrio, padding: 8, borderRadius: 18, display: 'flex' }}><img src="/logo.jpg" alt="Briseo Limpieza" style={{ height: 46, width: 46, objectFit: 'contain', borderRadius: 10 }} /></div>
+          <div>
+            <div style={{ fontSize: 13, color: GRIS, textTransform: 'capitalize' }}>{fechaTxt}</div>
+            <h1 style={{ margin: 0, fontSize: 'clamp(22px, 4vw, 32px)', fontWeight: 600, color: TINTA, letterSpacing: '-0.02em' }}>Hola, {nombre}</h1>
+            <div style={{ fontSize: 13, color: AZUL, fontWeight: 600 }}>Briseo Limpieza <span style={{ color: GRIS, fontWeight: 400 }}>· DAG Group S.R.L.</span></div>
+          </div>
         </div>
         <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
           <div style={{ ...vidrio, padding: 4, borderRadius: 999, display: 'flex' }}>

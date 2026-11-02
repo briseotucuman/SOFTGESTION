@@ -345,7 +345,7 @@ function CRM() {
     }
 
     const nombreSaludo = contacto ? contacto.split(' ')[0] : destinatario
-    const textoInicial = `Hola ${nombreSaludo}, te escribo desde Briseo Servicios respecto a la propuesta de limpieza y mantenimiento. ¿Pudiste evaluarla o tenés alguna duda que podamos despejar? Saludos cordiales.`
+    const textoInicial = `Hola ${nombreSaludo}, te escribo desde Briseo Limpieza respecto a la propuesta de limpieza y mantenimiento. ¿Pudiste evaluarla o tenés alguna duda que podamos despejar? Saludos cordiales.`
 
     setDatosMensaje({
       destinatario,

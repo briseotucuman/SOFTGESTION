@@ -613,7 +613,7 @@ function Dashboard({ user }) {
         <div style={{ background: '#FFFFFF', padding: '10px', borderRadius: '12px', marginBottom: '16px' }}>
           <img src="/logo.jpg" alt="Briseo" style={{ height: '36px', width: '36px', objectFit: 'contain' }} />
         </div>
-        <p style={{ margin: 0, fontSize: '15px', fontWeight: '600', color: '#F8FAFC' }}>Iniciando entorno ERP…</p>
+        <p style={{ margin: 0, fontSize: '15px', fontWeight: '600', color: '#F8FAFC' }}>Iniciando Briseo Limpieza…</p>
         <p style={{ margin: '6px 0 0', fontSize: '12px', color: '#64748B' }}>Cargando permisos y políticas de seguridad</p>
       </div>
     )
@@ -656,10 +656,10 @@ function Dashboard({ user }) {
               </div>
               <div style={{ minWidth: 0 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <span style={{ color: '#FFFFFF', fontWeight: '800', fontSize: '14px', letterSpacing: '-0.02em', whiteSpace: 'nowrap' }}>BRISEO</span>
+                  <span style={{ color: '#FFFFFF', fontWeight: '800', fontSize: '14px', letterSpacing: '-0.02em', whiteSpace: 'nowrap' }}>Briseo Limpieza</span>
                   <span style={{ background: '#0F766E', color: '#FFFFFF', fontSize: '9px', fontWeight: '700', padding: '1px 5px', borderRadius: '3px', letterSpacing: '0.04em' }}>ERP</span>
                 </div>
-                <p style={{ margin: '1px 0 0', color: '#64748B', fontSize: '10.5px', whiteSpace: 'nowrap', fontWeight: '500' }}>Softgestión Enterprise</p>
+                <p style={{ margin: '1px 0 0', color: '#64748B', fontSize: '10.5px', whiteSpace: 'nowrap', fontWeight: '500' }}>DAG Group S.R.L.</p>
               </div>
             </div>
           ) : (
@@ -933,7 +933,7 @@ function Dashboard({ user }) {
                 <Menu size={20} color="#0F172A" />
               </button>
             )}
-            {!esMovil && <span style={{ color: paleta.muted, fontSize: '13px', fontWeight: '500' }}>Briseo ERP</span>}
+            {!esMovil && <span style={{ color: paleta.muted, fontSize: '13px', fontWeight: '500' }}>Briseo Limpieza</span>}
             {!esMovil && <span style={{ color: paleta.lineStrong, fontSize: '13px' }}>/</span>}
             {grupoActivo && !esMovil && (
               <>

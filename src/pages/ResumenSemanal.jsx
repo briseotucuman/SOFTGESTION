@@ -51,7 +51,7 @@ export default function ResumenSemanal() {
     const tot = arr => arr.reduce((a, f) => a + f.saldo, 0)
     const chSemana = d.ch.filter(c => c.fecha_pago <= en7)
     const L = []
-    L.push(`RESUMEN SEMANAL — BRISEO`, `Al ${fmt(hoy)}`, '')
+    L.push(`RESUMEN SEMANAL — BRISEO LIMPIEZA (DAG Group S.R.L.)`, `Al ${fmt(hoy)}`, '')
     L.push(`ÚLTIMOS 7 DÍAS`, `Ingresos: ${ars(ingresos)}`, `Egresos: ${ars(egresos)}`, `Neto: ${ars(ingresos - egresos)}`, '')
     L.push(`CUENTAS POR COBRAR: ${ars(tot(porCobrar))} (${porCobrar.length} facturas)`)
     L.push(`  Vencidas: ${ars(tot(venc(porCobrar)))} (${venc(porCobrar).length})`)

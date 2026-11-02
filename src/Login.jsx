@@ -82,43 +82,43 @@ function Login({ onLogin }) {
   }
 
   return (
-    <div style={{ minHeight: '100vh', background: '#0F172A', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: paleta.font, padding: '24px' }}>
-      <div style={{ width: '100%', maxWidth: '960px', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))', background: '#FFFFFF', borderRadius: '16px', overflow: 'hidden', boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.45)', border: '1px solid #334155' }}>
+    <div style={{ minHeight: '100vh', background: 'radial-gradient(900px 520px at 8% -10%, rgba(147,197,253,0.7), transparent 60%), linear-gradient(160deg, #eaf2ff 0%, #bfd6fb 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: paleta.font, padding: '24px' }}>
+      <div style={{ width: '100%', maxWidth: '960px', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))', background: 'rgba(255,255,255,0.75)', backdropFilter: 'blur(20px)', borderRadius: '28px', overflow: 'hidden', boxShadow: '0 30px 60px -20px rgba(37,99,235,0.45)', border: '1px solid rgba(255,255,255,0.9)' }}>
 
         {/* PANEL IZQUIERDO: BRANDING & VALOR ENTERPRISE */}
-        <div style={{ background: 'linear-gradient(155deg, #0F172A 0%, #1E293B 100%)', padding: '48px 40px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', color: '#FFFFFF', position: 'relative' }}>
+        <div style={{ background: 'linear-gradient(155deg, #1d4ed8 0%, #3b82f6 100%)', padding: '48px 40px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', color: '#FFFFFF', position: 'relative' }}>
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '14px', marginBottom: '28px' }}>
               <div style={{ background: '#FFFFFF', padding: '6px', borderRadius: '10px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
                 <img src="/logo.jpg" alt="Briseo" style={{ height: '36px', width: '36px', objectFit: 'contain', borderRadius: '6px' }} />
               </div>
               <div>
-                <span style={{ fontSize: '11px', letterSpacing: '0.12em', color: '#2DD4BF', textTransform: 'uppercase', fontWeight: '700' }}>Enterprise Suite</span>
-                <h1 style={{ margin: 0, fontSize: '20px', fontWeight: '800', letterSpacing: '-0.02em', color: '#FFFFFF' }}>SOFTGESTION</h1>
+                <span style={{ fontSize: '11px', letterSpacing: '0.12em', color: '#DBEAFE', textTransform: 'uppercase', fontWeight: '700' }}>DAG Group S.R.L.</span>
+                <h1 style={{ margin: 0, fontSize: '20px', fontWeight: '800', letterSpacing: '-0.02em', color: '#FFFFFF' }}>Briseo Limpieza</h1>
               </div>
             </div>
 
             <h2 style={{ fontSize: '24px', fontWeight: '700', lineHeight: '1.25', margin: '0 0 16px', color: '#F8FAFC' }}>
-              Plataforma de Control Operativo y Financiero
+              Gestión integral de Briseo Limpieza
             </h2>
-            <p style={{ color: '#94A3B8', fontSize: '14px', lineHeight: '1.6', margin: '0 0 32px' }}>
-              Gestión centralizada para servicios de higiene industrial, contratos corporativos, logística de personal y facturación.
+            <p style={{ color: '#DBEAFE', fontSize: '14px', lineHeight: '1.6', margin: '0 0 32px' }}>
+              Clientes, contratos, personal, facturación y contabilidad en un solo lugar.
             </p>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '13px', color: '#CBD5E1' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '13px', color: '#EFF6FF' }}>
                 <div style={{ width: '22px', height: '22px', borderRadius: '50%', background: 'rgba(45, 212, 191, 0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                   <ShieldCheck size={14} color="#2DD4BF" />
                 </div>
                 <span>Autenticación segura con control de roles (RBAC)</span>
               </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '13px', color: '#CBD5E1' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '13px', color: '#EFF6FF' }}>
                 <div style={{ width: '22px', height: '22px', borderRadius: '50%', background: 'rgba(45, 212, 191, 0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                   <Building2 size={14} color="#2DD4BF" />
                 </div>
                 <span>Trazabilidad integral de clientes, contratos y sucursales</span>
               </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '13px', color: '#CBD5E1' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '13px', color: '#EFF6FF' }}>
                 <div style={{ width: '22px', height: '22px', borderRadius: '50%', background: 'rgba(45, 212, 191, 0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                   <CheckCircle size={14} color="#2DD4BF" />
                 </div>
@@ -127,9 +127,9 @@ function Login({ onLogin }) {
             </div>
           </div>
 
-          <div style={{ paddingTop: '32px', borderTop: '1px solid rgba(255, 255, 255, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '12px', color: '#64748B' }}>
-            <span>Briseo · SRL</span>
-            <span>Versión 2.4 ERP</span>
+          <div style={{ paddingTop: '32px', borderTop: '1px solid rgba(255, 255, 255, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '12px', color: '#BFDBFE' }}>
+            <span>Briseo Limpieza · DAG Group S.R.L.</span>
+            <span>San Miguel de Tucumán</span>
           </div>
         </div>
 
@@ -156,9 +156,9 @@ function Login({ onLogin }) {
           {modo === 'login' && (
             <div>
               <div style={{ marginBottom: '24px' }}>
-                <span style={{ fontSize: '12px', fontWeight: '600', color: paleta.brand, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Portal Corporativo</span>
+                <span style={{ fontSize: '12px', fontWeight: '600', color: paleta.brand, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Briseo Limpieza</span>
                 <h3 style={{ margin: '4px 0 6px', color: '#0F172A', fontWeight: '800', fontSize: '22px', letterSpacing: '-0.02em' }}>Iniciar Sesión</h3>
-                <p style={{ color: '#64748B', fontSize: '13px', margin: 0 }}>Accedé con tu cuenta autorizada de Briseo</p>
+                <p style={{ color: '#64748B', fontSize: '13px', margin: 0 }}>Accedé con tu cuenta autorizada</p>
               </div>
 
               {error && (
@@ -224,7 +224,7 @@ function Login({ onLogin }) {
                   type="button"
                   onClick={accesoRapidoDemo}
                   style={{ background: '#FFFFFF', border: '1px solid #CBD5E1', borderRadius: '6px', padding: '6px 12px', fontSize: '12px', fontWeight: '600', color: '#0F172A', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
-                  <Sparkles size={13} color="#0D9488" />
+                  <Sparkles size={13} color="#2563EB" />
                   <span>Entrar Demo</span>
                 </button>
               </div>

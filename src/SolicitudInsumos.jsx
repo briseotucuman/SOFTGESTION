@@ -39,7 +39,7 @@ function SolicitudInsumos() {
           </div>
           <div>
             <p style={{ margin: 0, fontWeight: '800', fontSize: '16px', color: paleta.ink }}>Portal de campo</p>
-            <p style={{ margin: 0, fontSize: '12.5px', color: paleta.muted }}>Briseo — pedidos y servicios por sucursal</p>
+            <p style={{ margin: 0, fontSize: '12.5px', color: paleta.muted }}>Briseo Limpieza — pedidos y servicios por sucursal</p>
           </div>
         </div>
 

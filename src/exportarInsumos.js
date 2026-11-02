@@ -79,7 +79,7 @@ function descargar(blob, nombre) {
 export async function exportarExcel(filas, desde, hasta) {
   const ExcelJS = (await import('exceljs')).default
   const wb = new ExcelJS.Workbook()
-  wb.creator = 'SOFTGESTION · Briseo'
+  wb.creator = 'Briseo Limpieza · DAG Group S.R.L.'
   const AZUL = 'FF0091DC'
   const fuente = { name: 'Arial', size: 10 }
   const borde = { style: 'thin', color: { argb: 'FFD0D7DE' } }
@@ -106,7 +106,7 @@ export async function exportarExcel(filas, desde, hasta) {
 
   // Hoja 1: detalle
   const ws = wb.addWorksheet('Detalle')
-  encabezado(ws, 'BRISEO — Pedidos de insumos', [
+  encabezado(ws, 'BRISEO LIMPIEZA · DAG Group S.R.L. — Pedidos de insumos', [
     { titulo: 'Fecha', ancho: 12 }, { titulo: 'Hora', ancho: 8 }, { titulo: 'Cliente', ancho: 36 },
     { titulo: 'Sucursal', ancho: 18 }, { titulo: 'Solicitado por', ancho: 18 },
     { titulo: 'Insumo', ancho: 66 }, { titulo: 'Cantidad', ancho: 10 }, { titulo: 'Estado', ancho: 12 },
@@ -141,7 +141,7 @@ export async function exportarExcel(filas, desde, hasta) {
 
   // Hoja 2: consolidado por insumo (útil para pasarle al proveedor)
   const wc = wb.addWorksheet('Consolidado por insumo')
-  encabezado(wc, 'BRISEO — Consolidado por insumo', [
+  encabezado(wc, 'BRISEO LIMPIEZA · DAG Group S.R.L. — Consolidado por insumo', [
     { titulo: 'Insumo', ancho: 70 }, { titulo: 'Cantidad total', ancho: 14 },
   ])
   let rc = 5
@@ -173,7 +173,7 @@ export async function exportarPDF(filas, desde, hasta) {
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(15)
   doc.setTextColor(0, 145, 220)
-  doc.text('BRISEO — Pedidos de insumos', 14, 15)
+  doc.text('BRISEO LIMPIEZA · DAG Group S.R.L. — Pedidos de insumos', 14, 15)
   doc.setFont('helvetica', 'normal')
   doc.setFontSize(9)
   doc.setTextColor(100)
