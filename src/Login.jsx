@@ -129,7 +129,7 @@ function Login({ onLogin }) {
 
           <div style={{ paddingTop: '32px', borderTop: '1px solid rgba(255, 255, 255, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '12px', color: '#BFDBFE' }}>
             <span>Briseo Limpieza · DAG Group S.R.L.</span>
-            <span>San Miguel de Tucumán</span>
+            <span>CUIT 33-71697052-9 · San Martín 930, 4° piso</span>
           </div>
         </div>
 
