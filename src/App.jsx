@@ -4,6 +4,7 @@ import { supabase } from './supabase.js'
 import Login from './Login.jsx'
 import Dashboard from './Dashboard.jsx'
 import SolicitudInsumos from './SolicitudInsumos.jsx'
+import Marcar from './Marcar.jsx'
 
 function AppPrivada() {
   const [session, setSession] = useState(null)
@@ -47,6 +48,7 @@ function App() {
     <BrowserRouter>
       <Routes>
         <Route path="/solicitud-insumos" element={<SolicitudInsumos />} />
+        <Route path="/marcar/:token" element={<Marcar />} />
         <Route path="*" element={<AppPrivada />} />
       </Routes>
     </BrowserRouter>
