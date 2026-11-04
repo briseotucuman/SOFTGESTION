@@ -31,7 +31,16 @@ export async function generarAsientos({ desde, hasta, regenerar = false, usuario
   const { data: plan, error: e0 } = await supabase.from('plan_cuentas').select('id, codigo')
   if (e0) throw e0
   const cta = Object.fromEntries((plan || []).map(p => [p.codigo, p.id]))
+  const asegurar = async (codigo, nombre, tipo, rubro, padre) => {
+    if (cta[codigo]) return
+    const { data, error } = await supabase.from('plan_cuentas').insert([{ codigo, nombre, tipo, rubro, imputable: true, padre_codigo: padre, sistema: true }]).select('id').single()
+    if (error) throw error
+    cta[codigo] = data.id
+  }
   if (!cta['1.1.01.01']) throw new Error('El plan de cuentas está vacío. Ejecutá primero el script de Contabilidad en Supabase.')
+
+  await asegurar('2.1.01.02', 'Cheques diferidos emitidos', 'pasivo', 'Deudas comerciales', '2.1.01')
+  await asegurar('5.3.03', 'Intereses de préstamos', 'egreso', 'Resultados financieros', '5.3')
 
   // Cuentas bancarias -> cuentas contables
   const { data: bancos } = await supabase.from('cuentas_bancarias').select('*')
@@ -87,10 +96,18 @@ export async function generarAsientos({ desde, hasta, regenerar = false, usuario
   })
 
   // 3) Cobros (con retenciones sufridas)
-  const pg = await traerTodo(() => supabase.from('pagos').select('id, fecha_pago, monto, monto_retenciones, cuenta_id, facturas(numero_factura, cliente_id, clientes(razon_social, nombre_contacto))').gte('fecha_pago', desde).lte('fecha_pago', hasta))
+  const pg = await traerTodo(() => supabase.from('pagos').select('id, fecha_pago, monto, monto_retenciones, medio_pago, cuenta_id, facturas(numero_factura, cliente_id, clientes(razon_social, nombre_contacto))').gte('fecha_pago', desde).lte('fecha_pago', hasta))
   const ret = await traerTodo(() => supabase.from('retenciones_cobro').select('pago_id, tipo, monto'))
   const retPor = {}; ret.forEach(r => { (retPor[r.pago_id] ||= []).push(r) })
   pg.forEach(p => {
+    // Cobro con cheque de terceros: el cheque ya se contabilizó al recibirlo (deudores -> cartera);
+    // al depositarlo pasa de cartera a banco; si se endosó (sin cuenta) no toca ningún banco.
+    if (p.medio_pago === 'cheque') {
+      if (!p.cuenta_id) return
+      const m = r2(p.monto)
+      nuevo('cobro', p.id, p.fecha_pago, `Depósito de cheque — factura ${p.facturas?.numero_factura || 's/n'}`, [[banco(p.cuenta_id), m, 0, p.referencia || 'Cheque', p.facturas?.cliente_id], [C('1.1.02.02'), 0, m, 'Cheque depositado', p.facturas?.cliente_id]])
+      return
+    }
     const monto = r2(p.monto), rt = r2(p.monto_retenciones), neto = r2(monto - rt)
     const quien = p.facturas?.clientes?.razon_social || p.facturas?.clientes?.nombre_contacto || ''
     const cl = p.facturas?.cliente_id
@@ -103,10 +120,47 @@ export async function generarAsientos({ desde, hasta, regenerar = false, usuario
   })
 
   // 4) Pagos a proveedores
-  const pc = await traerTodo(() => supabase.from('pagos_compra').select('id, fecha_pago, monto, cuenta_id, facturas_compra(numero_factura, proveedores(razon_social))').gte('fecha_pago', desde).lte('fecha_pago', hasta))
+  const pc = await traerTodo(() => supabase.from('pagos_compra').select('id, fecha_pago, monto, medio_pago, cuenta_id, facturas_compra(numero_factura, proveedores(razon_social))').gte('fecha_pago', desde).lte('fecha_pago', hasta))
   pc.forEach(p => {
+    if (p.medio_pago === 'cheque') return // se contabiliza desde el cheque (emisión / endoso / débito)
     const m = r2(p.monto), prov = p.facturas_compra?.proveedores?.razon_social || ''
     nuevo('pago_compra', p.id, p.fecha_pago, `Pago factura ${p.facturas_compra?.numero_factura || 's/n'} — ${prov}`, [[C('2.1.01.01'), m, 0, prov, null], [banco(p.cuenta_id), 0, m, 'Pago a proveedor', null]])
+  })
+
+  // 5b) Cheques
+  const chs = await traerTodo(() => supabase.from('cheques').select('id, tipo, numero, banco, importe, estado, cuenta_id, cliente_id, fecha_movimiento, creado_en, facturas(cliente_id), proveedores(razon_social)').order('id'))
+  chs.forEach(ch => {
+    const imp = r2(ch.importe), recibido = String(ch.creado_en).slice(0, 10), mov = ch.fecha_movimiento || recibido
+    const rotulo = `Cheque ${ch.numero || ''}${ch.banco ? ' ' + ch.banco : ''}`
+    const cli = ch.cliente_id || ch.facturas?.cliente_id || null
+    if (ch.tipo === 'tercero') {
+      nuevo('cheque_recibido', ch.id, recibido, `${rotulo}: recibido de cliente (a cartera)`, [[C('1.1.02.02'), imp, 0, rotulo, cli], [C('1.1.02.01'), 0, imp, 'Cancela deuda del cliente', cli]])
+      if (ch.estado === 'endosado') nuevo('cheque_endoso', ch.id, mov, `${rotulo}: endosado a ${ch.proveedores?.razon_social || 'proveedor'}`, [[C('2.1.01.01'), imp, 0, ch.proveedores?.razon_social || '', null], [C('1.1.02.02'), 0, imp, rotulo, null]])
+      if (ch.estado === 'rechazado') nuevo('cheque_rechazo', ch.id, mov, `${rotulo}: rechazado (vuelve a deudores)`, [[C('1.1.02.01'), imp, 0, 'Cheque rechazado', cli], [C('1.1.02.02'), 0, imp, rotulo, cli]])
+    } else if (ch.tipo === 'propio' && ch.estado !== 'anulado') {
+      nuevo('cheque_emitido', ch.id, recibido, `${rotulo}: emitido a ${ch.proveedores?.razon_social || 'proveedor'}`, [[C('2.1.01.01'), imp, 0, ch.proveedores?.razon_social || '', null], [C('2.1.01.02'), 0, imp, rotulo, null]])
+      if (ch.estado === 'debitado') nuevo('cheque_debitado', ch.id, mov, `${rotulo}: debitado de la cuenta`, [[C('2.1.01.02'), imp, 0, rotulo, null], [banco(ch.cuenta_id), 0, imp, 'Débito de cheque', null]])
+    }
+  })
+
+  // 5c) Préstamos: el capital recibido es un PASIVO (no un ingreso); las cuotas separan capital, interés e impuestos
+  const prest = await traerTodo(() => supabase.from('prestamos').select('id, entidad, monto_total, activo').order('id'))
+  const cuotasP = await traerTodo(() => supabase.from('compromisos_pago').select('id, prestamo_id, fecha_vencimiento, movimiento_id, observaciones').not('prestamo_id', 'is', null).order('id'))
+  const bancoPrestamo = (bancos || []).find(b => /bbva/i.test(`${b.banco} ${b.numero || ''}`) && b.tipo !== 'caja_chica')
+  prest.forEach(pr => {
+    const prim = cuotasP.filter(c => c.prestamo_id === pr.id).map(c => c.fecha_vencimiento).sort()[0]
+    if (!prim) return
+    const d = new Date(prim + 'T00:00:00'); d.setMonth(d.getMonth() - 1)
+    const fechaAcred = d.toLocaleDateString('en-CA')
+    const cuentaDestino = bancoPrestamo ? banco(bancoPrestamo.id) : C('1.1.01.02')
+    nuevo('prestamo', pr.id, fechaAcred, `Préstamo ${pr.entidad || ''}: acreditación del capital`, [[cuentaDestino, r2(pr.monto_total), 0, 'Capital recibido', null], [C('2.1.04.01'), 0, r2(pr.monto_total), `Préstamo ${pr.entidad || ''}`, null]])
+  })
+  const num = x => Number(String(x).replace(/\./g, '').replace(',', '.')) || 0
+  const desgloseCuota = {}
+  cuotasP.filter(c => c.movimiento_id).forEach(c => {
+    const o = c.observaciones || ''
+    const cap = o.match(/Capital \$([\d.,]+)/), int = o.match(/Inter[eé]s \$([\d.,]+)/), imp = o.match(/Impuestos \$([\d.,]+)/)
+    if (cap) desgloseCuota[c.movimiento_id] = { cap: num(cap[1]), int: int ? num(int[1]) : 0, imp: imp ? num(imp[1]) : 0 }
   })
 
   // 5) Movimientos manuales (sin los que ya nacen de cobros o pagos de facturas)
@@ -120,6 +174,11 @@ export async function generarAsientos({ desde, hasta, regenerar = false, usuario
     if (m.tipo === 'ingreso') {
       nuevo('movimiento', m.id, m.fecha, desc || m.categoria || 'Ingreso', [[banco(m.cuenta_id), monto, 0, desc, m.cliente_id], [C(INGRESO_MOV[m.categoria] || '4.1.02'), 0, monto, m.categoria, m.cliente_id]])
     } else {
+      const dg = desgloseCuota[m.id]
+      if (dg && Math.abs(dg.cap + dg.int + dg.imp - monto) < 1) {
+        nuevo('movimiento', m.id, m.fecha, desc || 'Cuota de préstamo', [[C('2.1.04.01'), dg.cap, 0, 'Capital', null], [C('5.3.03'), dg.int, 0, 'Interés', null], [C('5.2.06'), dg.imp, 0, 'Impuestos s/ intereses', null], [banco(m.cuenta_id), 0, monto, desc, null]])
+        return
+      }
       let contra = EGRESO_MOV[m.categoria]
       if (m.categoria === 'Haberes') contra = /^anticipo/i.test(desc) ? '1.1.03.08' : '2.1.02.01'
       nuevo('movimiento', m.id, m.fecha, desc || m.categoria || 'Egreso', [[C(contra || '5.2.05'), monto, 0, desc || m.categoria, m.cliente_id], [banco(m.cuenta_id), 0, monto, desc, null]])
