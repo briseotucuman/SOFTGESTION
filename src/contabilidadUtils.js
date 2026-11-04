@@ -40,6 +40,7 @@ export async function generarAsientos({ desde, hasta, regenerar = false, usuario
   if (!cta['1.1.01.01']) throw new Error('El plan de cuentas está vacío. Ejecutá primero el script de Contabilidad en Supabase.')
 
   await asegurar('2.1.01.02', 'Cheques diferidos emitidos', 'pasivo', 'Deudas comerciales', '2.1.01')
+  await asegurar('5.3.04', 'Pérdida por inversiones', 'egreso', 'Resultados financieros', '5.3')
   await asegurar('5.3.03', 'Intereses de préstamos', 'egreso', 'Resultados financieros', '5.3')
 
   // Cuentas bancarias -> cuentas contables
@@ -142,6 +143,25 @@ export async function generarAsientos({ desde, hasta, regenerar = false, usuario
       if (ch.estado === 'debitado') nuevo('cheque_debitado', ch.id, mov, `${rotulo}: debitado de la cuenta`, [[C('2.1.01.02'), imp, 0, rotulo, null], [banco(ch.cuenta_id), 0, imp, 'Débito de cheque', null]])
     }
   })
+
+  // 5b-bis) Inversiones: compra (activo / banco), venta a costo promedio con su resultado, rendimientos
+  const CUENTA_INV = { fci: '1.1.04.01', acciones: '1.1.04.02', letras: '1.1.04.03', cedears: '1.1.04.04' }
+  const { data: invOps, error: eInv } = await supabase.from('inversiones_operaciones').select('*').order('fecha')
+  if (!eInv && invOps?.length) {
+    const { calcularTenencias } = await import('./pages/Inversiones.jsx')
+    const ordenadas = invOps.map(o => ({ ...o }))
+    calcularTenencias(ordenadas) // completa costo_vendido y resultado_venta en cada venta
+    ordenadas.forEach(o => {
+      const inv = C(CUENTA_INV[o.clase]), imp = r2(o.importe), bco = banco(o.cuenta_id), det = `${o.instrumento}`
+      if (!inv) return
+      if (o.operacion === 'compra') nuevo('inversion', o.id, o.fecha, `Compra ${det}`, [[inv, imp, 0, det, null], [bco, 0, imp, 'Compra de inversión', null]])
+      else if (o.operacion === 'rendimiento') nuevo('inversion', o.id, o.fecha, `Rendimiento ${det}`, [[bco, imp, 0, 'Rendimiento cobrado', null], [C('4.1.03'), 0, imp, det, null]])
+      else if (o.operacion === 'venta') {
+        const costo = r2(o.costo_vendido), res = r2(imp - costo)
+        nuevo('inversion', o.id, o.fecha, `Venta ${det}`, [[bco, imp, 0, 'Venta de inversión', null], [inv, 0, costo, det, null], ...(res >= 0 ? [[C('4.1.03'), 0, res, 'Resultado de la venta', null]] : [[C('5.3.04'), -res, 0, 'Resultado de la venta', null]])])
+      }
+    })
+  }
 
   // 5c) Préstamos: el capital recibido es un PASIVO (no un ingreso); las cuotas separan capital, interés e impuestos
   const prest = await traerTodo(() => supabase.from('prestamos').select('id, entidad, monto_total, activo').order('id'))

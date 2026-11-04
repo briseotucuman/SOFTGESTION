@@ -28,6 +28,7 @@ import Contabilidad from './pages/Contabilidad.jsx'
 import AumentosContratos from './pages/AumentosContratos.jsx'
 import Vencimientos from './pages/Vencimientos.jsx'
 import Asistencia from './pages/Asistencia.jsx'
+import Inversiones from './pages/Inversiones.jsx'
 import Proveedores from './pages/Proveedores.jsx'
 import Reportes from './pages/Reportes.jsx'
 import Usuarios from './pages/Usuarios.jsx'
@@ -36,7 +37,7 @@ import Usuarios from './pages/Usuarios.jsx'
 const FONDO_GLASS = 'radial-gradient(900px 500px at 8% -10%, rgba(147,197,253,0.55), transparent 60%), radial-gradient(800px 500px at 100% 0%, rgba(191,219,254,0.7), transparent 55%), linear-gradient(160deg, #f8fbff 0%, #e8f0fe 100%) fixed'
 // Qué permiso habilita cada pantalla restringida (el resto es solo para administradores)
 const PERMISO_MODULO = { finanzas: 'finanzas', facturacion: 'finanzas', costos: 'finanzas', conciliacion: 'finanzas', sueldos: 'sueldos', documentos: 'documentos' }
-const SOLO_ADMIN = ['administracion', 'control', 'documentos', 'facturacion', 'finanzas', 'conciliacion', 'costos', 'sueldos', 'contabilidad', 'aumentos', 'asistencia', 'vencimientos', 'usuarios']
+const SOLO_ADMIN = ['administracion', 'control', 'documentos', 'facturacion', 'finanzas', 'conciliacion', 'costos', 'sueldos', 'contabilidad', 'inversiones', 'aumentos', 'asistencia', 'vencimientos', 'usuarios']
 
 const HOJAS_MENU = [
   {
@@ -107,7 +108,7 @@ const MENU_PRINCIPAL = [
 const MODULOS = {
   comercial:      [['clientes', 'Clientes', Users], ['contratos', 'Contratos', FileText], ['crm', 'CRM', Radar], ['presupuestos', 'Presupuestos', Wallet], ['aumentos', 'Aumentos y abonos', TrendingUp]],
   operaciones:    [['agenda', 'Agenda', CalendarDays], ['personal', 'Personal', HardHat], ['insumos', 'Insumos', Package], ['proveedores', 'Proveedores', Factory], ['asistencia', 'Asistencia', Clock], ['vencimientos', 'Vencimientos', AlertTriangle]],
-  administracion: [['finanzas', 'Finanzas', BarChart3], ['sueldos', 'Sueldos', Briefcase], ['contabilidad', 'Contabilidad', Calculator]],
+  administracion: [['finanzas', 'Finanzas', BarChart3], ['sueldos', 'Sueldos', Briefcase], ['contabilidad', 'Contabilidad', Calculator], ['inversiones', 'Inversiones', TrendingUp]],
 }
 // Atajos: id de pantalla anterior -> [módulo, solapa, vista interna de Finanzas]
 const RUTAS = {
@@ -115,7 +116,7 @@ const RUTAS = {
   agenda: ['operaciones', 'agenda'], personal: ['operaciones', 'personal'], insumos: ['operaciones', 'insumos'], proveedores: ['operaciones', 'proveedores'],
   finanzas: ['administracion', 'finanzas', 'movimientos'], facturacion: ['administracion', 'finanzas', 'facturacion'],
   costos: ['administracion', 'finanzas', 'costos'], conciliacion: ['administracion', 'finanzas', 'conciliacion'],
-  sueldos: ['administracion', 'sueldos'], contabilidad: ['administracion', 'contabilidad'], aumentos: ['comercial', 'aumentos'], asistencia: ['operaciones', 'asistencia'], vencimientos: ['operaciones', 'vencimientos'],
+  sueldos: ['administracion', 'sueldos'], contabilidad: ['administracion', 'contabilidad'], inversiones: ['administracion', 'inversiones'], aumentos: ['comercial', 'aumentos'], asistencia: ['operaciones', 'asistencia'], vencimientos: ['operaciones', 'vencimientos'],
 }
 
 const alertaEstilo = {
@@ -1082,6 +1083,7 @@ function Dashboard({ user }) {
                     {activa === 'finanzas' && <Finanzas key={finClave} vistaInicial={finVista} />}
                     {activa === 'sueldos' && <Sueldos />}
                     {activa === 'contabilidad' && <Contabilidad />}
+                    {activa === 'inversiones' && <Inversiones />}
                     {activa === 'aumentos' && <AumentosContratos />}
                     {activa === 'asistencia' && <Asistencia />}
                     {activa === 'vencimientos' && <Vencimientos />}
