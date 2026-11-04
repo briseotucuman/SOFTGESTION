@@ -34,6 +34,8 @@ import Usuarios from './pages/Usuarios.jsx'
 
 // Módulos restringidos a rol admin (coincide con las políticas RLS en Supabase)
 const FONDO_GLASS = 'radial-gradient(900px 500px at 8% -10%, rgba(147,197,253,0.55), transparent 60%), radial-gradient(800px 500px at 100% 0%, rgba(191,219,254,0.7), transparent 55%), linear-gradient(160deg, #f8fbff 0%, #e8f0fe 100%) fixed'
+// Qué permiso habilita cada pantalla restringida (el resto es solo para administradores)
+const PERMISO_MODULO = { finanzas: 'finanzas', facturacion: 'finanzas', costos: 'finanzas', conciliacion: 'finanzas', sueldos: 'sueldos', documentos: 'documentos' }
 const SOLO_ADMIN = ['administracion', 'control', 'documentos', 'facturacion', 'finanzas', 'conciliacion', 'costos', 'sueldos', 'contabilidad', 'aumentos', 'asistencia', 'vencimientos', 'usuarios']
 
 const HOJAS_MENU = [
@@ -201,6 +203,13 @@ function Dashboard({ user }) {
   }, [])
   const expandido = esMovil ? true : menuAbierto
   const [esAdmin, setEsAdmin] = useState(false)
+  const [modulosUsuario, setModulosUsuario] = useState([])
+  // Permiso por módulo: el administrador ve todo; un usuario ve lo no restringido y lo que se le habilitó
+  const puede = id => {
+    if (esAdmin || !SOLO_ADMIN.includes(id)) return true
+    if (id === 'administracion') return modulosUsuario.some(m => m === 'finanzas' || m === 'sueldos')
+    return modulosUsuario.includes(PERMISO_MODULO[id])
+  }
   const [rolCargado, setRolCargado] = useState(false)
   const [kpis, setKpis] = useState({
     clientes: 0,
@@ -295,7 +304,7 @@ function Dashboard({ user }) {
       cargarKpis()
       cargarAlertas()
     }
-  }, [seccionActiva, esAdmin])
+  }, [seccionActiva, esAdmin, modulosUsuario])
 
   // Sincronización automática en vivo del Tablero
   useEffect(() => {
@@ -362,7 +371,8 @@ function Dashboard({ user }) {
 
   async function cargarRol() {
     try {
-      const { data } = await supabase.from('usuarios_sistema').select('rol').eq('user_id', user.id).maybeSingle()
+      const { data } = await supabase.from('usuarios_sistema').select('rol, modulos').eq('user_id', user.id).maybeSingle()
+      setModulosUsuario(data?.modulos || [])
       setEsAdmin(data?.rol === 'admin' || user.email === 'admin@briseo.com')
       setRolCargado(true)
     } catch {
@@ -569,7 +579,7 @@ function Dashboard({ user }) {
         modulo: 'contratos'
       }))
 
-      setAlertas(nuevasAlertas.filter(a => esAdmin || !SOLO_ADMIN.includes(a.modulo)))
+      setAlertas(nuevasAlertas.filter(a => puede(a.modulo)))
     } catch {
       // Ignorar si aún no hay conexión Supabase
     }
@@ -578,13 +588,13 @@ function Dashboard({ user }) {
   const menuVisible = useMemo(() => {
     return MENU_PRINCIPAL.map(g => ({
       ...g,
-      items: g.items.filter(i => !i.oculto && (esAdmin || !SOLO_ADMIN.includes(i.id)))
+      items: g.items.filter(i => !i.oculto && (puede(i.id)))
     })).filter(g => g.items.length > 0)
-  }, [esAdmin])
+  }, [esAdmin, modulosUsuario])
 
   const todosItemsDisponibles = useMemo(() => {
-    return TODOS_LOS_ITEMS.filter(i => esAdmin || !SOLO_ADMIN.includes(i.id))
-  }, [esAdmin])
+    return TODOS_LOS_ITEMS.filter(i => puede(i.id))
+  }, [esAdmin, modulosUsuario])
 
   const resultadosBusqueda = useMemo(() => {
     if (!queryBusqueda.trim()) return todosItemsDisponibles
@@ -1048,15 +1058,15 @@ function Dashboard({ user }) {
                 nombre={nombreUsuario.charAt(0).toUpperCase() + nombreUsuario.slice(1)}
                 filtroPeriodo={filtroPeriodo} setFiltroPeriodo={setFiltroPeriodo}
                 onIr={id => setSeccionActiva(id)}
-                grupos={HOJAS_MENU.map(g => ({ ...g, items: g.items.filter(i => !i.oculto && (esAdmin || !SOLO_ADMIN.includes(i.id))) })).filter(g => g.items.length)}
+                grupos={HOJAS_MENU.map(g => ({ ...g, items: g.items.filter(i => !i.oculto && (puede(i.id))) })).filter(g => g.items.length)}
                 actualizando={actualizandoKpis} onActualizar={() => { cargarKpis(); cargarAlertas() }}
               />
             </div>
           ) : (
             /* RENDERIZADO DE LOS MÓDULOS ESPECÍFICOS */
             <div style={{ maxWidth: '1440px', margin: '0 auto' }}>
-              {MODULOS[seccionActiva] && (esAdmin || !SOLO_ADMIN.includes(seccionActiva)) && (() => {
-                const tabs = MODULOS[seccionActiva].filter(t => esAdmin || !SOLO_ADMIN.includes(t[0]))
+              {MODULOS[seccionActiva] && (puede(seccionActiva)) && (() => {
+                const tabs = MODULOS[seccionActiva].filter(t => puede(t[0]))
                 const activa = tabs.some(t => t[0] === tabsModulo[seccionActiva]) ? tabsModulo[seccionActiva] : tabs[0]?.[0]
                 const titulos = { comercial: 'Comercial', operaciones: 'Operaciones', administracion: 'Administración' }
                 return (
@@ -1079,7 +1089,7 @@ function Dashboard({ user }) {
                 )
               })()}
               {seccionActiva === 'control' && esAdmin && <ControlDatos onIr={id => setSeccionActiva(id)} />}
-              {seccionActiva === 'documentos' && esAdmin && <Documentos />}
+              {seccionActiva === 'documentos' && puede('documentos') && <Documentos />}
               {seccionActiva === 'reportes' && <Reportes />}
               {seccionActiva === 'usuarios' && esAdmin && <Usuarios />}
             </div>

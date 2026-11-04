@@ -5,6 +5,8 @@ import { UserCog, X } from 'lucide-react'
 
 const c = colores.usuarios
 
+const PERMISOS = [['finanzas', 'Finanzas (cobros, pagos, facturación y costos)'], ['sueldos', 'Sueldos'], ['documentos', 'Documentos']]
+
 function Usuarios() {
   const [usuarios, setUsuarios] = useState([])
   const [loading, setLoading] = useState(true)
@@ -32,6 +34,14 @@ function Usuarios() {
 
   async function cambiarRol(id, rol) {
     await supabase.from('usuarios_sistema').update({ rol }).eq('id', id)
+    cargarUsuarios()
+  }
+
+  async function alternarModulo(u, mod) {
+    const actuales = u.modulos || []
+    const modulos = actuales.includes(mod) ? actuales.filter(m => m !== mod) : [...actuales, mod]
+    const { error } = await supabase.from('usuarios_sistema').update({ modulos }).eq('id', u.id)
+    if (error) return alert('No se pudo guardar: ' + error.message + '\n¿Ejecutaste seguridad_softgestion.sql?')
     cargarUsuarios()
   }
 
@@ -100,6 +110,17 @@ function Usuarios() {
                       </select>
                     ) : (
                       <span style={s.badge('#fef3c7','#d97706')}>⏳ Pendiente</span>
+                    )}
+                    {u.aprobado && u.rol === 'admin' && <div style={{ fontSize: 11, color: '#64748b', marginTop: 4 }}>Acceso total</div>}
+                    {u.aprobado && u.rol !== 'admin' && (
+                      <div style={{ marginTop: 6, display: 'flex', flexDirection: 'column', gap: 3 }}>
+                        <div style={{ fontSize: 11, color: '#64748b', fontWeight: 600 }}>Accesos adicionales</div>
+                        {PERMISOS.map(([mod, nombre]) => (
+                          <label key={mod} style={{ fontSize: 12, display: 'flex', gap: 5, alignItems: 'center', cursor: 'pointer' }}>
+                            <input type="checkbox" checked={(u.modulos || []).includes(mod)} onChange={() => alternarModulo(u, mod)} /> {nombre}
+                          </label>
+                        ))}
+                      </div>
                     )}
                   </td>
                   <td style={s.tablaCell}>
