@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../supabase.js'
 import { s, colores, paleta } from '../estilos.js'
-import { Plus, Wallet, X, Calculator, Tag } from 'lucide-react'
+import { Plus, Wallet, X, Calculator, Tag, Users } from 'lucide-react'
+import PresupuestadorDotacion from './PresupuestadorDotacion.jsx'
 
 const c = colores.presupuestos
 
@@ -12,7 +13,7 @@ function indicadorMargen(margen) {
 }
 
 function Presupuestos() {
-  const [vista, setVista] = useState('presupuestos') // presupuestos | tarifas
+  const [vista, setVista] = useState('presupuestos') // presupuestos | dotacion | tarifas
   const [presupuestos, setPresupuestos] = useState([])
   const [clientes, setClientes] = useState([])
   const [tiposServicio, setTiposServicio] = useState([])
@@ -182,10 +183,17 @@ function Presupuestos() {
 
       <div style={{ display: 'flex', gap: '10px', marginBottom: '16px' }}>
         <button onClick={() => setVista('presupuestos')} style={vista === 'presupuestos' ? s.btnPrimario(c.main) : s.btnSecundario}>Presupuestos</button>
+        <button onClick={() => setVista('dotacion')} style={vista === 'dotacion' ? s.btnPrimario(c.main) : s.btnSecundario}>
+          <Users size={13} style={{ marginRight: 5, verticalAlign: '-2px' }} />Servicio por dotación
+        </button>
         <button onClick={() => setVista('tarifas')} style={vista === 'tarifas' ? s.btnPrimario(c.main) : s.btnSecundario}>
           <Calculator size={13} style={{ marginRight: 5, verticalAlign: '-2px' }} />Tarifas estándar
         </button>
       </div>
+
+      {vista === 'dotacion' && (
+        <PresupuestadorDotacion clientes={clientes} tiposServicio={tiposServicio} onGuardado={cargarDatos} />
+      )}
 
       {vista === 'tarifas' && (
         <div style={s.card}>
