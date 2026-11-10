@@ -4,7 +4,7 @@ import { paleta } from './estilos.js'
 export default function ModuloTabs({ titulo, tabs, activa, onCambiar, children }) {
   return (
     <div>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', marginBottom: 16 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', marginBottom: 16, position: 'sticky', top: -12, zIndex: 5, padding: '8px 0', background: 'linear-gradient(#EEF4FFF2 70%, #EEF4FF00)' }}>
         <span style={{ fontSize: 12, fontWeight: 700, letterSpacing: '.08em', textTransform: 'uppercase', color: paleta.muted }}>{titulo}</span>
         <div className="sg-scroll-x" style={{
           display: 'flex', gap: 4, padding: 4, borderRadius: 999, overflowX: 'auto', maxWidth: '100%',

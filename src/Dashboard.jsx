@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import { supabase, escucharCambiosDatos } from './supabase.js'
 import { colores, paleta } from './estilos.js'
 import {
@@ -187,6 +187,19 @@ function obtenerRangosPeriodo() {
   }
 }
 
+// Reloj propio: se actualiza solo y no re-renderiza el resto de la pantalla
+function RelojEncabezado() {
+  const [ahora, setAhora] = useState(new Date())
+  useEffect(() => { const t = setInterval(() => setAhora(new Date()), 30000); return () => clearInterval(t) }, [])
+  return (
+    <>
+      <span style={{ fontFamily: paleta.fontMono, fontSize: '12px', fontWeight: '500' }}>{ahora.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })}</span>
+      <span style={{ color: paleta.muted }}>·</span>
+      <span style={{ color: paleta.muted, fontSize: '12px' }}>{ahora.toLocaleDateString('es-AR', { day: '2-digit', month: 'short', year: 'numeric' })}</span>
+    </>
+  )
+}
+
 function Dashboard({ user }) {
   const [seccionActiva, setSeccionBase] = useState('inicio')
   const [tabsModulo, setTabsModulo] = useState({ comercial: 'clientes', operaciones: 'agenda', administracion: 'finanzas' })
@@ -203,6 +216,7 @@ function Dashboard({ user }) {
   const [menuAbierto, setMenuAbierto] = useState(true)
   const [mostrarModulos, setMostrarModulos] = useState(false)
   const [esMovil, setEsMovil] = useState(() => typeof window !== 'undefined' && window.matchMedia('(max-width: 820px)').matches)
+  const mainRef = useRef(null)
   const [drawerAbierto, setDrawerAbierto] = useState(false)
   useEffect(() => {
     const mq = window.matchMedia('(max-width: 820px)')
@@ -240,7 +254,6 @@ function Dashboard({ user }) {
   const [filtroPeriodo, setFiltroPeriodo] = useState('mes')
   const [buscadorAbierto, setBuscadorAbierto] = useState(false)
   const [queryBusqueda, setQueryBusqueda] = useState('')
-  const [horaActual, setHoraActual] = useState(new Date())
 
   const rangos = useMemo(() => obtenerRangosPeriodo(), [])
 
@@ -284,12 +297,6 @@ function Dashboard({ user }) {
     }
   }, [filtroPeriodo, kpis, rangos])
 
-  // Actualizar reloj en vivo cada segundo
-  useEffect(() => {
-    const timer = setInterval(() => setHoraActual(new Date()), 1000)
-    return () => clearInterval(timer)
-  }, [])
-
   // Atajo de teclado global Ctrl+K para Command Palette
   useEffect(() => {
     const handleKeyDown = (e) => {
@@ -298,11 +305,18 @@ function Dashboard({ user }) {
         setBuscadorAbierto(prev => !prev)
       } else if (e.key === 'Escape') {
         setBuscadorAbierto(false)
+        // Escape también cierra el cuadro de diálogo abierto (clic sobre su fondo)
+        const fondos = [...document.querySelectorAll('.sg-main [style*="position: fixed"]')].filter(el => getComputedStyle(el).inset === '0px' || el.style.inset === '0')
+        const ultimo = fondos[fondos.length - 1]
+        if (ultimo && !/INPUT|TEXTAREA|SELECT/.test(document.activeElement?.tagName || '')) ultimo.click()
       }
     }
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [])
+
+  // Al cambiar de módulo vuelve arriba de todo
+  useEffect(() => { mainRef.current?.scrollTo({ top: 0 }) }, [seccionActiva])
 
   useEffect(() => {
     cargarRol()
@@ -1046,13 +1060,7 @@ function Dashboard({ user }) {
             {/* Live Clock & Date */}
             <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: paleta.inkSoft, fontSize: '12px' }}>
               <Clock size={13} color={paleta.muted} />
-              <span style={{ fontFamily: paleta.fontMono, fontSize: '12px', fontWeight: '500' }}>
-                {horaActual.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
-              </span>
-              <span style={{ color: paleta.muted }}>·</span>
-              <span style={{ color: paleta.muted, fontSize: '12px' }}>
-                {horaActual.toLocaleDateString('es-AR', { day: '2-digit', month: 'short', year: 'numeric' })}
-              </span>
+              <RelojEncabezado />
             </div>
 
             {/* Badge de Rol */}
@@ -1073,7 +1081,7 @@ function Dashboard({ user }) {
         </header>
 
         {/* CUERPO DEL CONTENIDO */}
-        <main className="sg-main" style={{ flex: 1, padding: esMovil ? '12px' : '24px', overflowY: 'auto', background: FONDO_GLASS }}>
+        <main ref={mainRef} className="sg-main" style={{ flex: 1, padding: esMovil ? '12px 12px 76px' : '24px', overflowY: 'auto', background: FONDO_GLASS }}>
           {seccionActiva === 'inicio' ? (
             <div style={{ maxWidth: '1440px', margin: '0 auto' }}>
               <InicioGlass
@@ -1121,6 +1129,23 @@ function Dashboard({ user }) {
             </div>
           )}
         </main>
+
+        {/* BARRA INFERIOR (celular): acceso directo a los módulos con el pulgar */}
+        {esMovil && (
+          <nav className="no-print" style={{ position: 'fixed', left: 0, right: 0, bottom: 0, zIndex: 35, background: '#FFFFFF', borderTop: `1px solid ${paleta.line}`, display: 'flex', paddingBottom: 'env(safe-area-inset-bottom)', boxShadow: '0 -6px 20px -12px rgba(15,23,42,0.25)' }}>
+            {[['inicio', 'Inicio', Home], ['comercial', 'Comercial', Users], ['operaciones', 'Operaciones', HardHat], ['administracion', 'Administración', BarChart3]].filter(([id]) => id === 'inicio' || puede(id)).map(([id, label, Icono]) => {
+              const on = seccionActiva === id || (id !== 'inicio' && MODULOS[id]?.some(x => x[0] === seccionActiva))
+              return (
+                <button key={id} onClick={() => setSeccionActiva(id)} style={{ flex: 1, background: 'transparent', border: 0, padding: '8px 2px 7px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, color: on ? paleta.brand : paleta.muted, fontSize: 10.5, fontWeight: on ? 700 : 500, cursor: 'pointer', minHeight: 54 }}>
+                  <Icono size={20} />{label}
+                </button>
+              )
+            })}
+            <button onClick={() => setDrawerAbierto(true)} style={{ flex: 1, background: 'transparent', border: 0, padding: '8px 2px 7px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, color: paleta.muted, fontSize: 10.5, fontWeight: 500, cursor: 'pointer', minHeight: 54 }}>
+              <Menu size={20} />Más
+            </button>
+          </nav>
+        )}
       </div>
 
       {/* ============================================================ */}

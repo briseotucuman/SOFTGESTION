@@ -127,3 +127,68 @@ html { -webkit-text-size-adjust: 100%; }
 /* Tablas anchas (movimientos): celdas más compactas y sin cortar encabezados */
 .sg-tabla-compacta th, .sg-tabla-compacta td { padding-left: 9px !important; padding-right: 9px !important; }
 .sg-tabla-compacta th { white-space: nowrap; }
+
+/* ================================================================== */
+/* PULIDO GENERAL: interacciones, tablas y legibilidad (todas las pantallas) */
+/* ================================================================== */
+:root {
+  --sg-brand: #0F766E;
+  --sg-ring: 0 0 0 3px rgba(15, 118, 110, 0.18);
+}
+
+/* Botones: respuesta táctil clara */
+button:not(:disabled) { transition: filter .15s ease, transform .08s ease, box-shadow .15s ease, background-color .15s ease; }
+button:not(:disabled):hover { filter: brightness(0.96); }
+button:not(:disabled):active { transform: translateY(1px) scale(0.985); filter: brightness(0.92); }
+button:disabled { opacity: .5; cursor: not-allowed !important; }
+
+/* Campos: foco visible con el color de marca */
+input:not([type="checkbox"]):not([type="radio"]), select, textarea { transition: border-color .15s ease, box-shadow .15s ease, background-color .15s ease; }
+input:not([type="checkbox"]):not([type="radio"]):hover, select:hover, textarea:hover { border-color: rgba(15, 118, 110, 0.55) !important; }
+input:not([type="checkbox"]):not([type="radio"]):focus, select:focus, textarea:focus {
+  border-color: var(--sg-brand) !important; box-shadow: var(--sg-ring) !important; background: #fff !important; outline: none;
+}
+input[type="checkbox"], input[type="radio"] { accent-color: var(--sg-brand); width: 16px; height: 16px; cursor: pointer; }
+input[type="number"] { font-variant-numeric: tabular-nums; }
+::placeholder { color: #94A3B8; }
+select { cursor: pointer; }
+
+/* Tablas: encabezado fijo, fila resaltada al pasar y números alineados */
+table { font-variant-numeric: tabular-nums; }
+thead th { position: sticky; top: 0; z-index: 2; }
+tbody tr { transition: background-color .12s ease; }
+tbody tr:hover > td, tbody tr:hover > th { background: rgba(15, 118, 110, 0.07) !important; }
+td, th { vertical-align: middle; }
+
+/* Montos: se leen más rápido si los dígitos tienen el mismo ancho */
+.sg-monto { font-variant-numeric: tabular-nums; font-feature-settings: "tnum"; text-align: right; white-space: nowrap; }
+
+/* Entrada suave al cambiar de pantalla */
+@keyframes sg-entrada { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+.sg-main > * { animation: sg-entrada .22s ease both; }
+
+/* Menú lateral: resaltado al pasar */
+.sg-aside nav button:not(:disabled):hover { background: rgba(148, 163, 184, 0.12) !important; filter: none; }
+
+/* Modales: el fondo no se desplaza detrás y el contenido respira */
+[style*="position: fixed"][style*="inset: 0"] { overscroll-behavior: contain; }
+
+/* Selección y barras de desplazamiento más amables */
+::selection { background: rgba(15, 118, 110, 0.22); }
+.sg-scroll-x { scrollbar-width: thin; }
+
+/* Pantallas grandes: el contenido no se estira de más */
+@media (min-width: 1500px) { .sg-main > * { max-width: 1500px; margin-left: auto; margin-right: auto; } }
+
+/* Respeta a quien prefiere menos movimiento */
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; } }
+
+/* Impresión (recibos, informes, balances): sin menús ni botones */
+@media print {
+  .sg-aside, .sg-header, button, .no-print { display: none !important; }
+  body, #root, .sg-main { background: #fff !important; overflow: visible !important; height: auto !important; }
+  [style*="backdrop-filter"] { backdrop-filter: none !important; background: #fff !important; box-shadow: none !important; }
+  table { display: table !important; white-space: normal !important; }
+  thead th { position: static; }
+  tr { break-inside: avoid; }
+}
