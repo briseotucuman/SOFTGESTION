@@ -6,6 +6,7 @@ import { CheckCircle2, AlertTriangle, Info, ArrowUpRight, RefreshCw } from 'luci
 const ars = n => Number(n || 0).toLocaleString('es-AR', { style: 'currency', currency: 'ARS', maximumFractionDigits: 0 })
 const hoyISO = () => new Date().toLocaleDateString('en-CA')
 const c = colores.reportes
+const mesAntes = (m, n) => { const [a, x] = m.split('-').map(Number); const d = new Date(a, x - 1 - n, 1); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}` }
 
 // Control y cierre: controles automáticos de lo que falta o está inconsistente, para que los números sean confiables
 export default function ControlDatos({ onIr }) {
@@ -30,10 +31,16 @@ export default function ControlDatos({ onIr }) {
       supabase.from('horarios_servicio').select('empleado_id, empleado_nombre, cliente_id').eq('activo', true),
       supabase.from('liquidaciones_sueldo').select('empleado_id').eq('periodo', mes),
       supabase.from('clientes').select('id, razon_social, cuit').eq('activo', true),
-      supabase.from('contratos').select('cliente_id').eq('estado', 'activo')
+      supabase.from('contratos').select('cliente_id').eq('estado', 'activo'),
+      supabase.from('declaraciones_931').select('periodo, estado, fecha_vencimiento').order('periodo', { ascending: false }).limit(3),
+      supabase.from('vencimientos').select('id, fecha_vencimiento').eq('cumplido', false).lt('fecha_vencimiento', hoy),
+      supabase.from('asientos').select('origen_tipo, origen_id').in('origen_tipo', ['venta', 'compra']),
+      supabase.from('liquidaciones_sueldo').select('empleado_id, periodo').gte('periodo', mesAntes(mes, 2)),
+      supabase.from('empleados').select('id').eq('activo', true).or('telefono.is.null,telefono.eq.')
     ])
-    const err = res.find(r => r.error); setError(err ? err.error.message : '')
-    const [fa, pg, ch, mv, fc, em, par, ho, li, cl, co] = res.map(r => r.data || [])
+    const OPCIONALES = [11, 12, 13, 14, 15] // tablas de módulos nuevos: si aún no existen no se considera un error
+    const err = res.find((r, i) => r.error && !OPCIONALES.includes(i)); setError(err ? err.error.message : '')
+    const [fa, pg, ch, mv, fc, em, par, ho, li, cl, co, f931, venc, asi, liq3, sinTel] = res.map(r => r.data || [])
     const cargas = Number(res[6].data?.valor || 0)
     const cobrado = {}; pg.forEach(p => { cobrado[p.factura_id] = (cobrado[p.factura_id] || 0) + Number(p.monto) })
     const abiertas = fa.filter(f => ['emitida', 'pendiente', 'parcial', 'vencida'].includes(f.estado))
@@ -45,7 +52,13 @@ export default function ControlDatos({ onIr }) {
     })
     const sinCliente = fc.filter(f => !f.cliente_id)
     const comprasVenc = fc.filter(f => f.estado !== 'pagada' && f.fecha_vencimiento && f.fecha_vencimiento < hoy)
-    const sinSueldo = em.filter(e => !(Number(e.salario_base) > 0))
+    const conLiq = new Set(liq3.map(l => l.empleado_id))
+    const sinSueldo = em.filter(e => !(Number(e.salario_base) > 0) && !conLiq.has(e.id))
+    const mesAnt = mesAntes(hoyISO().slice(0, 7), 1)
+    const f931Mes = f931.find(x => x.periodo === mesAnt)
+    const f931Pend = f931.filter(x => x.estado === 'pendiente')
+    const contab = new Set(asi.map(x => `${x.origen_tipo}:${x.origen_id}`))
+    const sinAsiento = [...fa.filter(f => f.fecha_emision >= ini && f.fecha_emision <= fin).map(f => `venta:${f.id}`), ...fc.filter(f => f.fecha_emision >= ini && f.fecha_emision <= fin).map(f => `compra:${f.id}`)].filter(k => !contab.has(k))
     const horSinEmp = ho.filter(h => !h.empleado_id)
     const horSinCli = ho.filter(h => !h.cliente_id)
     const liquidados = new Set(li.map(l => l.empleado_id))
@@ -64,8 +77,13 @@ export default function ControlDatos({ onIr }) {
       { grupo: 'Cobros y pagos', sev: 'danger', n: incons.length, titulo: 'Facturas con estado que no coincide con los cobros', det: incons.length ? 'Revisá el estado o los cobros cargados (cobradas de más o estado desactualizado)' : 'Todo coincide', ir: 'facturacion' },
       { grupo: 'Cobros y pagos', sev: 'warn', n: comprasVenc.length, titulo: 'Facturas de compra vencidas sin pagar', det: comprasVenc.length ? ars(sum(comprasVenc, 'total')) : 'Sin deuda vencida', ir: 'finanzas' },
       { grupo: 'Cobros y pagos', sev: 'danger', n: ch.length, titulo: 'Cheques vencidos sin depositar o debitar', det: ch.length ? `${ars(sum(ch, 'importe'))} pendientes de gestión` : 'Ninguno', ir: 'finanzas' },
+      { grupo: 'Cierre del mes', sev: 'warn', n: sinAsiento.length, titulo: 'Facturas del mes sin contabilizar', det: sinAsiento.length ? `${sinAsiento.length} comprobantes sin asiento: generalos en Contabilidad` : 'Todo contabilizado', ir: 'contabilidad' },
+      { grupo: 'Cargas sociales', sev: 'warn', n: f931Mes ? 0 : 1, titulo: `F.931 de ${mesAnt} sin cargar`, det: f931Mes ? 'Cargado' : 'Subí el PDF del formulario en F.931 (SUSS)', ir: 'f931' },
+      { grupo: 'Cargas sociales', sev: 'danger', n: f931Pend.filter(x => x.fecha_vencimiento && x.fecha_vencimiento < hoy).length || (f931Pend.length ? 1 : 0), titulo: 'F.931 pendiente de pago', det: f931Pend.length ? `Período(s): ${f931Pend.map(x => x.periodo).join(', ')}` : 'Sin pendientes', ir: 'f931' },
+      { grupo: 'Personal', sev: 'danger', n: venc.length, titulo: 'Vencimientos de documentación vencidos', det: venc.length ? 'ART, seguros, exámenes o certificados vencidos' : 'Sin vencidos', ir: 'vencimientos' },
+      { grupo: 'Personal', sev: 'info', n: sinTel.length, titulo: 'Empleados sin teléfono', det: sinTel.length ? `${sinTel.length} no pueden recibir su enlace de marcación por WhatsApp` : 'Todos con teléfono', ir: 'personal' },
       { grupo: 'Rentabilidad por cliente', sev: 'info', n: sinCliente.length, titulo: 'Compras sin cliente asignado', det: sinCliente.length ? `${ars(sum(sinCliente, 'total'))} que no restan a ningún cliente (las de uso general pueden quedar así)` : 'Todas asignadas', ir: 'finanzas' },
-      { grupo: 'Rentabilidad por cliente', sev: 'warn', n: sinSueldo.length, titulo: 'Empleados sin sueldo base cargado', det: sinSueldo.length ? sinSueldo.map(e => `${e.apellido} ${e.nombre}`).slice(0, 4).join(', ') : 'Todos con sueldo', ir: 'personal' },
+      { grupo: 'Rentabilidad por cliente', sev: 'warn', n: sinSueldo.length, titulo: 'Empleados sin sueldo base ni recibos recientes', det: sinSueldo.length ? sinSueldo.map(e => `${e.apellido} ${e.nombre}`).slice(0, 4).join(', ') : 'Todos con sueldo', ir: 'personal' },
       { grupo: 'Rentabilidad por cliente', sev: 'warn', n: cargas > 0 ? 0 : 1, titulo: 'Cargas sociales sin definir (0%)', det: cargas > 0 ? `${cargas}% configurado` : 'El costo del personal está subestimado. Se carga en Finanzas > Personal por cliente', ir: 'finanzas' },
       { grupo: 'Rentabilidad por cliente', sev: 'warn', n: horSinEmp.length, titulo: 'Horarios con empleado sin vincular', det: horSinEmp.length ? [...new Set(horSinEmp.map(h => h.empleado_nombre))].join(', ') + ' (darlos de alta en Personal)' : 'Todos vinculados', ir: 'personal' },
       { grupo: 'Rentabilidad por cliente', sev: 'info', n: horSinCli.length, titulo: 'Horarios sin cliente asignado', det: horSinCli.length ? 'Esas horas cuentan como gasto general' : 'Todos con cliente', ir: 'finanzas' },

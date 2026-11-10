@@ -30,6 +30,7 @@ import Vencimientos from './pages/Vencimientos.jsx'
 import Asistencia from './pages/Asistencia.jsx'
 import Inversiones from './pages/Inversiones.jsx'
 import Formulario931 from './pages/Formulario931.jsx'
+import Auditoria from './pages/Auditoria.jsx'
 import Proveedores from './pages/Proveedores.jsx'
 import Reportes from './pages/Reportes.jsx'
 import Usuarios from './pages/Usuarios.jsx'
@@ -38,7 +39,7 @@ import Usuarios from './pages/Usuarios.jsx'
 const FONDO_GLASS = 'radial-gradient(900px 500px at 8% -10%, rgba(147,197,253,0.55), transparent 60%), radial-gradient(800px 500px at 100% 0%, rgba(191,219,254,0.7), transparent 55%), linear-gradient(160deg, #f8fbff 0%, #e8f0fe 100%) fixed'
 // Qué permiso habilita cada pantalla restringida (el resto es solo para administradores)
 const PERMISO_MODULO = { finanzas: 'finanzas', facturacion: 'finanzas', costos: 'finanzas', conciliacion: 'finanzas', sueldos: 'sueldos', f931: 'sueldos', documentos: 'documentos' }
-const SOLO_ADMIN = ['administracion', 'control', 'documentos', 'facturacion', 'finanzas', 'conciliacion', 'costos', 'sueldos', 'contabilidad', 'f931', 'inversiones', 'aumentos', 'asistencia', 'vencimientos', 'usuarios']
+const SOLO_ADMIN = ['administracion', 'control', 'documentos', 'facturacion', 'finanzas', 'conciliacion', 'costos', 'sueldos', 'contabilidad', 'f931', 'inversiones', 'auditoria', 'aumentos', 'asistencia', 'vencimientos', 'usuarios']
 
 const HOJAS_MENU = [
   {
@@ -67,6 +68,12 @@ const HOJAS_MENU = [
       { id: 'costos',       icon: ClipboardList, label: 'Costos',                desc: 'Costeo operativo por servicio y cliente' },
       { id: 'sueldos',      icon: Briefcase,     label: 'Sueldos',               desc: 'Liquidación salarial y jornales' },
       { id: 'contabilidad', icon: Calculator,    label: 'Contabilidad',          desc: 'Plan de cuentas, asientos, mayor, balances e impuestos' },
+      { id: 'f931',        icon: FileText,      label: 'F.931 (SUSS)',          desc: 'Declaración jurada de cargas sociales', oculto: true },
+      { id: 'inversiones', icon: TrendingUp,    label: 'Inversiones',           desc: 'Fondos, acciones, letras y CEDEARs', oculto: true },
+      { id: 'auditoria',   icon: ShieldCheck,   label: 'Auditoría',             desc: 'Quién cambió qué y cuándo', oculto: true },
+      { id: 'asistencia',  icon: Clock,         label: 'Asistencia',            desc: 'Marcaciones y horas trabajadas', oculto: true },
+      { id: 'vencimientos', icon: AlertTriangle, label: 'Vencimientos',         desc: 'ART, seguros, certificados y contratos', oculto: true },
+      { id: 'aumentos',    icon: TrendingUp,    label: 'Aumentos y abonos',     desc: 'Ajuste de contratos y facturación mensual', oculto: true },
       // Atajo a Finanzas > Conciliación bancaria: no se muestra en el menú, sí en el buscador (Ctrl K)
       { id: 'conciliacion', icon: ShieldCheck,   label: 'Conciliación Bancaria', desc: 'Resúmenes bancarios y conciliación', oculto: true },
     ]
@@ -109,7 +116,7 @@ const MENU_PRINCIPAL = [
 const MODULOS = {
   comercial:      [['clientes', 'Clientes', Users], ['contratos', 'Contratos', FileText], ['crm', 'CRM', Radar], ['presupuestos', 'Presupuestos', Wallet], ['aumentos', 'Aumentos y abonos', TrendingUp]],
   operaciones:    [['agenda', 'Agenda', CalendarDays], ['personal', 'Personal', HardHat], ['insumos', 'Insumos', Package], ['proveedores', 'Proveedores', Factory], ['asistencia', 'Asistencia', Clock], ['vencimientos', 'Vencimientos', AlertTriangle]],
-  administracion: [['finanzas', 'Finanzas', BarChart3], ['sueldos', 'Sueldos', Briefcase], ['f931', 'F.931 (SUSS)', FileText], ['contabilidad', 'Contabilidad', Calculator], ['inversiones', 'Inversiones', TrendingUp]],
+  administracion: [['finanzas', 'Finanzas', BarChart3], ['sueldos', 'Sueldos', Briefcase], ['f931', 'F.931 (SUSS)', FileText], ['contabilidad', 'Contabilidad', Calculator], ['inversiones', 'Inversiones', TrendingUp], ['auditoria', 'Auditoría', ShieldCheck]],
 }
 // Atajos: id de pantalla anterior -> [módulo, solapa, vista interna de Finanzas]
 const RUTAS = {
@@ -117,7 +124,7 @@ const RUTAS = {
   agenda: ['operaciones', 'agenda'], personal: ['operaciones', 'personal'], insumos: ['operaciones', 'insumos'], proveedores: ['operaciones', 'proveedores'],
   finanzas: ['administracion', 'finanzas', 'movimientos'], facturacion: ['administracion', 'finanzas', 'facturacion'],
   costos: ['administracion', 'finanzas', 'costos'], conciliacion: ['administracion', 'finanzas', 'conciliacion'],
-  sueldos: ['administracion', 'sueldos'], f931: ['administracion', 'f931'], contabilidad: ['administracion', 'contabilidad'], inversiones: ['administracion', 'inversiones'], aumentos: ['comercial', 'aumentos'], asistencia: ['operaciones', 'asistencia'], vencimientos: ['operaciones', 'vencimientos'],
+  sueldos: ['administracion', 'sueldos'], f931: ['administracion', 'f931'], contabilidad: ['administracion', 'contabilidad'], inversiones: ['administracion', 'inversiones'], auditoria: ['administracion', 'auditoria'], aumentos: ['comercial', 'aumentos'], asistencia: ['operaciones', 'asistencia'], vencimientos: ['operaciones', 'vencimientos'],
 }
 
 const alertaEstilo = {
@@ -580,6 +587,20 @@ function Dashboard({ user }) {
         detalle: `${ct.numero_contrato || 'Contrato'} · ${ct.clientes?.razon_social || ct.clientes?.nombre_contacto || 'Cliente'}`,
         modulo: 'contratos'
       }))
+
+      // Vencimientos de documentación (ART, seguros, certificados) y F.931 pendiente
+      const hoyIso = hoy.toLocaleDateString('en-CA')
+      const { data: venc } = await supabase.from('vencimientos').select('tipo, titulo, fecha_vencimiento, aviso_dias').eq('cumplido', false).order('fecha_vencimiento')
+      ;(venc || []).forEach(v => {
+        const dias = Math.round((new Date(v.fecha_vencimiento + 'T12:00:00') - new Date(hoyIso + 'T12:00:00')) / 86400000)
+        if (dias > (v.aviso_dias || 30)) return
+        nuevasAlertas.push({ tipo: dias < 0 ? 'danger' : dias <= 7 ? 'warning' : 'info', titulo: dias < 0 ? `${v.tipo} vencido hace ${-dias} días` : dias === 0 ? `${v.tipo} vence HOY` : `${v.tipo} vence en ${dias} días`, detalle: v.titulo, modulo: 'vencimientos' })
+      })
+      const { data: f931 } = await supabase.from('declaraciones_931').select('periodo, total_a_pagar, fecha_vencimiento').eq('estado', 'pendiente')
+      ;(f931 || []).forEach(f => {
+        const dias = f.fecha_vencimiento ? Math.round((new Date(f.fecha_vencimiento + 'T12:00:00') - new Date(hoyIso + 'T12:00:00')) / 86400000) : null
+        nuevasAlertas.push({ tipo: dias !== null && dias < 0 ? 'danger' : 'warning', titulo: dias === null ? `F.931 ${f.periodo} pendiente de pago` : dias < 0 ? `F.931 ${f.periodo} vencido hace ${-dias} días` : `F.931 ${f.periodo} vence en ${dias} días`, detalle: 'Cargas sociales a ingresar a ARCA', monto: Number(f.total_a_pagar), modulo: 'f931' })
+      })
 
       setAlertas(nuevasAlertas.filter(a => puede(a.modulo)))
     } catch {
@@ -1086,6 +1107,7 @@ function Dashboard({ user }) {
                     {activa === 'contabilidad' && <Contabilidad />}
                     {activa === 'inversiones' && <Inversiones />}
                     {activa === 'f931' && <Formulario931 />}
+                    {activa === 'auditoria' && <Auditoria />}
                     {activa === 'aumentos' && <AumentosContratos />}
                     {activa === 'asistencia' && <Asistencia />}
                     {activa === 'vencimientos' && <Vencimientos />}
