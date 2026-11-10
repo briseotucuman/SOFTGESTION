@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import ImportarRecibos from './ImportarRecibos.jsx'
 const arsF = n => Number(n || 0).toLocaleString('es-AR', { style: 'currency', currency: 'ARS' })
 import { supabase } from '../supabase.js'
 import { s, colores } from '../estilos.js'
@@ -24,6 +25,7 @@ function Sueldos() {
   const [mostrarForm, setMostrarForm] = useState(false)
   const [verDetalle, setVerDetalle] = useState(null)
   const [conceptos, setConceptos] = useState([])
+  const [importando, setImportando] = useState(false)
   const [periodo, setPeriodo] = useState(new Date().toISOString().slice(0, 7))
   const [form, setForm] = useState({
     empleado_id: '', periodo: new Date().toISOString().slice(0, 7),
@@ -118,6 +120,7 @@ function Sueldos() {
         <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
           <input type="month" value={periodo} onChange={e => setPeriodo(e.target.value)}
             style={{ ...s.input, background: 'rgba(255,255,255,0.2)', border: '1px solid rgba(255,255,255,0.3)', color: '#fff', maxWidth: '180px' }} />
+          <button style={s.btnPrimario('rgba(255,255,255,0.25)')} onClick={() => setImportando(true)}>Importar recibos (PDF)</button>
           <button style={s.btnPrimario('rgba(255,255,255,0.25)')} onClick={() => setMostrarForm(!mostrarForm)}>
             {mostrarForm ? <><X size={14} style={{ marginRight: 5, verticalAlign: '-2px' }} />Cancelar</> : <><Plus size={14} style={{ marginRight: 5, verticalAlign: '-2px' }} />Nueva liquidación</>}
           </button>
@@ -327,6 +330,8 @@ function Sueldos() {
           </table>
         )}
       </div>
+
+      {importando && <ImportarRecibos onCerrar={() => setImportando(false)} onListo={p => { setImportando(false); if (p) setPeriodo(p); cargarDatos() }} />}
 
       {/* MODAL DETALLE */}
       {verDetalle && (

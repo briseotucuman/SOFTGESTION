@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { supabase } from '../supabase.js'
 import { s, paleta } from '../estilos.js'
+import ImportarF931 from './ImportarF931.jsx'
 
 const ars = n => Number(n || 0).toLocaleString('es-AR', { style: 'currency', currency: 'ARS' })
 const hoy = new Date().toLocaleDateString('en-CA')
@@ -21,6 +22,7 @@ export default function Formulario931() {
   const [venc, setVenc] = useState('')
   const [error, setError] = useState('')
   const [aviso, setAviso] = useState('')
+  const [importando, setImportando] = useState(false)
 
   const cargar = useCallback(async () => {
     const { data, error: e } = await supabase.from('declaraciones_931').select('*').order('periodo', { ascending: false })
@@ -64,6 +66,8 @@ export default function Formulario931() {
     <div>
       {error && <div style={{ ...s.card, padding: 12, color: paleta.danger, background: paleta.dangerSoft }}>{error}</div>}
       {aviso && <div style={{ ...s.card, padding: 12, color: paleta.success, background: paleta.successSoft }}>{aviso}</div>}
+      <div style={{ marginBottom: 12 }}><button style={s.btnPrimario('#1e40af')} onClick={() => setImportando(true)}>Importar F.931 (PDF)</button></div>
+      {importando && <ImportarF931 onCerrar={() => setImportando(false)} onListo={() => { setImportando(false); setSel(''); cargar() }} />}
       {decls.length === 0 && !error && <div style={s.card}>Todavía no hay declaraciones juradas cargadas.</div>}
       {d && (<>
         <div style={{ ...s.card, padding: 14, display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center' }}>
