@@ -18,7 +18,7 @@ export async function traerTodo(construir) {
 
 const CUENTA_RETENCION = { ganancias: '1.1.03.03', iva: '1.1.03.02', iibb: '1.1.03.04', tem: '1.1.03.05', suss: '1.1.03.06', otra: '1.1.03.07' }
 const GASTO_COMPRA = { Insumos: '5.1.01', Servicios: '5.2.02', Alquiler: '5.2.01', Alquileres: '5.2.01', Impuestos: '5.2.06', Mantenimiento: '5.2.05', Otro: '5.2.05' }
-const EGRESO_MOV = { Alquileres: '5.2.01', Servicios: '5.2.02', Impuestos: '5.2.06', Préstamos: '2.1.04.01', Socios: '3.1.03', Marketing: '5.2.07', 'Otro egreso': '5.2.05', 'Ajuste de saldo': '5.3.02' }
+const EGRESO_MOV = { 'Cargas sociales': '2.1.02.02', Alquileres: '5.2.01', Servicios: '5.2.02', Impuestos: '5.2.06', Préstamos: '2.1.04.01', Socios: '3.1.03', Marketing: '5.2.07', 'Otro egreso': '5.2.05', 'Ajuste de saldo': '5.3.02' }
 const INGRESO_MOV = { 'Otro ingreso': '4.1.02', 'Ajuste de saldo': '5.3.02', Socios: '3.1.03' }
 
 /**
@@ -206,11 +206,13 @@ export async function generarAsientos({ desde, hasta, regenerar = false, usuario
   })
 
   // 6) Liquidaciones de sueldo
-  const li = await traerTodo(() => supabase.from('liquidaciones_sueldo').select('id, periodo, fecha_pago, total_bruto, total_descuentos, total_neto, empleados(nombre, apellido)'))
+  const li = await traerTodo(() => supabase.from('liquidaciones_sueldo').select('id, periodo, fecha_pago, total_bruto, total_descuentos, total_neto, contribuciones_empleador, empleados(nombre, apellido)'))
   li.forEach(l => {
-    const fecha = l.fecha_pago || `${String(l.periodo).slice(0, 7)}-28`
-    const bruto = r2(l.total_bruto), desc = r2(l.total_descuentos), neto = r2(bruto - desc)
-    nuevo('liquidacion', l.id, fecha, `Liquidación ${l.periodo} — ${l.empleados?.apellido || ''} ${l.empleados?.nombre || ''}`.trim(), [[C('5.1.02'), bruto, 0, 'Sueldo bruto', null], [C('2.1.02.01'), 0, neto, 'Neto a pagar', null], [C('2.1.02.02'), 0, desc, 'Retenciones y aportes', null]])
+    // El sueldo se devenga en el mes liquidado (último día), aunque se pague después
+    const [aa, mm] = String(l.periodo).slice(0, 7).split('-').map(Number)
+    const fecha = `${aa}-${String(mm).padStart(2, '0')}-${String(new Date(aa, mm, 0).getDate()).padStart(2, '0')}`
+    const bruto = r2(l.total_bruto), desc = r2(l.total_descuentos), neto = r2(bruto - desc), contrib = r2(l.contribuciones_empleador)
+    nuevo('liquidacion', l.id, fecha, `Liquidación ${l.periodo} — ${l.empleados?.apellido || ''} ${l.empleados?.nombre || ''}`.trim(), [[C('5.1.02'), bruto, 0, 'Sueldo bruto', null], [C('5.1.03'), contrib, 0, 'Contribuciones patronales, ART y seguro', null], [C('2.1.02.01'), 0, neto, 'Neto a pagar', null], [C('2.1.02.02'), 0, r2(desc + contrib), 'Aportes, contribuciones y retenciones a depositar', null]])
   })
 
   // Guardado por tandas (cada tanda inserta asientos y todas sus líneas)

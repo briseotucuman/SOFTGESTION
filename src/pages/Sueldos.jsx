@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+const arsF = n => Number(n || 0).toLocaleString('es-AR', { style: 'currency', currency: 'ARS' })
 import { supabase } from '../supabase.js'
 import { s, colores } from '../estilos.js'
 import { Briefcase, Plus, X } from 'lucide-react'
@@ -22,6 +23,7 @@ function Sueldos() {
   const [loading, setLoading] = useState(true)
   const [mostrarForm, setMostrarForm] = useState(false)
   const [verDetalle, setVerDetalle] = useState(null)
+  const [conceptos, setConceptos] = useState([])
   const [periodo, setPeriodo] = useState(new Date().toISOString().slice(0, 7))
   const [form, setForm] = useState({
     empleado_id: '', periodo: new Date().toISOString().slice(0, 7),
@@ -30,6 +32,11 @@ function Sueldos() {
   })
 
   useEffect(() => { cargarDatos() }, [periodo])
+  useEffect(() => {
+    setConceptos([])
+    if (!verDetalle || verDetalle.origen !== 'recibo') return
+    supabase.from('liquidacion_conceptos').select('*').eq('liquidacion_id', verDetalle.id).order('orden').then(({ data }) => setConceptos(data || []))
+  }, [verDetalle])
 
   async function cargarDatos() {
     setLoading(true)
@@ -275,7 +282,7 @@ function Sueldos() {
         : (
           <table style={s.tabla}>
             <thead>
-              <tr>{['Empleado','Puesto','Sueldo básico','Bruto','Descuentos','Neto','Estado',''].map(h => (
+              <tr>{['Empleado','Puesto','Sueldo básico','Bruto','Descuentos','Neto','Costo empleador','Estado',''].map(h => (
                 <th key={h} style={s.tablaCabecera(c.main)}>{h}</th>
               ))}</tr>
             </thead>
@@ -290,6 +297,7 @@ function Sueldos() {
                     <td style={{ ...s.tablaCell, color: '#059669', fontWeight: '600' }}>{Number(l.total_bruto).toLocaleString('es-AR', { style: 'currency', currency: 'ARS' })}</td>
                     <td style={{ ...s.tablaCell, color: '#dc2626' }}>{Number(l.total_descuentos).toLocaleString('es-AR', { style: 'currency', currency: 'ARS' })}</td>
                     <td style={{ ...s.tablaCellBold, color: '#7c3aed', fontSize: '15px' }}>{Number(l.total_neto).toLocaleString('es-AR', { style: 'currency', currency: 'ARS' })}</td>
+                    <td style={s.tablaCell}>{l.costo_empleador != null ? arsF(l.costo_empleador) : '—'}</td>
                     <td style={s.tablaCell}>
                       <select value={l.estado} onChange={e => cambiarEstado(l.id, e.target.value)}
                         style={{ ...s.badge(ec.bg, ec.color), border: 'none', cursor: 'pointer', fontWeight: '700' }}>
@@ -312,6 +320,7 @@ function Sueldos() {
                 <td colSpan={4} style={{ ...s.tablaCellBold, color: '#7c3aed', textAlign: 'right' }}>Totales del período:</td>
                 <td style={{ ...s.tablaCell, color: '#dc2626', fontWeight: '700' }}>{liquidaciones.reduce((a,l)=>a+Number(l.total_descuentos),0).toLocaleString('es-AR',{style:'currency',currency:'ARS'})}</td>
                 <td style={{ ...s.tablaCellBold, color: '#7c3aed', fontSize: '15px' }}>{totalNeto.toLocaleString('es-AR',{style:'currency',currency:'ARS'})}</td>
+                <td style={{ ...s.tablaCell, fontWeight: '700' }}>{arsF(liquidaciones.reduce((a, l) => a + Number(l.costo_empleador ?? l.total_bruto), 0))}</td>
                 <td colSpan={2}></td>
               </tr>
             </tbody>
@@ -322,7 +331,7 @@ function Sueldos() {
       {/* MODAL DETALLE */}
       {verDetalle && (
         <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.45)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:50 }}>
-          <div style={{ background:'#fff', borderRadius:'20px', padding:'32px', width:'100%', maxWidth:'480px', boxShadow:'0 20px 60px rgba(0,0,0,0.2)' }}>
+          <div style={{ background:'#fff', borderRadius:'20px', padding:'32px', width:'100%', maxWidth:'560px', maxHeight:'92vh', overflowY:'auto', boxShadow:'0 20px 60px rgba(0,0,0,0.2)' }}>
             <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'20px' }}>
               <div>
                 <h4 style={{ margin:0, fontWeight:'800', color:'#0f172a', fontSize:'16px' }}>Recibo de sueldo</h4>
@@ -331,6 +340,43 @@ function Sueldos() {
               <button onClick={() => setVerDetalle(null)} style={{ background:'none', border:'none', fontSize:'22px', cursor:'pointer', color:'#94a3b8' }}><X size={16} /></button>
             </div>
 
+            {verDetalle.origen === 'recibo' && (
+              <p style={{ margin:'-8px 0 14px', fontSize:'12px', color:'#64748b' }}>Legajo {verDetalle.legajo} · {verDetalle.categoria} · CUIL {verDetalle.cuil} · Ingreso {String(verDetalle.fecha_ingreso || '').split('-').reverse().join('/')} ({verDetalle.antiguedad_anios} años) · Pago {String(verDetalle.fecha_pago || '').split('-').reverse().join('/')}</p>
+            )}
+            {conceptos.length > 0 ? (<>
+              {[['haber_rem', 'Haberes remunerativos', '#f0fdf4', '#059669'], ['haber_no_rem', 'Haberes no remunerativos', '#eff6ff', '#2563eb'], ['descuento', 'Descuentos', '#fff1f2', '#dc2626']].map(([tipo, titulo, bg, col]) => {
+                const filas = conceptos.filter(x => x.tipo === tipo)
+                if (!filas.length) return null
+                return (
+                  <div key={tipo} style={{ background: bg, borderRadius:'12px', padding:'14px 16px', marginBottom:'10px' }}>
+                    <p style={{ margin:'0 0 6px', fontWeight:'700', color: col, fontSize:'12px', textTransform:'uppercase' }}>{titulo}</p>
+                    {filas.map(x => (
+                      <div key={x.id} style={{ display:'flex', justifyContent:'space-between', gap:'10px', fontSize:'13px', padding:'3px 0', color:'#374151' }}>
+                        <span>{x.concepto}{x.unidad && x.unidad !== '1' && x.unidad !== '30' ? <span style={{ color:'#94a3b8' }}> · {x.unidad}</span> : null}</span>
+                        <span style={{ fontWeight:'600', color: col }}>{tipo === 'descuento' ? '-' : ''}{arsF(x.monto)}</span>
+                      </div>
+                    ))}
+                    <div style={{ display:'flex', justifyContent:'space-between', borderTop:`1px solid ${col}33`, marginTop:'6px', paddingTop:'6px', fontWeight:'800', color: col, fontSize:'13px' }}>
+                      <span>Subtotal</span><span>{tipo === 'descuento' ? '-' : ''}{arsF(filas.reduce((a, x) => a + Number(x.monto), 0))}</span>
+                    </div>
+                  </div>
+                )
+              })}
+              <div style={{ background:'#f5f3ff', borderRadius:'12px', padding:'14px', border:'2px solid #a78bfa', textAlign:'center', marginBottom:'10px' }}>
+                <p style={{ margin:'0 0 2px', fontSize:'12px', color:'#7c3aed', fontWeight:'700', textTransform:'uppercase' }}>Neto a cobrar</p>
+                <p style={{ margin:0, fontSize:'28px', fontWeight:'900', color:'#7c3aed' }}>{arsF(verDetalle.total_neto)}</p>
+                <p style={{ margin:'4px 0 0', fontSize:'11px', color:'#64748b' }}>Bruto {arsF(verDetalle.total_bruto)} · Remunerativo {arsF(verDetalle.remunerativo)} · No remunerativo {arsF(verDetalle.no_remunerativo)}</p>
+              </div>
+              <div style={{ background:'#fffbeb', borderRadius:'12px', padding:'14px 16px', border:'1px solid #fcd34d' }}>
+                <p style={{ margin:'0 0 6px', fontWeight:'700', color:'#b45309', fontSize:'12px', textTransform:'uppercase' }}>Costo para la empresa</p>
+                {conceptos.filter(x => x.tipo === 'contribucion').map(x => (
+                  <div key={x.id} style={{ display:'flex', justifyContent:'space-between', fontSize:'13px', padding:'3px 0', color:'#374151' }}><span>{x.concepto}</span><span style={{ fontWeight:'600' }}>{arsF(x.monto)}</span></div>
+                ))}
+                <div style={{ display:'flex', justifyContent:'space-between', fontSize:'13px', borderTop:'1px solid #fcd34d', marginTop:'6px', paddingTop:'6px', color:'#374151' }}><span>Sueldo bruto</span><span>{arsF(verDetalle.total_bruto)}</span></div>
+                <div style={{ display:'flex', justifyContent:'space-between', fontSize:'13px', color:'#374151' }}><span>Contribuciones del empleador</span><span>{arsF(verDetalle.contribuciones_empleador)}</span></div>
+                <div style={{ display:'flex', justifyContent:'space-between', fontWeight:'800', color:'#b45309', marginTop:'4px' }}><span>Costo total empleador</span><span>{arsF(verDetalle.costo_empleador)}</span></div>
+              </div>
+            </>) : (<>
             <div style={{ background:'#f0fdf4', borderRadius:'12px', padding:'16px', marginBottom:'12px' }}>
               <p style={{ margin:'0 0 8px', fontWeight:'700', color:'#059669', fontSize:'13px', textTransform:'uppercase' }}>Haberes</p>
               {[['Sueldo básico', verDetalle.sueldo_basico], ['Horas extra', verDetalle.horas_extra], ['Bonificaciones', verDetalle.bonificaciones]].map(([lbl, val]) => (
@@ -359,6 +405,7 @@ function Sueldos() {
               <p style={{ margin:'0 0 4px', fontSize:'12px', color:'#7c3aed', fontWeight:'700', textTransform:'uppercase' }}>Neto a cobrar</p>
               <p style={{ margin:0, fontSize:'32px', fontWeight:'900', color:'#7c3aed' }}>{Number(verDetalle.total_neto).toLocaleString('es-AR',{style:'currency',currency:'ARS'})}</p>
             </div>
+            </>)}
 
             {verDetalle.observaciones && (
               <p style={{ margin:'12px 0 0', fontSize:'12px', color:'#64748b' }}>{verDetalle.observaciones}</p>

@@ -27,7 +27,7 @@ export default function RentabilidadClientes() {
       supabase.from('facturas_compra').select('id, cliente_id, numero_factura, concepto, subtotal, total, fecha_emision, proveedores(razon_social)').neq('estado', 'anulada').gte('fecha_emision', desde),
       supabase.from('costos_variables').select('cliente_id, monto, nombre, fecha').gte('fecha', desde),
       supabase.from('movimientos_financieros').select('cliente_id, tipo, monto, factura_id, descripcion, fecha').not('cliente_id', 'is', null).is('factura_id', null).gte('fecha', desde),
-      supabase.from('liquidaciones_sueldo').select('total_bruto, periodo').gte('periodo', desdePer),
+      supabase.from('liquidaciones_sueldo').select('empleado_id, total_bruto, costo_empleador, periodo').gte('periodo', desdePer),
       supabase.from('costos_fijos').select('monto, frecuencia, mes').eq('activo', true).gte('mes', desdePer),
       supabase.from('empleados').select('id, salario_base'),
       supabase.from('asignaciones_empleado').select('*'),
@@ -54,21 +54,20 @@ export default function RentabilidadClientes() {
     })
     // Personal: costo mensual de cada empleado (liquidado del mes, o sueldo base + cargas) repartido según sus asignaciones
     const mesesPer = []; { let m = d.desdePer; const fin = new Date().toLocaleDateString('en-CA').slice(0, 7); while (m <= fin) { mesesPer.push(m); const [y, mm] = m.split('-').map(Number); m = mm === 12 ? `${y + 1}-01` : `${y}-${String(mm + 1).padStart(2, '0')}` } }
-    const liqMes = {}; d.li.forEach(l => { const k = String(l.periodo).slice(0, 7); liqMes[k] = (liqMes[k] || 0) + Number(l.total_bruto || 0) })
+    // Costo real por empleado y mes: el recibo (costo total del empleador) o, si no hay, el bruto liquidado
+    const liqEmp = {}; d.li.forEach(l => { const k = `${String(l.periodo).slice(0, 7)}|${l.empleado_id}`; liqEmp[k] = (liqEmp[k] || 0) + Number(l.costo_empleador ?? l.total_bruto ?? 0) })
     let personalTotal = 0, personalAsignado = 0
     mesesPer.forEach(mes => {
       const ini = mes + '-01', fin = mes + '-31'
-      const costoEmp = d.em.map(e => ({ id: e.id, costo: Number(e.salario_base || 0) * (1 + d.cargas / 100) }))
-      const base = liqMes[mes] ?? costoEmp.reduce((a, e) => a + e.costo, 0)
-      const k = base / (costoEmp.reduce((a, e) => a + e.costo, 0) || 1) // escala al liquidado real si existe
-      personalTotal += base
+      const costoEmp = d.em.map(e => ({ id: e.id, costo: liqEmp[`${mes}|${e.id}`] ?? Number(e.salario_base || 0) * (1 + d.cargas / 100) }))
+      personalTotal += costoEmp.reduce((a, e) => a + e.costo, 0)
       const [anio, mesN] = mes.split('-').map(Number)
       const diasMes = new Date(anio, mesN, 0).getDate()
       const cuenta = Array(8).fill(0) // cantidad de cada día de la semana (1=lun..7=dom) en el mes
       for (let i = 1; i <= diasMes; i++) cuenta[new Date(anio, mesN - 1, i).getDay() || 7]++
       const horasHor = h => { const t = x => { const [a, b] = String(x).split(':'); return Number(a) + Number(b) / 60 }; return (t(h.hora_hasta) - t(h.hora_desde)) * (h.dias || []).reduce((a, n) => a + cuenta[n], 0) }
       costoEmp.forEach(e => {
-        const monto = e.costo * (liqMes[mes] != null ? k : 1)
+        const monto = e.costo
         const asigs = d.asg.filter(a => a.empleado_id === e.id && a.desde <= fin && (!a.hasta || a.hasta >= ini))
         if (asigs.length) {
           asigs.forEach(a => {

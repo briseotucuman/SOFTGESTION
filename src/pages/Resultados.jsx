@@ -29,7 +29,7 @@ export default function Resultados() {
     Promise.all([
       supabase.from('facturas').select('id, cliente_id, fecha_emision, fecha_vencimiento, subtotal, total, estado, clientes(razon_social, nombre_contacto)').neq('estado', 'anulada'),
       supabase.from('facturas_compra').select('id, fecha_emision, fecha_vencimiento, subtotal, total, estado').neq('estado', 'anulada'),
-      supabase.from('liquidaciones_sueldo').select('periodo, total_bruto'),
+      supabase.from('liquidaciones_sueldo').select('periodo, total_bruto, costo_empleador'),
       supabase.from('costos_fijos').select('monto, frecuencia, mes').eq('activo', true),
       supabase.from('movimientos_financieros').select('fecha, tipo, monto'),
       supabase.from('pagos').select('factura_id, monto, monto_retenciones'),
@@ -53,7 +53,7 @@ export default function Resultados() {
     const ventas = {}, insumos = {}, sueldos = {}, fijos = {}
     d.fa.forEach(f => suma(ventas, mesDe(f.fecha_emision), f.subtotal ?? f.total))
     d.fc.forEach(f => suma(insumos, mesDe(f.fecha_emision), f.subtotal ?? f.total))
-    d.li.forEach(l => suma(sueldos, String(l.periodo || '').slice(0, 7), l.total_bruto))
+    d.li.forEach(l => suma(sueldos, String(l.periodo || '').slice(0, 7), l.costo_empleador ?? l.total_bruto))
     d.cf.forEach(c => {
       if (!c.mes) return
       if (c.frecuencia === 'anual') for (let i = 0; i < 12; i++) suma(fijos, sumarMeses(c.mes, i), Number(c.monto) / 12)

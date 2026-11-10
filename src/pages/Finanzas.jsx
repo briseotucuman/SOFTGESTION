@@ -31,7 +31,7 @@ const c = colores.finanzas
 
 const CATEGORIAS = {
   ingreso: ['Cobranzas', 'Otro ingreso', 'Ajuste de saldo'],
-  egreso: ['Insumos', 'Servicios', 'Haberes', 'Impuestos', 'Préstamos', 'Alquileres', 'Socios', 'Marketing', 'Otro egreso', 'Ajuste de saldo']
+  egreso: ['Insumos', 'Servicios', 'Haberes', 'Cargas sociales', 'Impuestos', 'Préstamos', 'Alquileres', 'Socios', 'Marketing', 'Otro egreso', 'Ajuste de saldo']
 }
 const CATEGORIAS_COMPRA = ['Insumos', 'Servicios', 'Alquiler', 'Impuestos', 'Mantenimiento', 'Otro']
 const FORMAS_PAGO = ['Efectivo', 'Transferencia', 'Cheque', 'Tarjeta', 'Otro']
