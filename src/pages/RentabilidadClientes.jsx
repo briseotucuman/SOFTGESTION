@@ -32,18 +32,20 @@ export default function RentabilidadClientes() {
       supabase.from('empleados').select('id, salario_base'),
       supabase.from('asignaciones_empleado').select('*'),
       supabase.from('parametros').select('valor').eq('clave', 'cargas_sociales_pct').maybeSingle(),
-      supabase.from('horarios_servicio').select('empleado_id, cliente_id, dias, hora_desde, hora_hasta').eq('activo', true)
+      supabase.from('horarios_servicio').select('empleado_id, cliente_id, dias, hora_desde, hora_hasta').eq('activo', true),
+      supabase.from('asistencias').select('empleado_id, cliente_id, fecha, horas').eq('tipo', 'trabajado').not('cliente_id', 'is', null).gte('fecha', desde)
     ])
-    const err = res.find(r => r.error); setError(err ? err.error.message : '')
+    const err = res.find((r, i) => r.error && i !== 11) // la tabla de asistencias es opcional: sin ella se usan asignaciones y horarios
+    setError(err ? err.error.message : '')
     const [cl, fa, fc, cv, mv, li, cf, em, asg] = res.map(r => r.data || [])
-    setClientes(cl); setD({ fa, fc, cv, mv, li, cf, em, asg, cargas: Number(res[9].data?.valor || 0), hor: res[10].data || [], desdePer }); setCargando(false)
+    setClientes(cl); setD({ fa, fc, cv, mv, li, cf, em, asg, cargas: Number(res[9].data?.valor || 0), hor: res[10].data || [], marc: res[11].data || [], desdePer }); setCargando(false)
   }
   useEffect(() => { cargar() }, [meses]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const calc = useMemo(() => {
     if (!d.fa) return null
     const mapa = {}
-    const get = id => (mapa[id] ||= { id, personal: 0, ventas: 0, compras: 0, variables: 0, otrosEgr: 0, otrosIng: 0, lineas: [] })
+    const get = id => (mapa[id] ||= { id, horas: 0, personal: 0, ventas: 0, compras: 0, variables: 0, otrosEgr: 0, otrosIng: 0, lineas: [] })
     d.fa.forEach(f => { get(f.cliente_id).ventas += Number(f.subtotal ?? f.total) })
     d.fc.filter(f => f.cliente_id).forEach(f => { const x = get(f.cliente_id); const m = Number(f.subtotal ?? f.total); x.compras += m; x.lineas.push({ t: 'Compra', det: `${f.proveedores?.razon_social || ''} ${f.concepto || f.numero_factura || ''}`.trim(), monto: m, fecha: f.fecha_emision }) })
     d.cv.filter(c => c.cliente_id).forEach(c => { const x = get(c.cliente_id); x.variables += Number(c.monto); x.lineas.push({ t: 'Costo variable', det: c.nombre, monto: Number(c.monto), fecha: c.fecha }) })
@@ -68,6 +70,18 @@ export default function RentabilidadClientes() {
       const horasHor = h => { const t = x => { const [a, b] = String(x).split(':'); return Number(a) + Number(b) / 60 }; return (t(h.hora_hasta) - t(h.hora_desde)) * (h.dias || []).reduce((a, n) => a + cuenta[n], 0) }
       costoEmp.forEach(e => {
         const monto = e.costo
+        // 1º) Horas realmente marcadas en el mes: el costo se reparte según dónde trabajó de verdad
+        const marcadas = {}
+        d.marc.forEach(a => { if (a.empleado_id === e.id && a.fecha >= ini && a.fecha <= fin) marcadas[a.cliente_id] = (marcadas[a.cliente_id] || 0) + Number(a.horas || 0) })
+        const totMarc = Object.values(marcadas).reduce((a, h) => a + h, 0)
+        if (totMarc > 0) {
+          Object.entries(marcadas).forEach(([cid, h]) => {
+            const m = monto * h / totMarc
+            const x = get(cid); x.personal += m; x.horas += h; personalAsignado += m
+            x.lineas.push({ t: 'Personal', det: `${Math.round(h * 10) / 10} hs marcadas (${Math.round(m / h).toLocaleString('es-AR')} $/h)`, monto: m, fecha: ini })
+          })
+          return
+        }
         const asigs = d.asg.filter(a => a.empleado_id === e.id && a.desde <= fin && (!a.hasta || a.hasta >= ini))
         if (asigs.length) {
           asigs.forEach(a => {
@@ -145,12 +159,13 @@ export default function RentabilidadClientes() {
 
       <div style={{ overflowX: 'auto' }}>
         <table style={s.tabla}>
-          <thead><tr>{th('Cliente')}{th('Ingresos', 1)}{th('Costos directos', 1)}{prorratear && th('Indirectos', 1)}{th('Resultado', 1)}{th('Margen', 1)}</tr></thead>
+          <thead><tr>{th('Cliente')}{th('Ingresos', 1)}{th('Horas', 1)}{th('Costos directos', 1)}{prorratear && th('Indirectos', 1)}{th('Resultado', 1)}{th('Margen', 1)}</tr></thead>
           <tbody>
             {calc.filas.map((f, i) => (
               <tr key={f.id} style={{ ...s.tablaFila(i), cursor: 'pointer' }} onClick={() => setDetalle(detalle === f.id ? null : f.id)}>
                 <td style={s.tablaCellBold}>{f.nombre}</td>
                 <td style={{ ...s.tablaCell, textAlign: 'right' }}>{ars(f.ing)}</td>
+                <td style={{ ...s.tablaCell, textAlign: 'right', color: '#64748b' }}>{f.horas ? Math.round(f.horas) + ' h' : '—'}</td>
                 <td style={{ ...s.tablaCell, textAlign: 'right' }}>{ars(f.directos)}</td>
                 {prorratear && <td style={{ ...s.tablaCell, textAlign: 'right' }}>{ars(f.indir)}</td>}
                 <td style={{ ...s.tablaCellBold, textAlign: 'right', color: f.res < 0 ? '#dc2626' : '#059669' }}>{ars(f.res)}</td>
@@ -189,7 +204,7 @@ export default function RentabilidadClientes() {
           ))}
         </div>
       )}
-      <p style={{ fontSize: 12, color: '#94a3b8', marginTop: 8 }}>Ingresos: ventas netas por fecha de factura (más otros ingresos imputados al cliente). Costos directos: compras imputadas, costos variables, egresos cargados a mano y el personal asignado (Finanzas > Personal por cliente). Hacé clic en un cliente para ver su detalle.</p>
+      <p style={{ fontSize: 12, color: '#94a3b8', marginTop: 8 }}>Ingresos: ventas netas por fecha de factura (más otros ingresos imputados al cliente). Costos directos: compras imputadas, costos variables, egresos cargados a mano y el personal: según las horas marcadas en Asistencia cuando existen; si no, según el porcentaje asignado o los horarios del servicio. Hacé clic en un cliente para ver su detalle.</p>
     </div>
   )
 }
