@@ -174,7 +174,7 @@ export const s = {
     fontVariantNumeric: 'tabular-nums'
   },
   tablaCabecera: () => ({
-    background: 'rgba(37, 99, 235, 0.09)',
+    background: '#E4ECFB', // opaco: si es translúcido, el texto que se desplaza se ve a través del encabezado fijo
     color: '#1E3A8A',
     padding: '10px 14px',
     textAlign: 'left',

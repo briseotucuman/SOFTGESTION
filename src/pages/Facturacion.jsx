@@ -4,7 +4,7 @@ import DatosCheque from './DatosCheque.jsx'
 import { useEffect, useState, useMemo, useRef } from 'react'
 import { supabase, emitirCambioDatos } from '../supabase.js'
 import { s, colores } from '../estilos.js'
-import { Pencil, Plus, Receipt, X, FileUp, Trash2, AlertTriangle, Loader2, Calculator, Info, Search } from 'lucide-react'
+import { Pencil, Plus, Receipt, X, FileUp, Trash2, AlertTriangle, Loader2, Calculator, Info, Search, Ban } from 'lucide-react'
 import ImportarARCA from './ImportarARCA.jsx'
 import { calcularDesgloseFactura } from '../finanzasUtils.js'
 
@@ -578,13 +578,13 @@ function Facturacion()  {
 
       {vista === 'facturas' && (<>
       {/* KPIs DE FACTURACIÓN: TOTAL CON IVA, NETO GRAVADO E IVA */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(230px, 1fr))', gap: '14px', marginBottom: '14px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '14px', marginBottom: '14px' }}>
         <div style={{ ...s.card, borderTop: `3px solid ${c.main}` }}>
           <p style={{ ...s.label, color: '#64748B', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <span>Total Facturado</span>
             <span style={{ fontSize: '10px', background: '#FFF1F2', color: c.main, padding: '2px 6px', borderRadius: '4px', fontWeight: '700' }}>Con IVA</span>
           </p>
-          <p style={{ fontSize: '22px', fontWeight: '800', color: '#0F172A', margin: '4px 0 2px', fontFamily: 'monospace', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+          <p style={{ fontSize: 'clamp(17px, 1.7vw, 22px)', fontWeight: '800', color: '#0F172A', margin: '4px 0 2px', fontFamily: 'monospace', whiteSpace: 'nowrap' }}>
             {metricasFacturacion.totalFacturado.toLocaleString('es-AR', { style: 'currency', currency: 'ARS' })}
           </p>
           <span style={{ fontSize: '11.5px', color: '#64748B' }}>
@@ -597,7 +597,7 @@ function Facturacion()  {
             <span>Neto Gravado</span>
             <span style={{ fontSize: '10px', background: '#F0F9FF', color: '#0284C7', padding: '2px 6px', borderRadius: '4px', fontWeight: '700' }}>Total / 1,21</span>
           </p>
-          <p style={{ fontSize: '22px', fontWeight: '800', color: '#0284C7', margin: '4px 0 2px', fontFamily: 'monospace', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+          <p style={{ fontSize: 'clamp(17px, 1.7vw, 22px)', fontWeight: '800', color: '#0284C7', margin: '4px 0 2px', fontFamily: 'monospace', whiteSpace: 'nowrap' }}>
             {metricasFacturacion.totalNeto.toLocaleString('es-AR', { style: 'currency', currency: 'ARS' })}
           </p>
           <span style={{ fontSize: '11.5px', color: '#64748B' }}>
@@ -610,7 +610,7 @@ function Facturacion()  {
             <span>IVA Débito Fiscal</span>
             <span style={{ fontSize: '10px', background: '#F5F3FF', color: '#7C3AED', padding: '2px 6px', borderRadius: '4px', fontWeight: '700' }}>Total - Neto</span>
           </p>
-          <p style={{ fontSize: '22px', fontWeight: '800', color: '#7C3AED', margin: '4px 0 2px', fontFamily: 'monospace', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+          <p style={{ fontSize: 'clamp(17px, 1.7vw, 22px)', fontWeight: '800', color: '#7C3AED', margin: '4px 0 2px', fontFamily: 'monospace', whiteSpace: 'nowrap' }}>
             {metricasFacturacion.totalIVA.toLocaleString('es-AR', { style: 'currency', currency: 'ARS' })}
           </p>
           <span style={{ fontSize: '11.5px', color: '#64748B' }}>
@@ -623,7 +623,7 @@ function Facturacion()  {
             <span>Pendiente de Cobro</span>
             <span style={{ fontSize: '10px', background: '#FEE2E2', color: '#DC2626', padding: '2px 6px', borderRadius: '4px', fontWeight: '700' }}>Por cobrar</span>
           </p>
-          <p style={{ fontSize: '22px', fontWeight: '800', color: '#DC2626', margin: '4px 0 2px', fontFamily: 'monospace', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+          <p style={{ fontSize: 'clamp(17px, 1.7vw, 22px)', fontWeight: '800', color: '#DC2626', margin: '4px 0 2px', fontFamily: 'monospace', whiteSpace: 'nowrap' }}>
             {metricasFacturacion.totalPendiente.toLocaleString('es-AR', { style: 'currency', currency: 'ARS' })}
           </p>
           <span style={{ fontSize: '11.5px', color: '#991B1B' }}>
@@ -1135,7 +1135,7 @@ function Facturacion()  {
             )}
           </div>
         ) : (
-          <table style={{ ...s.tabla, minWidth: '1080px', width: '100%' }}>
+          <table style={{ ...s.tabla, minWidth: '960px', width: '100%' }}>
             <thead>
               <tr>
                 <th style={s.tablaCabecera('#0F172A')}>Número</th>
@@ -1153,8 +1153,8 @@ function Facturacion()  {
                   right: 0,
                   zIndex: 3,
                   textAlign: 'center',
-                  minWidth: '175px',
-                  boxShadow: '-4px 0 8px rgba(0,0,0,0.12)'
+                  minWidth: '150px',
+                  boxShadow: '-6px 0 8px -4px rgba(15,23,42,0.18)'
                 }}>
                   Acciones
                 </th>
@@ -1187,7 +1187,7 @@ function Facturacion()  {
                       {formatearFecha(f.fecha_vencimiento)}
                     </td>
                     {/* NETO GRAVADO (DIVIDIDO POR ALÍCUOTA) */}
-                    <td style={{ ...s.tablaCell, textAlign: 'right', whiteSpace: 'nowrap', fontFamily: 'monospace', color: '#334155' }}>
+                    <td style={{ ...s.tablaCell, textAlign: 'right', whiteSpace: 'nowrap', fontFamily: 'monospace', color: '#334155', minWidth: '120px' }}>
                       {d.neto.toLocaleString('es-AR', { style: 'currency', currency: 'ARS' })}
                     </td>
                     {/* IVA DISCRIMINADO */}
@@ -1211,15 +1211,15 @@ function Facturacion()  {
                       background: bgColor,
                       zIndex: 2,
                       textAlign: 'center',
-                      minWidth: '175px',
-                      boxShadow: '-4px 0 8px rgba(0,0,0,0.05)',
+                      minWidth: '150px',
+                      boxShadow: '-6px 0 8px -4px rgba(15,23,42,0.12)',
                       whiteSpace: 'nowrap'
                     }}>
                       <div style={{ display: 'flex', gap: '6px', justifyContent: 'center' }}>
                         <button onClick={() => verPagos(f)} style={{ ...s.btnPrimario('#059669'), padding: '5px 10px', fontSize: '12px' }}>Pagos</button>
                         <button onClick={() => abrirEdicion(f)} style={{ ...s.btnPrimario(c.main), padding: '5px 10px', fontSize: '12px' }} title="Editar"><Pencil size={14} /></button>
                         {f.estado !== 'anulada' && (
-                          <button onClick={() => anularFactura(f.id)} style={{ ...s.btnPeligro, padding: '5px 10px', fontSize: '12px' }}>Anular</button>
+                          <button onClick={() => anularFactura(f.id)} title="Anular factura" aria-label="Anular factura" style={{ ...s.btnPeligro, padding: '5px 8px', fontSize: '12px' }}><Ban size={13} /></button>
                         )}
                         <button
                           title="Eliminar factura"
