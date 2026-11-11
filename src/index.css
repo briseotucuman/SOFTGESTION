@@ -192,3 +192,10 @@ td, th { vertical-align: middle; }
   thead th { position: static; }
   tr { break-inside: avoid; }
 }
+
+/* Tablas densas (movimientos, listados largos): menos aire entre columnas */
+.sg-tabla-densa th, .sg-tabla-densa td { padding: 7px 8px !important; font-size: 12.5px; }
+.sg-tabla-densa th { font-size: 10.5px !important; white-space: nowrap; }
+.sg-tabla-densa td:first-child, .sg-tabla-densa th:first-child { padding-left: 12px !important; }
+.sg-tabla-densa td:last-child, .sg-tabla-densa th:last-child { padding-right: 12px !important; }
+.sg-tabla-densa td { line-height: 1.3; }

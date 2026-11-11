@@ -1135,7 +1135,7 @@ function Facturacion()  {
             )}
           </div>
         ) : (
-          <table style={{ ...s.tabla, minWidth: '960px', width: '100%' }}>
+          <table className="sg-tabla-densa" style={{ ...s.tabla, minWidth: '900px', width: '100%' }}>
             <thead>
               <tr>
                 <th style={s.tablaCabecera('#0F172A')}>Número</th>

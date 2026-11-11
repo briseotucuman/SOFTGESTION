@@ -1327,10 +1327,10 @@ function Finanzas({ vistaInicial = 'movimientos' }) {
             {loading ? <div style={s.empty}>Cargando...</div>
             : movMes.length === 0 ? <div style={s.empty}>No hay movimientos este mes</div>
             : (
-              <table className="sg-tabla-compacta" style={{ ...s.tabla, minWidth: '1000px', width: '100%' }}>
+              <table className="sg-tabla-compacta sg-tabla-densa" style={{ ...s.tabla, minWidth: '780px', width: '100%' }}>
                 <thead>
                   <tr>
-                    {['Fecha','Tipo','Categoría','Descripción','Cliente','Cuenta','Forma de pago','Comprobante'].map(h => <th key={h} style={s.tablaCabecera(c.main)}>{h}</th>)}
+                    {['Fecha','Tipo','Categoría','Descripción','Cliente','Cuenta y pago'].map(h => <th key={h} style={s.tablaCabecera(c.main)}>{h}</th>)}
                     <th style={{ ...s.tablaCabecera(c.main), textAlign: 'right', whiteSpace: 'nowrap' }}>Monto</th>
                     <th style={{
                       ...s.tablaCabecera(c.main),
@@ -1338,8 +1338,8 @@ function Finanzas({ vistaInicial = 'movimientos' }) {
                       right: 0,
                       zIndex: 3,
                       textAlign: 'center',
-                      minWidth: '100px',
-                      boxShadow: '-4px 0 8px rgba(0,0,0,0.08)'
+                      width: '1%',
+                      minWidth: '84px'
                     }}>
                       Acciones
                     </th>
@@ -1351,11 +1351,9 @@ function Finanzas({ vistaInicial = 'movimientos' }) {
                       <td style={{ ...s.tablaCell, whiteSpace: 'nowrap' }}>{new Date(m.fecha + 'T00:00:00').toLocaleDateString('es-AR')}</td>
                       <td style={s.tablaCell}><span style={s.badge(m.tipo === 'ingreso' ? '#d1fae5' : '#fee2e2', m.tipo === 'ingreso' ? '#059669' : '#dc2626')}>{m.tipo}</span></td>
                       <td style={s.tablaCell}>{m.categoria || '—'}</td>
-                      <td style={s.tablaCell}>{m.descripcion || '—'}</td>
+                      <td style={s.tablaCell}>{m.descripcion || '—'}{m.comprobante ? <div style={{ fontSize: '11px', color: '#94a3b8' }}>{m.comprobante}</div> : null}</td>
                       <td style={{ ...s.tablaCell, fontSize: '12px' }}>{(() => { const cl = clientes.find(x => x.id === m.cliente_id); return cl ? (cl.razon_social || cl.nombre_contacto) : '—' })()}</td>
-                      <td style={{ ...s.tablaCell, fontSize: '12px' }}>{cuentas.find(ct => ct.id === m.cuenta_id)?.banco || '—'}</td>
-                      <td style={s.tablaCell}>{m.forma_pago || '—'}</td>
-                      <td style={{ ...s.tablaCell, fontSize: '12px', color: '#94a3b8' }}>{m.comprobante || '—'}</td>
+                      <td style={{ ...s.tablaCell, fontSize: '12px' }}>{cuentas.find(ct => ct.id === m.cuenta_id)?.banco || '—'}<div style={{ fontSize: '11px', color: '#94a3b8' }}>{m.forma_pago || '—'}</div></td>
                       <td style={{ ...s.tablaCellBold, textAlign: 'right', whiteSpace: 'nowrap', color: m.tipo === 'ingreso' ? '#059669' : '#dc2626' }}>{m.tipo === 'ingreso' ? '+' : '-'}{Number(m.monto).toLocaleString('es-AR', { style: 'currency', currency: 'ARS' })}</td>
                       <td style={{
                         ...s.tablaCell,
@@ -1364,11 +1362,11 @@ function Finanzas({ vistaInicial = 'movimientos' }) {
                         background: 'transparent',
                         zIndex: 2,
                         textAlign: 'center',
-                        minWidth: '100px',
-                        boxShadow: '-4px 0 8px rgba(0,0,0,0.05)',
+                        width: '1%',
+                        minWidth: '84px',
                         whiteSpace: 'nowrap'
                       }}>
-                        <div style={{ display: 'flex', gap: '6px', justifyContent: 'center' }}>
+                        <div style={{ display: 'flex', gap: '4px', justifyContent: 'center' }}>
                           <button style={{ ...s.btnPrimario(c.main), padding: '5px 10px', fontSize: '12px' }} onClick={() => abrirEdicion(m)} title="Editar"><Pencil size={14} /></button>
                           <button style={s.btnPeligro} onClick={() => eliminarMovimiento(m)} title="Eliminar"><Trash2 size={14} /></button>
                         </div>
