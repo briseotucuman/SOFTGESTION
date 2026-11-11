@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react'
 import { supabase, emitirCambioDatos } from '../supabase.js'
 import { s, paleta } from '../estilos.js'
+import TableroDecision from './TableroDecision.jsx'
 import {
   TrendingUp, X, History, ArrowUpRight, ArrowDownRight, Layers,
   DollarSign, Building, AlertCircle, MapPin, ChevronLeft, ChevronRight,
@@ -163,7 +164,7 @@ function MapaLeaflet({ sucursales }) {
 }
 
 function Reportes() {
-  const [vista, setVista] = useState('general')
+  const [vista, setVista] = useState('decision')
   const [sucursalesMapa, setSucursalesMapa] = useState([])
   const [stats, setStats] = useState({
     totalClientes: 0,
@@ -730,6 +731,7 @@ function Reportes() {
             marginBottom: '20px'
           }}>
             {[
+              { id: 'decision', label: 'Tablero para decidir' },
               { id: 'general', label: 'Resumen Ejecutivo' },
               { id: 'rentabilidad', label: 'Rentabilidad por Cliente' },
               { id: 'costos', label: 'Estructura de Costos' },
@@ -762,6 +764,8 @@ function Reportes() {
           {/* ============================================================ */}
           {/* 1. VISTA GENERAL / RESUMEN EJECUTIVO */}
           {/* ============================================================ */}
+          {vista === 'decision' && <TableroDecision />}
+
           {vista === 'general' && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
 
