@@ -5,10 +5,11 @@ import { generarAsientos, traerTodo, arsC, r2 } from '../contabilidadUtils.js'
 import { RefreshCw, Plus, Trash2 } from 'lucide-react'
 import ContabilidadInformes from './ContabilidadInformes.jsx'
 import ContabilidadImpuestos from './ContabilidadImpuestos.jsx'
+import CierrePeriodos from './CierrePeriodos.jsx'
 
 const hoyISO = new Date().toISOString().split('T')[0]
 const inicioAnio = `${hoyISO.slice(0, 4)}-01-01`
-const SOLAPAS = [['diario', 'Libro diario'], ['plan', 'Plan de cuentas'], ['mayor', 'Mayor'], ['sumas', 'Sumas y saldos'], ['balance', 'Balance y resultados'], ['impuestos', 'Impuestos']]
+const SOLAPAS = [['diario', 'Libro diario'], ['plan', 'Plan de cuentas'], ['mayor', 'Mayor'], ['sumas', 'Sumas y saldos'], ['balance', 'Balance y resultados'], ['impuestos', 'Impuestos'], ['cierre', 'Cierre de períodos']]
 const ORIGEN = { manual: 'Manual', venta: 'Venta', compra: 'Compra', cobro: 'Cobro', pago_compra: 'Pago', movimiento: 'Movimiento', liquidacion: 'Sueldo' }
 
 export default function Contabilidad() {
@@ -70,6 +71,7 @@ export default function Contabilidad() {
       {cargando ? <div style={s.card}>Cargando…</div> : !error && (
         vista === 'diario' ? <LibroDiario {...ctx} /> :
         vista === 'plan' ? <PlanCuentas {...ctx} /> :
+        vista === 'cierre' ? <CierrePeriodos /> :
         vista === 'impuestos' ? <ContabilidadImpuestos {...ctx} /> :
         <ContabilidadInformes {...ctx} vista={vista} />
       )}
