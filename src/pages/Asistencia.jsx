@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { supabase } from '../supabase.js'
 import { s, paleta } from '../estilos.js'
-import { Trash2, Download, Smartphone, Copy, MessageCircle } from 'lucide-react'
+import { Trash2, Download, Smartphone, Copy, MessageCircle, MapPin, AlertTriangle, Crosshair } from 'lucide-react'
 
 const hoy = new Date().toISOString().split('T')[0]
 const TIPOS = [['trabajado', 'Trabajó'], ['falta', 'Falta'], ['licencia', 'Licencia'], ['vacaciones', 'Vacaciones'], ['enfermedad', 'Enfermedad']]
@@ -10,6 +10,26 @@ const calcHoras = (e, sal) => {
   let m = (Number(sal.slice(0, 2)) * 60 + Number(sal.slice(3, 5))) - (Number(e.slice(0, 2)) * 60 + Number(e.slice(3, 5)))
   if (m < 0) m += 1440
   return Math.round(m / 60 * 100) / 100
+}
+
+const urlMapa = (lat, lng) => `https://www.google.com/maps?q=${lat},${lng}`
+const chip = (bg, color) => ({ background: bg, color, borderRadius: 8, padding: '2px 8px', fontSize: 11.5, fontWeight: 600, whiteSpace: 'nowrap', display: 'inline-flex', alignItems: 'center', gap: 4, textDecoration: 'none' })
+// Estado de ubicación de una marcación hecha desde el celular
+function estadoUbic(a) {
+  if (a.origen !== 'celular') return null
+  if (a.lat == null) return 'sin'
+  if (a.en_zona === false || a.en_zona_salida === false) return 'fuera'
+  return a.en_zona === true ? 'ok' : 'libre'
+}
+function Ubic({ a }) {
+  const e = estadoUbic(a)
+  if (!e) return <span style={{ color: paleta.muted, fontSize: 12 }}>{a.tipo === 'trabajado' ? 'manual' : ''}</span>
+  if (e === 'sin') return <span style={chip('#FEF3C7', '#92400E')}><AlertTriangle size={11} /> Sin ubicación</span>
+  const mapa = <a href={urlMapa(a.lat, a.lng)} target="_blank" rel="noreferrer" title="Ver dónde marcó" style={{ color: 'inherit', textDecoration: 'none' }}>
+    {e === 'fuera' ? <span style={chip('#FFE4E6', '#BE123C')}><MapPin size={11} /> Fuera de zona{a.dist_entrada != null && a.en_zona === false ? ` · ${a.dist_entrada} m` : ''}{a.en_zona_salida === false ? ` · salida a ${a.dist_salida} m` : ''}</span>
+      : e === 'ok' ? <span style={chip('#DCFCE7', '#15803D')}><MapPin size={11} /> En el lugar</span>
+      : <span style={chip('#EFF6FF', '#1D4ED8')}><MapPin size={11} /> Ubicada (sin zona definida)</span>}</a>
+  return mapa
 }
 
 // Registro diario de asistencia y horas reales por empleado y cliente
@@ -27,7 +47,7 @@ export default function Asistencia() {
   const cargar = useCallback(async () => {
     const [e, c, d, m] = await Promise.all([
       supabase.from('empleados').select('id, nombre, apellido, telefono, token_marcacion').eq('activo', true).order('apellido'),
-      supabase.from('clientes').select('id, razon_social, nombre_contacto').eq('activo', true).order('razon_social'),
+      supabase.from('clientes').select('*').eq('activo', true).order('razon_social'),
       supabase.from('asistencias').select('*').eq('fecha', fecha).order('creado_en'),
       supabase.from('asistencias').select('*').gte('fecha', `${mes}-01`).lte('fecha', `${mes}-31`)
     ])
@@ -60,6 +80,11 @@ export default function Asistencia() {
     return Object.entries(m).map(([id, r]) => ({ id, ...r })).sort((a, b) => nomE(a.id).localeCompare(nomE(b.id)))
   }, [delMes, empleados])
 
+  const alertasUbic = useMemo(() => {
+    const fuera = delMes.filter(a => estadoUbic(a) === 'fuera'), sin = delMes.filter(a => estadoUbic(a) === 'sin')
+    return { fuera, sin, total: fuera.length + sin.length }
+  }, [delMes])
+
   const exportar = () => {
     const filas = [['Empleado', 'Horas', 'Faltas', 'Licencias/vacaciones', 'Detalle por cliente'], ...resumen.map(r => [nomE(r.id), r.horas, r.faltas, r.licencias, Object.entries(r.clientes).map(([k, h]) => `${k === 'sin' ? 'Sin cliente' : nomC(k)}: ${h}h`).join(' | ')])]
     const txt = filas.map(r => r.map(c => `"${String(c).replace(/"/g, '""')}"`).join(';')).join('\n')
@@ -72,9 +97,19 @@ export default function Asistencia() {
         <button style={vista === 'dia' ? s.btnPrimario('#1e40af') : s.btnSecundario} onClick={() => setVista('dia')}>Registro diario</button>
         <button style={vista === 'mes' ? s.btnPrimario('#1e40af') : s.btnSecundario} onClick={() => setVista('mes')}>Resumen mensual</button>
         <button style={vista === 'enlaces' ? s.btnPrimario('#1e40af') : s.btnSecundario} onClick={() => setVista('enlaces')}><Smartphone size={13} /> Marcación por celular</button>
+        <button style={vista === 'zonas' ? s.btnPrimario('#1e40af') : s.btnSecundario} onClick={() => setVista('zonas')}><MapPin size={13} /> Lugares de trabajo</button>
       </div>
       {error && <div style={{ ...s.card, padding: 12, color: paleta.danger, background: paleta.dangerSoft }}>{error}</div>}
-      {vista === 'enlaces' ? <Enlaces empleados={empleados} recargar={cargar} /> : vista === 'dia' ? (<>
+      {alertasUbic.total > 0 && vista !== 'zonas' && (
+        <div style={{ ...s.card, padding: 12, background: '#FFFBEB', border: '1px solid #FCD34D', display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+          <AlertTriangle size={18} color="#B45309" />
+          <div style={{ fontSize: 13, color: '#92400E', flex: 1 }}>
+            Este mes hay <b>{alertasUbic.total}</b> marcaciones para revisar: <b>{alertasUbic.fuera.length}</b> fuera de zona y <b>{alertasUbic.sin.length}</b> sin ubicación.
+            {vista === 'dia' && ' Aparecen señaladas en la columna Ubicación (cambiá la fecha para ver cada día).'}
+          </div>
+        </div>
+      )}
+      {vista === 'zonas' ? <Zonas clientes={clientes} recargar={cargar} /> : vista === 'enlaces' ? <Enlaces empleados={empleados} recargar={cargar} /> : vista === 'dia' ? (<>
         <div style={{ ...s.card, padding: 14, display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'flex-end' }}>
           <div><label style={s.label}>Fecha</label><input type="date" style={s.input} value={fecha} onChange={e => setFecha(e.target.value)} /></div>
           <div><label style={s.label}>Empleado</label><select style={s.input} value={f.empleado_id} onChange={e => setF({ ...f, empleado_id: e.target.value })}><option value="">Elegir…</option>{empleados.map(e => <option key={e.id} value={e.id}>{e.apellido} {e.nombre}</option>)}</select></div>
@@ -87,12 +122,13 @@ export default function Asistencia() {
         </div>
         <div style={{ ...s.card, padding: 0, overflowX: 'auto' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
-            <thead><tr>{['Empleado', 'Situación', 'Cliente', 'Entrada', 'Salida', 'Horas', ''].map(h => <th key={h} style={{ ...s.tablaCabecera(), padding: '8px 10px' }}>{h}</th>)}</tr></thead>
+            <thead><tr>{['Empleado', 'Situación', 'Cliente', 'Entrada', 'Salida', 'Horas', 'Ubicación', ''].map(h => <th key={h} style={{ ...s.tablaCabecera(), padding: '8px 10px' }}>{h}</th>)}</tr></thead>
             <tbody>{delDia.map(a => (
               <tr key={a.id} style={{ borderTop: `1px solid ${paleta.line}` }}>
                 <td style={{ padding: '6px 10px', fontWeight: 600 }}>{nomE(a.empleado_id)}</td><td style={{ padding: '6px 10px' }}>{TIPOS.find(t => t[0] === a.tipo)?.[1]}</td>
                 <td style={{ padding: '6px 10px' }}>{a.cliente_id ? nomC(a.cliente_id) : ''}</td><td style={{ padding: '6px 10px' }}>{a.entrada?.slice(0, 5)}</td><td style={{ padding: '6px 10px' }}>{a.salida?.slice(0, 5)}</td>
                 <td style={{ padding: '6px 10px', fontFamily: paleta.fontMono }}>{a.horas ?? ''}</td>
+                <td style={{ padding: '6px 10px' }}><Ubic a={a} /></td>
                 <td style={{ padding: '6px 10px' }}><button style={s.btnPeligro} onClick={() => borrar(a.id)}><Trash2 size={12} /></button></td>
               </tr>))}</tbody>
           </table>
@@ -105,12 +141,13 @@ export default function Asistencia() {
             <button style={{ ...s.btnSecundario, marginLeft: 'auto' }} onClick={exportar}><Download size={13} /> Exportar</button>
           </div>
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
-            <thead><tr>{['Empleado', 'Horas trabajadas', 'Faltas', 'Licencias / vacaciones', 'Horas por cliente'].map(h => <th key={h} style={{ ...s.tablaCabecera(), padding: '8px 10px' }}>{h}</th>)}</tr></thead>
+            <thead><tr>{['Empleado', 'Horas trabajadas', 'Faltas', 'Licencias / vacaciones', 'Horas por cliente', 'Ubicación a revisar'].map(h => <th key={h} style={{ ...s.tablaCabecera(), padding: '8px 10px' }}>{h}</th>)}</tr></thead>
             <tbody>{resumen.map(r => (
               <tr key={r.id} style={{ borderTop: `1px solid ${paleta.line}` }}>
                 <td style={{ padding: '6px 10px', fontWeight: 600 }}>{nomE(r.id)}</td><td style={{ padding: '6px 10px', fontFamily: paleta.fontMono }}>{r.horas}</td>
                 <td style={{ padding: '6px 10px', color: r.faltas ? paleta.danger : undefined }}>{r.faltas}</td><td style={{ padding: '6px 10px' }}>{r.licencias}</td>
                 <td style={{ padding: '6px 10px' }}>{Object.entries(r.clientes).map(([k, h]) => `${k === 'sin' ? 'Sin cliente' : nomC(k)}: ${h} h`).join(' · ')}</td>
+                <td style={{ padding: '6px 10px', whiteSpace: 'nowrap' }}>{(() => { const f = alertasUbic.fuera.filter(a => a.empleado_id === r.id).length, sn = alertasUbic.sin.filter(a => a.empleado_id === r.id).length; return f + sn === 0 ? <span style={{ color: paleta.muted }}>—</span> : <>{f > 0 && <span style={chip('#FFE4E6', '#BE123C')}>{f} fuera</span>} {sn > 0 && <span style={chip('#FEF3C7', '#92400E')}>{sn} sin ubic.</span>}</> })()}</td>
               </tr>))}</tbody>
           </table>
           {resumen.length === 0 && <div style={{ padding: 14, color: paleta.muted }}>Sin registros en el mes.</div>}
@@ -155,5 +192,64 @@ function Enlaces({ empleados, recargar }) {
           </tr>))}</tbody>
       </table>
     </div>
+  )
+}
+
+// Ubicación y radio permitido de cada lugar de trabajo (geocerca)
+const RADIOS = [50, 100, 150, 200, 300, 500, 1000]
+function Zonas({ clientes, recargar }) {
+  const sinColumnas = clientes.length > 0 && !('radio_metros' in clientes[0])
+  return (
+    <div style={{ ...s.card, padding: 0, overflowX: 'auto' }}>
+      <div style={{ padding: 14, color: paleta.inkSoft, fontSize: 13 }}>
+        Definí dónde está cada lugar de trabajo y a qué distancia se considera «en el lugar». Cuando un empleado marca desde el celular, el sistema compara su ubicación con esta y señala las marcaciones <b>fuera de zona</b> o <b>sin ubicación</b>. La marcación nunca se bloquea: queda registrada y la revisás en Asistencia.
+        <ul style={{ margin: '8px 0 0', paddingLeft: 18 }}>
+          <li>Lo más simple: <b>estando en el lugar</b>, abrí esta pantalla desde tu celular y tocá <b>«Usar mi ubicación»</b>.</li>
+          <li>Desde la computadora: en Google Maps hacé clic derecho sobre el lugar, tocá los números de arriba para copiarlos y pegalos acá.</li>
+          <li>Radio recomendado: 100 a 200 m. El GPS del celular puede tener un error de decenas de metros, sobre todo adentro de edificios.</li>
+        </ul>
+        {sinColumnas && <div style={{ color: paleta.warn, marginTop: 8 }}>Falta activar la función: ejecutá geocerca_softgestion.sql en Supabase (SQL Editor).</div>}
+      </div>
+      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+        <thead><tr>{['Cliente / lugar', 'Ubicación', 'Radio', 'Cargar ubicación'].map(h => <th key={h} style={{ ...s.tablaCabecera(), padding: '8px 10px' }}>{h}</th>)}</tr></thead>
+        <tbody>{clientes.map(c => <FilaZona key={c.id} c={c} recargar={recargar} deshabilitado={sinColumnas} />)}</tbody>
+      </table>
+    </div>
+  )
+}
+
+function FilaZona({ c, recargar, deshabilitado }) {
+  const [texto, setTexto] = useState('')
+  const [msg, setMsg] = useState('')
+  const guardar = async (lat, lng) => {
+    const { error } = await supabase.from('clientes').update({ lat, lng }).eq('id', c.id)
+    setMsg(error ? error.message : 'Guardado'); if (!error) { setTexto(''); recargar() }
+  }
+  const pegar = () => {
+    const m = texto.replace(/[()]/g, '').match(/(-?\d{1,3}\.\d+)\s*[,;\s]\s*(-?\d{1,3}\.\d+)/)
+    if (!m) return setMsg('Pegá las coordenadas como en Google Maps, por ejemplo: -26.8241, -65.2226')
+    guardar(Number(m[1]), Number(m[2]))
+  }
+  const aqui = () => {
+    if (!navigator.geolocation) return setMsg('Este dispositivo no permite obtener la ubicación.')
+    setMsg('Obteniendo ubicación…')
+    navigator.geolocation.getCurrentPosition(p => guardar(Number(p.coords.latitude.toFixed(6)), Number(p.coords.longitude.toFixed(6))), () => setMsg('No se pudo obtener la ubicación. Revisá el permiso del navegador.'), { enableHighAccuracy: true, timeout: 15000 })
+  }
+  const radio = async v => { await supabase.from('clientes').update({ radio_metros: Number(v) }).eq('id', c.id); recargar() }
+  const tiene = c.lat != null && c.lng != null
+  return (
+    <tr style={{ borderTop: `1px solid ${paleta.line}`, verticalAlign: 'top' }}>
+      <td style={{ padding: '8px 10px', fontWeight: 600 }}>{c.razon_social || c.nombre_contacto}{c.direccion && <div style={{ fontWeight: 400, fontSize: 12, color: paleta.muted }}>{c.direccion}{c.localidad ? `, ${c.localidad}` : ''}</div>}</td>
+      <td style={{ padding: '8px 10px' }}>{tiene ? <a href={urlMapa(c.lat, c.lng)} target="_blank" rel="noreferrer" style={chip('#DCFCE7', '#15803D')}><MapPin size={11} /> Ver en el mapa</a> : <span style={chip('#F1F5F9', '#64748B')}>Sin definir</span>}</td>
+      <td style={{ padding: '8px 10px' }}><select style={{ ...s.input, width: 'auto' }} disabled={deshabilitado} value={c.radio_metros || 150} onChange={e => radio(e.target.value)}>{RADIOS.map(r => <option key={r} value={r}>{r} m</option>)}</select></td>
+      <td style={{ padding: '8px 10px' }}>
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
+          <button style={s.btnPrimario('#15803D')} disabled={deshabilitado} onClick={aqui}><Crosshair size={13} /> Usar mi ubicación</button>
+          <input style={{ ...s.input, width: 190 }} placeholder="-26.8241, -65.2226" value={texto} disabled={deshabilitado} onChange={e => setTexto(e.target.value)} onKeyDown={e => e.key === 'Enter' && pegar()} />
+          <button style={s.btnSecundario} disabled={deshabilitado || !texto} onClick={pegar}>Guardar</button>
+        </div>
+        {msg && <div style={{ fontSize: 12, marginTop: 4, color: msg === 'Guardado' ? paleta.success : paleta.muted }}>{msg}</div>}
+      </td>
+    </tr>
   )
 }

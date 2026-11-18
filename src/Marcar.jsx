@@ -14,6 +14,7 @@ export default function Marcar() {
   const [enviando, setEnviando] = useState(false)
   const [resultado, setResultado] = useState(null)
   const [error, setError] = useState('')
+  const [sinPermiso, setSinPermiso] = useState(false)
 
   const cargar = useCallback(async () => {
     const { data, error: e } = await supabase.rpc('marcacion_info', { p_token: token })
@@ -26,13 +27,14 @@ export default function Marcar() {
 
   const ubicacion = () => new Promise(res => {
     if (!navigator.geolocation) return res({})
-    navigator.geolocation.getCurrentPosition(p => res({ lat: p.coords.latitude, lng: p.coords.longitude }), () => res({}), { timeout: 6000, maximumAge: 60000 })
+    navigator.geolocation.getCurrentPosition(p => res({ lat: p.coords.latitude, lng: p.coords.longitude }), err => res({ denegado: err?.code === 1 }), { enableHighAccuracy: true, timeout: 12000, maximumAge: 20000 })
   })
 
   const marcar = async () => {
     if (!info.abierta && info.clientes.length > 1 && !cliente) return setError('Elegí dónde estás trabajando.')
     setEnviando(true); setError(''); setResultado(null)
-    const { lat, lng } = await ubicacion()
+    const { lat, lng, denegado } = await ubicacion()
+    setSinPermiso(!!denegado)
     const { data, error: e } = await supabase.rpc('marcar_asistencia', { p_token: token, p_cliente: cliente || null, p_lat: lat ?? null, p_lng: lng ?? null })
     setEnviando(false)
     if (e || !data?.ok) return setError(data?.error || 'No se pudo registrar. Probá de nuevo.')
@@ -69,6 +71,9 @@ export default function Marcar() {
             {enviando ? 'Registrando…' : abierta ? 'Marcar SALIDA' : 'Marcar ENTRADA'}
           </button>
           {resultado && <div style={{ marginTop: 14, textAlign: 'center', fontWeight: 600, color: '#15803d' }}>✓ {resultado.accion === 'entrada' ? 'Entrada' : 'Salida'} registrada a las {resultado.hora}{resultado.horas ? ` · ${resultado.horas} h` : ''}</div>}
+          {resultado && resultado.en_zona === true && <div style={{ marginTop: 6, textAlign: 'center', fontSize: 13, color: '#15803d' }}>📍 Ubicación verificada: estás en el lugar de trabajo.</div>}
+          {resultado && resultado.en_zona === false && <div style={{ marginTop: 8, background: '#fef3c7', color: '#92400e', borderRadius: 12, padding: '10px 12px', fontSize: 13, textAlign: 'center' }}>⚠️ Marcaste a unos {resultado.distancia} m del lugar de trabajo. Quedó registrado y se avisa a administración para revisarlo.</div>}
+          {resultado && resultado.sin_ubicacion && <div style={{ marginTop: 8, background: '#fef3c7', color: '#92400e', borderRadius: 12, padding: '10px 12px', fontSize: 13, textAlign: 'center' }}>⚠️ No se pudo obtener tu ubicación{sinPermiso ? ': el permiso está bloqueado. Activá "Ubicación" para este sitio en los ajustes del navegador' : ': activá el GPS / ubicación del celular'} para que tu marca quede verificada. Esta quedó registrada y se avisa a administración.</div>}
           {error && <div style={{ marginTop: 14, textAlign: 'center', color: '#be123c' }}>{error}</div>}
           {info.marcas?.length > 0 && (
             <div style={{ marginTop: 18, borderTop: '1px solid #e2e8f0', paddingTop: 12, fontSize: 13, color: '#334155' }}>
