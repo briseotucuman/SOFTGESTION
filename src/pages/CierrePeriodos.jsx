@@ -68,7 +68,7 @@ export default function CierrePeriodos({ usuario }) {
       {msg && <div style={{ ...s.card, padding: 12, marginBottom: 12, color: msg.ok ? paleta.success : paleta.danger, background: msg.ok ? paleta.successSoft : paleta.dangerSoft }}>{msg.t}</div>}
       <div style={{ ...s.card, padding: 0, overflowX: 'auto' }}>
         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
-          <thead><tr>{['Período', 'Estado', 'Detalle', ''].map(h => <th key={h} style={s.tablaCabecera}>{h}</th>)}</tr></thead>
+          <thead><tr>{['Período', 'Estado', 'Detalle', ''].map(h => <th key={h} style={s.tablaCabecera()}>{h}</th>)}</tr></thead>
           <tbody>
             {lista.map(p => {
               const f = filas[p], cerrado = f && !f.reabierto_en
