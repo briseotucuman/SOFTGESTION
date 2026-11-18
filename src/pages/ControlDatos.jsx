@@ -36,11 +36,13 @@ export default function ControlDatos({ onIr }) {
       supabase.from('vencimientos').select('id, fecha_vencimiento').eq('cumplido', false).lt('fecha_vencimiento', hoy),
       supabase.from('asientos').select('origen_tipo, origen_id').in('origen_tipo', ['venta', 'compra']),
       supabase.from('liquidaciones_sueldo').select('empleado_id, periodo').gte('periodo', mesAntes(mes, 2)),
-      supabase.from('empleados').select('id').eq('activo', true).or('telefono.is.null,telefono.eq.')
+      supabase.from('empleados').select('id').eq('activo', true).or('telefono.is.null,telefono.eq.'),
+      supabase.from('asistencias').select('empleado_id, fecha, entrada, salida, tipo, origen, lat, en_zona, en_zona_salida').gte('fecha', ini).lte('fecha', fin),
+      supabase.from('clientes').select('id, razon_social, lat').eq('activo', true)
     ])
-    const OPCIONALES = [11, 12, 13, 14, 15] // tablas de módulos nuevos: si aún no existen no se considera un error
+    const OPCIONALES = [11, 12, 13, 14, 15, 16, 17] // tablas de módulos nuevos: si aún no existen no se considera un error
     const err = res.find((r, i) => r.error && !OPCIONALES.includes(i)); setError(err ? err.error.message : '')
-    const [fa, pg, ch, mv, fc, em, par, ho, li, cl, co, f931, venc, asi, liq3, sinTel] = res.map(r => r.data || [])
+    const [fa, pg, ch, mv, fc, em, par, ho, li, cl, co, f931, venc, asi, liq3, sinTel, asiMes, cliGeo] = res.map(r => r.data || [])
     const cargas = Number(res[6].data?.valor || 0)
     const cobrado = {}; pg.forEach(p => { cobrado[p.factura_id] = (cobrado[p.factura_id] || 0) + Number(p.monto) })
     const abiertas = fa.filter(f => ['emitida', 'pendiente', 'parcial', 'vencida'].includes(f.estado))
@@ -59,6 +61,12 @@ export default function ControlDatos({ onIr }) {
     const f931Pend = f931.filter(x => x.estado === 'pendiente')
     const contab = new Set(asi.map(x => `${x.origen_tipo}:${x.origen_id}`))
     const sinAsiento = [...fa.filter(f => f.fecha_emision >= ini && f.fecha_emision <= fin).map(f => `venta:${f.id}`), ...fc.filter(f => f.fecha_emision >= ini && f.fecha_emision <= fin).map(f => `compra:${f.id}`)].filter(k => !contab.has(k))
+    const celMes = asiMes.filter(a => a.origen === 'celular')
+    const fueraZona = celMes.filter(a => a.lat != null && (a.en_zona === false || a.en_zona_salida === false))
+    const sinUbic = celMes.filter(a => a.lat == null)
+    const sinSalida = asiMes.filter(a => a.tipo === 'trabajado' && a.entrada && !a.salida && a.fecha < hoy)
+    const clientesServicio = new Set(ho.map(h => h.cliente_id).filter(Boolean))
+    const sinGeocerca = cliGeo.filter(c => clientesServicio.has(c.id) && c.lat == null)
     const horSinEmp = ho.filter(h => !h.empleado_id)
     const horSinCli = ho.filter(h => !h.cliente_id)
     const liquidados = new Set(li.map(l => l.empleado_id))
@@ -87,6 +95,10 @@ export default function ControlDatos({ onIr }) {
       { grupo: 'Rentabilidad por cliente', sev: 'warn', n: cargas > 0 ? 0 : 1, titulo: 'Cargas sociales sin definir (0%)', det: cargas > 0 ? `${cargas}% configurado` : 'El costo del personal está subestimado. Se carga en Finanzas > Personal por cliente', ir: 'finanzas' },
       { grupo: 'Rentabilidad por cliente', sev: 'warn', n: horSinEmp.length, titulo: 'Horarios con empleado sin vincular', det: horSinEmp.length ? [...new Set(horSinEmp.map(h => h.empleado_nombre))].join(', ') + ' (darlos de alta en Personal)' : 'Todos vinculados', ir: 'personal' },
       { grupo: 'Rentabilidad por cliente', sev: 'info', n: horSinCli.length, titulo: 'Horarios sin cliente asignado', det: horSinCli.length ? 'Esas horas cuentan como gasto general' : 'Todos con cliente', ir: 'finanzas' },
+      { grupo: 'Asistencia', sev: 'warn', n: fueraZona.length, titulo: 'Marcaciones fuera de zona', det: fueraZona.length ? `${fueraZona.length} marcaciones del mes lejos del lugar de trabajo: revisalas en Asistencia` : 'Todas dentro de la zona', ir: 'asistencia' },
+      { grupo: 'Asistencia', sev: 'warn', n: sinUbic.length, titulo: 'Marcaciones por celular sin ubicación', det: sinUbic.length ? `${sinUbic.length} marcaciones sin GPS: pedile al personal que active la ubicación` : 'Todas con ubicación', ir: 'asistencia' },
+      { grupo: 'Asistencia', sev: 'danger', n: sinSalida.length, titulo: 'Entradas sin salida marcada', det: sinSalida.length ? `${sinSalida.length} jornadas abiertas de días anteriores: sin salida no se calculan las horas` : 'Todas con salida', ir: 'asistencia' },
+      { grupo: 'Asistencia', sev: 'info', n: sinGeocerca.length, titulo: 'Lugares de trabajo sin ubicación definida', det: sinGeocerca.length ? `${sinGeocerca.length} clientes con servicio sin geocerca: ${sinGeocerca.map(c => c.razon_social).filter(Boolean).slice(0, 3).join(', ')}${sinGeocerca.length > 3 ? '…' : ''}` : 'Todos definidos', ir: 'asistencia' },
       { grupo: 'Datos maestros', sev: 'info', n: sinCuit.length, titulo: 'Clientes sin CUIT', det: sinCuit.length ? sinCuit.map(x => x.razon_social).slice(0, 4).join(', ') : 'Todos con CUIT', ir: 'clientes' }
     ])
     setCargando(false)

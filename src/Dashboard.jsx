@@ -616,6 +616,14 @@ function Dashboard({ user }) {
         nuevasAlertas.push({ tipo: dias !== null && dias < 0 ? 'danger' : 'warning', titulo: dias === null ? `F.931 ${f.periodo} pendiente de pago` : dias < 0 ? `F.931 ${f.periodo} vencido hace ${-dias} días` : `F.931 ${f.periodo} vence en ${dias} días`, detalle: 'Cargas sociales a ingresar a ARCA', monto: Number(f.total_a_pagar), modulo: 'f931' })
       })
 
+      // Asistencia: marcaciones por celular fuera de zona / sin ubicación, y entradas que quedaron sin salida
+      const hace7 = new Date(hoy); hace7.setDate(hace7.getDate() - 7)
+      const { data: marc } = await supabase.from('asistencias').select('fecha, origen, tipo, entrada, salida, lat, en_zona, en_zona_salida').gte('fecha', hace7.toLocaleDateString('en-CA'))
+      const rev = (marc || []).filter(a => a.origen === 'celular' && (a.lat == null || a.en_zona === false || a.en_zona_salida === false))
+      if (rev.length) nuevasAlertas.push({ tipo: 'warning', titulo: `${rev.length} marcaciones para revisar (últimos 7 días)`, detalle: `${rev.filter(a => a.lat != null).length} fuera de zona · ${rev.filter(a => a.lat == null).length} sin ubicación`, modulo: 'asistencia' })
+      const sinSalida = (marc || []).filter(a => a.tipo === 'trabajado' && a.entrada && !a.salida && a.fecha < hoyIso)
+      if (sinSalida.length) nuevasAlertas.push({ tipo: 'warning', titulo: `${sinSalida.length} entradas sin salida marcada`, detalle: 'Hay que completar la salida para que se calculen las horas', modulo: 'asistencia' })
+
       setAlertas(nuevasAlertas.filter(a => puede(a.modulo)))
     } catch {
       // Ignorar si aún no hay conexión Supabase
