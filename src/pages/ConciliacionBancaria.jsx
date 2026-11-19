@@ -12,6 +12,14 @@ import {
 
 const c = colores.finanzas
 
+// ¿El extracto pertenece a la cuenta elegida? (compara los dígitos del número de cuenta del encabezado del banco)
+function cuentaNoCoincide(filas, cuenta) {
+  const nro = (filas?.cuentaExtracto || '').replace(/\D/g, '')
+  if (!nro || !cuenta) return false
+  const dest = `${cuenta.banco || ''} ${cuenta.numero || ''}`.replace(/\D/g, '')
+  return dest.length > 0 && !dest.includes(nro)
+}
+
 // Saldo final del extracto = saldo luego del movimiento MÁS NUEVO (no de la última fila del archivo).
 // Detecta si el archivo viene del más nuevo al más viejo (BBVA) o al revés, y si "Saldo parcial"
 // es el saldo antes o después de cada movimiento, probando la continuidad entre filas consecutivas.
@@ -58,7 +66,7 @@ function parsearResumenBancario(texto, delimitadorForzado) {
 
   // Buscar si alguna de las primeras 5 líneas es cabecera
   let headerIndex = -1
-  for (let i = 0; i < Math.min(filasRaw.length, 5); i++) {
+  for (let i = 0; i < Math.min(filasRaw.length, 25); i++) {
     const fila = filasRaw[i].map(col => col.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, ''))
     if (
       fila.some(col => col.includes('fecha') || col.includes('fec') || col.includes('dia')) &&
@@ -127,6 +135,8 @@ function parsearResumenBancario(texto, delimitadorForzado) {
     const f = filasRaw[i]
     if (f.length < 2 || !f.some(col => col.length > 0)) continue
 
+    // Solo filas de movimientos: la fecha debe verse como fecha (descarta encabezados del banco como "Empresa:", "Cuenta:", "Saldo:")
+    if (!/^\d{1,4}[/\-.]\d{1,2}[/\-.]\d{1,4}$/.test((f[iFecha] || '').trim())) continue
     const fecha = parseFechaArg(f[iFecha])
     const concepto = f[iConcepto] || f[1] || 'Movimiento bancario'
 
@@ -138,7 +148,7 @@ function parsearResumenBancario(texto, delimitadorForzado) {
       monto = cred > 0 ? cred : -deb
     } else if (iImporte !== -1 && f[iImporte]) {
       monto = parseMontoArg(f[iImporte])
-    } else if (f[2]) {
+    } else if (f[2] && /[.,]\d{2}\s*-?$/.test(f[2].trim())) {
       monto = parseMontoArg(f[2])
     }
 
@@ -171,6 +181,9 @@ function parsearResumenBancario(texto, delimitadorForzado) {
     })
   }
 
+  // Número de cuenta que informa el banco en el encabezado (ej. "Cuenta: 070-321476/4(CC $)")
+  const mCta = textoLimpio.match(/Cuenta:?\s*[\t;,]*\s*(\d{2,4}[-\d/]*\d)/i)
+  resultado.cuentaExtracto = mCta ? mCta[1] : null
   return resultado
 }
 
@@ -385,6 +398,10 @@ function ConciliacionBancaria({
     }
     if (filasPrevia.length === 0) {
       alert('No hay transacciones para guardar.')
+      return
+    }
+    if (cuentaNoCoincide(filasPrevia, cuentaActiva) &&
+        !window.confirm(`Este extracto es de la cuenta ${filasPrevia.cuentaExtracto}, pero elegiste ${cuentaActiva?.banco}. ¿Guardarlo igual?`)) {
       return
     }
 
@@ -2142,6 +2159,11 @@ function ConciliacionBancaria({
                     Saldo final detectado: {saldoFinalExtracto(filasPrevia) != null ? Number(saldoFinalExtracto(filasPrevia)).toLocaleString('es-AR', { style: 'currency', currency: 'ARS' }) : '—'}
                   </span>
                 </div>
+                {cuentaNoCoincide(filasPrevia, cuentaActiva) && (
+                  <div style={{ marginBottom: 8, padding: '8px 10px', borderRadius: 8, background: '#FFE4E6', color: '#9F1239', fontSize: 12, fontWeight: 600 }}>
+                    Atención: el archivo es de la cuenta {filasPrevia.cuentaExtracto} y tenés seleccionada {cuentaActiva?.banco}. Cambiá de cuenta antes de guardar.
+                  </div>
+                )}
                 {filasPrevia.some(f => f.signoCorregido) && (
                   <div style={{ marginBottom: 8, padding: '8px 10px', borderRadius: 8, background: '#FEF3C7', color: '#92400E', fontSize: 12 }}>
                     {filasPrevia.filter(f => f.signoCorregido).length} movimiento(s) de impuestos/comisiones venían con signo positivo en el archivo y se tomaron como débitos (egresos).
