@@ -12,6 +12,30 @@ import {
 
 const c = colores.finanzas
 
+// Saldo final del extracto = saldo luego del movimiento MÁS NUEVO (no de la última fila del archivo).
+// Detecta si el archivo viene del más nuevo al más viejo (BBVA) o al revés, y si "Saldo parcial"
+// es el saldo antes o después de cada movimiento, probando la continuidad entre filas consecutivas.
+function saldoFinalExtracto(filas) {
+  const f = (filas || []).filter(x => x.saldo != null)
+  if (f.length === 0) return null
+  if (f.length === 1) return Math.round((f[0].saldo + f[0].monto) * 100) / 100 // BBVA: saldo parcial = saldo antes del movimiento
+  const ok = (a, b) => Math.abs(a - b) < 0.05
+  const c = { descAntes: 0, ascAntes: 0, descDespues: 0, ascDespues: 0 }
+  for (let i = 0; i < f.length - 1; i++) {
+    const a = f[i], b = f[i + 1]
+    if (ok(b.saldo + b.monto, a.saldo)) c.descAntes++
+    if (ok(a.saldo + a.monto, b.saldo)) c.ascAntes++
+    if (ok(a.saldo, b.saldo + a.monto)) c.descDespues++
+    if (ok(b.saldo, a.saldo + b.monto)) c.ascDespues++
+  }
+  const mejor = Object.entries(c).sort((x, y) => y[1] - x[1])[0]
+  let desc, antes
+  if (mejor[1] > 0) { desc = mejor[0].startsWith('desc'); antes = mejor[0].endsWith('Antes') }
+  else { desc = f[0].fecha >= f[f.length - 1].fecha; antes = true }
+  const nueva = desc ? f[0] : f[f.length - 1]
+  return Math.round((antes ? nueva.saldo + nueva.monto : nueva.saldo) * 100) / 100
+}
+
 // Función robusta para parsear texto de resúmenes bancarios (CSV, TSV o copiado directo de Homebanking)
 function parsearResumenBancario(texto, delimitadorForzado) {
   if (!texto || !texto.trim()) return []
@@ -371,7 +395,7 @@ function ConciliacionBancaria({
       cuentaId,
       filas: filasPrevia,
       totalMovimientos: filasPrevia.length,
-      saldoFinal: filasPrevia[filasPrevia.length - 1]?.saldo ?? null
+      saldoFinal: saldoFinalExtracto(filasPrevia)
     }
 
     const listaActual = extractosPorCuenta[cuentaId] || []
@@ -2115,7 +2139,7 @@ function ConciliacionBancaria({
                     Vista previa: {filasPrevia.length} transacciones detectadas
                   </span>
                   <span style={{ fontSize: '11.5px', color: '#059669', fontWeight: '700' }}>
-                    Saldo final detectado: {filasPrevia[filasPrevia.length - 1]?.saldo != null ? Number(filasPrevia[filasPrevia.length - 1].saldo).toLocaleString('es-AR', { style: 'currency', currency: 'ARS' }) : '—'}
+                    Saldo final detectado: {saldoFinalExtracto(filasPrevia) != null ? Number(saldoFinalExtracto(filasPrevia)).toLocaleString('es-AR', { style: 'currency', currency: 'ARS' }) : '—'}
                   </span>
                 </div>
                 {filasPrevia.some(f => f.signoCorregido) && (
