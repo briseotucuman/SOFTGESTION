@@ -2351,7 +2351,15 @@ function ConciliacionBancaria({
                 </div>
               </div>
 
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '20px' }}>
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '20px', flexWrap: 'wrap' }}>
+                <button
+                  type="button"
+                  style={{ ...s.btnSecundario, marginRight: 'auto', color: '#0F766E' }}
+                  title={Number(incorporandoFila.monto) < 0 ? 'Registrar este pago contra una factura de compra' : 'Registrar este cobro contra una factura de venta'}
+                  onClick={() => { const fila = incorporandoFila; setIncorporandoFila(null); abrirVincularFactura(fila) }}
+                >
+                  <FileText size={13} /> {Number(incorporandoFila.monto) < 0 ? 'Imputar a factura de compra' : 'Imputar a factura de venta'}
+                </button>
                 <button
                   type="button"
                   style={s.btnSecundario}
