@@ -54,8 +54,8 @@ function parsearResumenBancario(texto, delimitadorForzado) {
     h.forEach((col, idx) => {
       if (col.includes('fecha') || col.includes('fec') || col.includes('dia')) iFecha = idx
       else if (col.includes('concepto') || col.includes('descrip') || col.includes('detalle') || col.includes('movimiento') || col.includes('motivo') || col.includes('transaccion')) iConcepto = idx
-      else if (col.includes('debito') || col.includes('cargo') || col.includes('egreso') || col.includes('debitos')) iDebito = idx
-      else if (col.includes('credito') || col.includes('abono') || col.includes('ingreso') || col.includes('creditos')) iCredito = idx
+      else if (col.includes('debito') || col.includes('debe') || col.includes('cargo') || col.includes('egreso') || col.includes('retiro')) iDebito = idx
+      else if (col.includes('credito') || col.includes('haber') || col.includes('abono') || col.includes('ingreso') || col.includes('deposito')) iCredito = idx
       else if (col.includes('importe') || col.includes('monto') || col.includes('valor')) iImporte = idx
       else if (col.includes('saldo')) iSaldo = idx
       else if (col.includes('comp') || col.includes('ref') || col.includes('numero') || col.includes('ticket')) iComp = idx
@@ -107,9 +107,10 @@ function parsearResumenBancario(texto, delimitadorForzado) {
     const concepto = f[iConcepto] || f[1] || 'Movimiento bancario'
 
     let monto = 0
-    if (iDebito !== -1 && iCredito !== -1) {
-      const deb = Math.abs(parseMontoArg(f[iDebito]))
-      const cred = Math.abs(parseMontoArg(f[iCredito]))
+    if (iDebito !== -1 || iCredito !== -1) {
+      // Columnas separadas: lo que está en Débito siempre es egreso, aunque venga sin signo
+      const deb = iDebito !== -1 ? Math.abs(parseMontoArg(f[iDebito])) : 0
+      const cred = iCredito !== -1 ? Math.abs(parseMontoArg(f[iCredito])) : 0
       monto = cred > 0 ? cred : -deb
     } else if (iImporte !== -1 && f[iImporte]) {
       monto = parseMontoArg(f[iImporte])
@@ -118,6 +119,19 @@ function parsearResumenBancario(texto, delimitadorForzado) {
     }
 
     if (monto === 0 && !f.some(col => col.match(/\d/))) continue
+
+    // Red de seguridad: impuestos y comisiones del banco son siempre débitos.
+    // Si el archivo los trae con signo positivo (columna única de importe sin signo), se corrigen.
+    let signoCorregido = false
+    if (monto > 0 && iCredito === -1) {
+      const dn = concepto.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+      const esReintegro = /devol|reint|reversa|bonif|anula|acredit|ajuste a favor/.test(dn)
+      const tipoCl = clasificarMovimientoBancario(concepto, monto).tipo
+      if ((tipoCl === 'impuesto' || tipoCl === 'gasto_bancario' || /debito autom|d[eé]b\.? ?aut/.test(dn)) && !esReintegro) {
+        monto = -monto
+        signoCorregido = true
+      }
+    }
 
     const saldo = iSaldo !== -1 && f[iSaldo] ? parseMontoArg(f[iSaldo]) : null
     const referencia = iComp !== -1 && f[iComp] ? f[iComp] : ''
@@ -128,7 +142,8 @@ function parsearResumenBancario(texto, delimitadorForzado) {
       descripcion: concepto,
       monto,
       saldo,
-      referencia
+      referencia,
+      signoCorregido
     })
   }
 
@@ -2103,6 +2118,11 @@ function ConciliacionBancaria({
                     Saldo final detectado: {filasPrevia[filasPrevia.length - 1]?.saldo != null ? Number(filasPrevia[filasPrevia.length - 1].saldo).toLocaleString('es-AR', { style: 'currency', currency: 'ARS' }) : '—'}
                   </span>
                 </div>
+                {filasPrevia.some(f => f.signoCorregido) && (
+                  <div style={{ marginBottom: 8, padding: '8px 10px', borderRadius: 8, background: '#FEF3C7', color: '#92400E', fontSize: 12 }}>
+                    {filasPrevia.filter(f => f.signoCorregido).length} movimiento(s) de impuestos/comisiones venían con signo positivo en el archivo y se tomaron como débitos (egresos).
+                  </div>
+                )}
                 <div style={{ maxHeight: '180px', overflowY: 'auto', border: '1px solid #E2E8F0', borderRadius: '8px' }}>
                   <table style={s.tabla}>
                     <thead>
