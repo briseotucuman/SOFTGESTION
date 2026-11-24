@@ -1,4 +1,5 @@
 import { useState, useMemo } from 'react'
+import * as XLSX from 'xlsx'
 import { supabase, emitirCambioDatos } from '../supabase.js'
 import { s, colores, paleta } from '../estilos.js'
 import { esCuentaBancaria, clasificarMovimientoBancario } from '../finanzasUtils.js'
@@ -12,179 +13,334 @@ import {
 
 const c = colores.finanzas
 
-// ¿El extracto pertenece a la cuenta elegida? (compara los dígitos del número de cuenta del encabezado del banco)
-function cuentaNoCoincide(filas, cuenta) {
-  const nro = (filas?.cuentaExtracto || '').replace(/\D/g, '')
-  if (!nro || !cuenta) return false
-  const dest = `${cuenta.banco || ''} ${cuenta.numero || ''}`.replace(/\D/g, '')
-  return dest.length > 0 && !dest.includes(nro)
+function normalizarTextoHeader(val) {
+  return String(val ?? '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim()
 }
 
-// Saldo final del extracto = saldo luego del movimiento MÁS NUEVO (no de la última fila del archivo).
-// Detecta si el archivo viene del más nuevo al más viejo (BBVA) o al revés, y si "Saldo parcial"
-// es el saldo antes o después de cada movimiento, probando la continuidad entre filas consecutivas.
-function saldoFinalExtracto(filas) {
-  const f = (filas || []).filter(x => x.saldo != null)
-  if (f.length === 0) return null
-  if (f.length === 1) return Math.round((f[0].saldo + f[0].monto) * 100) / 100 // BBVA: saldo parcial = saldo antes del movimiento
-  const ok = (a, b) => Math.abs(a - b) < 0.05
-  const c = { descAntes: 0, ascAntes: 0, descDespues: 0, ascDespues: 0 }
-  for (let i = 0; i < f.length - 1; i++) {
-    const a = f[i], b = f[i + 1]
-    if (ok(b.saldo + b.monto, a.saldo)) c.descAntes++
-    if (ok(a.saldo + a.monto, b.saldo)) c.ascAntes++
-    if (ok(a.saldo, b.saldo + a.monto)) c.descDespues++
-    if (ok(b.saldo, a.saldo + b.monto)) c.ascDespues++
+function parseMontoCelda(val) {
+  if (typeof val === 'number') return isNaN(val) ? 0 : Math.round(val * 100) / 100
+  if (val === null || val === undefined) return 0
+  let sVal = String(val).trim()
+  if (!sVal) return 0
+
+  // Si viene con prefijo tipo "Saldo Disponible: 10.330,51", quedarnos con el importe
+  if (sVal.includes(':')) {
+    const despues = sVal.split(':').slice(1).join(':').trim()
+    if (despues) sVal = despues
   }
-  const mejor = Object.entries(c).sort((x, y) => y[1] - x[1])[0]
-  let desc, antes
-  if (mejor[1] > 0) { desc = mejor[0].startsWith('desc'); antes = mejor[0].endsWith('Antes') }
-  else { desc = f[0].fecha >= f[f.length - 1].fecha; antes = true }
-  const nueva = desc ? f[0] : f[f.length - 1]
-  return Math.round((antes ? nueva.saldo + nueva.monto : nueva.saldo) * 100) / 100
+
+  sVal = sVal.replace(/[$ARS\s]/gi, '')
+  const esNegativo = sVal.startsWith('-') || (sVal.startsWith('(') && sVal.endsWith(')')) || sVal.endsWith('-')
+  sVal = sVal.replace(/[()\-+]/g, '')
+  if (!/\d/.test(sVal)) return 0
+
+  if (sVal.includes(',') && sVal.includes('.')) {
+    if (sVal.lastIndexOf(',') > sVal.lastIndexOf('.')) {
+      sVal = sVal.replace(/\./g, '').replace(',', '.')
+    } else {
+      sVal = sVal.replace(/,/g, '')
+    }
+  } else if (sVal.includes(',')) {
+    sVal = sVal.replace(',', '.')
+  } else if ((sVal.match(/\./g) || []).length > 1) {
+    sVal = sVal.replace(/\./g, '')
+  }
+
+  const num = parseFloat(sVal)
+  if (isNaN(num)) return 0
+  return Math.round((esNegativo ? -num : num) * 100) / 100
 }
 
-// Función robusta para parsear texto de resúmenes bancarios (CSV, TSV o copiado directo de Homebanking)
-function parsearResumenBancario(texto, delimitadorForzado) {
-  if (!texto || !texto.trim()) return []
-  const textoLimpio = texto.replace(/^\uFEFF/, '').trim()
-  const lineas = textoLimpio.split(/\r?\n/).map(l => l.trim()).filter(Boolean)
-  if (lineas.length === 0) return []
+function parseFechaCelda(val) {
+  if (val === null || val === undefined || val === '') return null
 
-  // Detectar delimitador si no está forzado
-  let sep = delimitadorForzado
-  if (!sep) {
-    const primera = lineas[0]
-    if (primera.includes('\t')) sep = '\t'
-    else if ((primera.match(/;/g) || []).length >= 2) sep = ';'
-    else if ((primera.match(/,/g) || []).length >= 2) sep = ','
-    else sep = '\t'
+  if (val instanceof Date && !isNaN(val.getTime())) {
+    const y = val.getFullYear()
+    const m = String(val.getMonth() + 1).padStart(2, '0')
+    const d = String(val.getDate()).padStart(2, '0')
+    return `${y}-${m}-${d}`
   }
 
-  // Dividir líneas
-  const filasRaw = lineas.map(l => l.split(sep).map(col => col.trim().replace(/^["']|["']$/g, '')))
+  if (typeof val === 'number' && val > 20000 && val < 90000) {
+    const parsed = XLSX.SSF.parse_date_code(val)
+    if (parsed && parsed.y && parsed.m && parsed.d) {
+      return `${String(parsed.y).padStart(4, '0')}-${String(parsed.m).padStart(2, '0')}-${String(parsed.d).padStart(2, '0')}`
+    }
+  }
 
-  // Buscar si alguna de las primeras 5 líneas es cabecera
+  const limpio = String(val).trim().replace(/^["']|["']$/g, '').split(' ')[0]
+  const partes = limpio.split(/[/\-.]/)
+  if (partes.length === 3 && partes.every(p => /^\d+$/.test(p))) {
+    if (partes[0].length === 4) {
+      return `${partes[0]}-${partes[1].padStart(2, '0')}-${partes[2].padStart(2, '0')}`
+    }
+    const anio = partes[2].length === 2 ? `20${partes[2]}` : partes[2].padStart(4, '20')
+    const mes = partes[1].padStart(2, '0')
+    const dia = partes[0].padStart(2, '0')
+    if (Number(mes) >= 1 && Number(mes) <= 12 && Number(dia) >= 1 && Number(dia) <= 31) {
+      return `${anio}-${mes}-${dia}`
+    }
+  }
+  return null
+}
+
+function extraerSaldoDeCeldaTexto(val) {
+  if (val === null || val === undefined || val === '') return null
+  if (typeof val === 'number') return isNaN(val) ? null : Math.round(val * 100) / 100
+  const texto = String(val).trim()
+  if (!texto) return null
+  const norm = normalizarTextoHeader(texto)
+  if (norm.includes('saldo')) {
+    const match = texto.match(/[-+(]?\s*\$?\s*[\d.]+,\d{1,2}|[-+(]?\s*\$?\s*\d+(?:\.\d{1,2})?/)
+    if (match) {
+      return parseMontoCelda(texto)
+    }
+  }
+  return null
+}
+
+// Parseo unificado de matrices (Excel .xlsx/.xls y CSV/TSV) con soporte completo para extractos BBVA y bancos argentinos
+function parsearMatrizResumenBancario(matrizRaw) {
+  if (!Array.isArray(matrizRaw) || matrizRaw.length === 0) {
+    return { filas: [], meta: { empresa: '', cuenta: '', sucursal: '', saldoHeader: null, saldoUltimoMovimiento: null, saldoFinal: null, periodo: '' } }
+  }
+
+  const filasRaw = matrizRaw.map(fila =>
+    Array.isArray(fila) ? fila.map(celda => (celda === null || celda === undefined ? '' : celda)) : [fila]
+  )
+
+  // 1. Buscar la fila cabecera dentro de las primeras 35 filas
   let headerIndex = -1
-  for (let i = 0; i < Math.min(filasRaw.length, 25); i++) {
-    const fila = filasRaw[i].map(col => col.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, ''))
-    if (
-      fila.some(col => col.includes('fecha') || col.includes('fec') || col.includes('dia')) &&
-      fila.some(col => col.includes('concepto') || col.includes('descrip') || col.includes('detalle') || col.includes('movimiento') || col.includes('importe') || col.includes('monto') || col.includes('debito') || col.includes('credito') || col.includes('saldo'))
-    ) {
+  for (let i = 0; i < Math.min(filasRaw.length, 35); i++) {
+    const cols = filasRaw[i].map(normalizarTextoHeader)
+    const tieneFecha = cols.some(col => col === 'fecha' || col.startsWith('fecha') || col === 'fec' || col === 'dia')
+    const tieneColFinanciera = cols.some(col =>
+      col.includes('concepto') || col.includes('descrip') || col.includes('detalle') ||
+      col.includes('movimiento') || col.includes('importe') || col.includes('monto') ||
+      col.includes('debito') || col.includes('credito') || col.includes('saldo')
+    )
+    if (tieneFecha && tieneColFinanciera) {
       headerIndex = i
       break
     }
   }
 
-  let iFecha = 0, iConcepto = 1, iDebito = -1, iCredito = -1, iImporte = -1, iSaldo = -1, iComp = -1
+  // 2. Extraer metadatos superiores previos a la tabla (Empresa, Cuenta, Sucursal, Saldo, Movimientos de)
+  const meta = {
+    empresa: '',
+    cuenta: '',
+    sucursal: '',
+    saldoHeader: null,
+    saldoUltimoMovimiento: null,
+    saldoFinal: null,
+    periodo: ''
+  }
+
+  const limiteMeta = headerIndex !== -1 ? headerIndex : Math.min(filasRaw.length, 10)
+  for (let i = 0; i < limiteMeta; i++) {
+    const fila = filasRaw[i]
+    for (let j = 0; j < fila.length; j++) {
+      const cel = String(fila[j] ?? '').trim()
+      if (!cel) continue
+      const norm = normalizarTextoHeader(cel)
+      // Buscar el valor en la primera celda no vacía siguiente
+      const siguienteValor = (() => {
+        for (let k = j + 1; k < fila.length; k++) {
+          if (fila[k] !== '' && fila[k] !== null && fila[k] !== undefined) return fila[k]
+        }
+        return null
+      })()
+
+      if (norm.startsWith('empresa') && siguienteValor !== null) {
+        meta.empresa = String(siguienteValor).trim()
+        break
+      } else if (norm.startsWith('cuenta') && siguienteValor !== null) {
+        meta.cuenta = String(siguienteValor).trim()
+        break
+      } else if (norm.startsWith('sucursal') && siguienteValor !== null) {
+        meta.sucursal = String(siguienteValor).trim()
+        break
+      } else if ((norm === 'saldo:' || norm === 'saldo' || norm.startsWith('saldo actual') || norm.startsWith('saldo disponible')) && siguienteValor !== null) {
+        const sNum = parseMontoCelda(siguienteValor)
+        if (!isNaN(sNum)) meta.saldoHeader = sNum
+        break
+      } else if ((norm.startsWith('movimientos') || norm.startsWith('periodo')) && siguienteValor !== null) {
+        meta.periodo = String(siguienteValor).trim()
+        break
+      }
+    }
+  }
+
+  // 3. Mapear índices de columnas
+  let iFecha = -1, iFechaValor = -1, iConcepto = -1, iDetalle = -1
+  let iDebito = -1, iCredito = -1, iImporte = -1, iSaldo = -1, iComp = -1
   let dataStartIndex = 0
 
   if (headerIndex !== -1) {
     dataStartIndex = headerIndex + 1
-    const h = filasRaw[headerIndex].map(col => col.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, ''))
+    const h = filasRaw[headerIndex].map(normalizarTextoHeader)
     h.forEach((col, idx) => {
-      if (col.includes('fecha') || col.includes('fec') || col.includes('dia')) iFecha = idx
-      else if (col.includes('concepto') || col.includes('descrip') || col.includes('detalle') || col.includes('movimiento') || col.includes('motivo') || col.includes('transaccion')) iConcepto = idx
-      else if (col.includes('debito') || col.includes('debe') || col.includes('cargo') || col.includes('egreso') || col.includes('retiro')) iDebito = idx
-      else if (col.includes('credito') || col.includes('haber') || col.includes('abono') || col.includes('ingreso') || col.includes('deposito')) iCredito = idx
-      else if (col.includes('importe') || col.includes('monto') || col.includes('valor')) iImporte = idx
-      else if (col.includes('saldo')) iSaldo = idx
-      else if (col.includes('comp') || col.includes('ref') || col.includes('numero') || col.includes('ticket')) iComp = idx
-    })
-  } else {
-    // Si no hay cabecera explícita, inferir según posición estándar
-    if (filasRaw[0].length >= 3) {
-      iFecha = 0
-      iConcepto = 1
-      iImporte = 2
-      if (filasRaw[0].length >= 4) iSaldo = 3
-    }
-  }
-
-  function parseMontoArg(str) {
-    if (!str) return 0
-    let sVal = str.toString().trim().replace(/[$\s]/g, '')
-    const esNegativo = sVal.startsWith('-') || (sVal.startsWith('(') && sVal.endsWith(')')) || sVal.endsWith('-')
-    sVal = sVal.replace(/[()\-+]/g, '')
-    if (sVal.includes(',') && sVal.includes('.')) {
-      if (sVal.lastIndexOf(',') > sVal.lastIndexOf('.')) sVal = sVal.replace(/\./g, '').replace(',', '.')
-      else sVal = sVal.replace(/,/g, '')
-    } else if (sVal.includes(',')) {
-      sVal = sVal.replace(',', '.')
-    }
-    const val = parseFloat(sVal) || 0
-    return esNegativo ? -val : val
-  }
-
-  function parseFechaArg(str) {
-    if (!str) return new Date().toISOString().split('T')[0]
-    const limpio = str.trim().replace(/^["']|["']$/g, '')
-    const partes = limpio.split(/[/\-.]/)
-    if (partes.length === 3) {
-      if (partes[0].length === 4) {
-        return `${partes[0]}-${partes[1].padStart(2, '0')}-${partes[2].padStart(2, '0')}`
+      if (!col) return
+      if (col === 'fecha' || ((col.includes('fecha') || col === 'fec' || col === 'dia') && !col.includes('valor') && iFecha === -1)) {
+        iFecha = idx
+      } else if (col.includes('fecha') && col.includes('valor')) {
+        iFechaValor = idx
+      } else if (col.includes('concepto') || col.includes('descrip') || col.includes('movimiento') || col.includes('motivo') || col.includes('transaccion')) {
+        if (iConcepto === -1) iConcepto = idx
+      } else if (col.includes('detalle')) {
+        iDetalle = idx
+      } else if (col.includes('debito') || col.includes('cargo') || col.includes('egreso') || col === 'debe') {
+        iDebito = idx
+      } else if (col.includes('credito') || col.includes('abono') || col.includes('ingreso') || col === 'haber') {
+        iCredito = idx
+      } else if (col.includes('importe') || col.includes('monto') || col === 'valor') {
+        iImporte = idx
+      } else if (col.includes('saldo')) {
+        iSaldo = idx
+      } else if (col.includes('comp') || col.includes('ref') || col.includes('numero') || col.includes('ticket')) {
+        iComp = idx
       }
-      return `${partes[2].padStart(4, '20')}-${partes[1].padStart(2, '0')}-${partes[0].padStart(2, '0')}`
+    })
+    if (iFecha === -1 && iFechaValor !== -1) iFecha = iFechaValor
+    if (iConcepto === -1 && iDetalle !== -1) {
+      iConcepto = iDetalle
+      iDetalle = -1
     }
-    return new Date().toISOString().split('T')[0]
+  } else {
+    iFecha = 0
+    iConcepto = 1
+    if (filasRaw[0] && filasRaw[0].length >= 4 && filasRaw.some(r => parseMontoCelda(r[2]) !== 0 && parseMontoCelda(r[3]) !== 0)) {
+      iImporte = 2
+      iSaldo = 3
+    } else {
+      iImporte = 2
+    }
   }
+
+  if (iFecha === -1) iFecha = 0
+  if (iConcepto === -1) iConcepto = 1
 
   const resultado = []
   for (let i = dataStartIndex; i < filasRaw.length; i++) {
     const f = filasRaw[i]
-    if (f.length < 2 || !f.some(col => col.length > 0)) continue
+    if (!f || f.length < 2 || !f.some(col => String(col ?? '').trim().length > 0)) continue
 
-    // Solo filas de movimientos: la fecha debe verse como fecha (descarta encabezados del banco como "Empresa:", "Cuenta:", "Saldo:")
-    if (!/^\d{1,4}[/\-.]\d{1,2}[/\-.]\d{1,4}$/.test((f[iFecha] || '').trim())) continue
-    const fecha = parseFechaArg(f[iFecha])
-    const concepto = f[iConcepto] || f[1] || 'Movimiento bancario'
+    const fecha = parseFechaCelda(f[iFecha]) || (iFechaValor !== -1 ? parseFechaCelda(f[iFechaValor]) : null)
+    if (!fecha) continue // Saltar filas vacías, encabezados repetidos o totales sin fecha
+
+    const conceptoBase = String(f[iConcepto] ?? '').trim()
+    const detalleExtra = iDetalle !== -1 ? String(f[iDetalle] ?? '').trim() : ''
+    const refComp = iComp !== -1 ? String(f[iComp] ?? '').trim() : ''
+    const referencia = [detalleExtra, refComp].filter(Boolean).join(' · ')
+    const concepto = conceptoBase || detalleExtra || 'Movimiento bancario'
 
     let monto = 0
-    if (iDebito !== -1 || iCredito !== -1) {
-      // Columnas separadas: lo que está en Débito siempre es egreso, aunque venga sin signo
-      const deb = iDebito !== -1 ? Math.abs(parseMontoArg(f[iDebito])) : 0
-      const cred = iCredito !== -1 ? Math.abs(parseMontoArg(f[iCredito])) : 0
-      monto = cred > 0 ? cred : -deb
-    } else if (iImporte !== -1 && f[iImporte]) {
-      monto = parseMontoArg(f[iImporte])
-    } else if (f[2] && /[.,]\d{2}\s*-?$/.test(f[2].trim())) {
-      monto = parseMontoArg(f[2])
+    if (iDebito !== -1 && iCredito !== -1) {
+      const cred = Math.abs(parseMontoCelda(f[iCredito]))
+      const deb = Math.abs(parseMontoCelda(f[iDebito]))
+      if (cred > 0 && deb === 0) monto = cred
+      else if (deb > 0 && cred === 0) monto = -deb
+      else monto = Math.round((cred - deb) * 100) / 100
+    } else if (iImporte !== -1 && f[iImporte] !== '' && f[iImporte] !== null && f[iImporte] !== undefined) {
+      monto = parseMontoCelda(f[iImporte])
+    } else if (f[2] !== undefined) {
+      monto = parseMontoCelda(f[2])
     }
 
-    if (monto === 0 && !f.some(col => col.match(/\d/))) continue
+    if (monto === 0 && !conceptoBase) continue
 
-    // Red de seguridad: impuestos y comisiones del banco son siempre débitos.
-    // Si el archivo los trae con signo positivo (columna única de importe sin signo), se corrigen.
-    let signoCorregido = false
-    if (monto > 0 && iCredito === -1) {
-      const dn = concepto.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
-      const esReintegro = /devol|reint|reversa|bonif|anula|acredit|ajuste a favor/.test(dn)
-      const tipoCl = clasificarMovimientoBancario(concepto, monto).tipo
-      if ((tipoCl === 'impuesto' || tipoCl === 'gasto_bancario' || /debito autom|d[eé]b\.? ?aut/.test(dn)) && !esReintegro) {
-        monto = -monto
-        signoCorregido = true
+    // Buscar saldo explícito en la columna Saldo o en cualquier columna adicional con texto "Saldo Disponible: ..."
+    let saldoInformado = null
+    if (iSaldo !== -1 && f[iSaldo] !== '' && f[iSaldo] !== null && f[iSaldo] !== undefined) {
+      const s = extraerSaldoDeCeldaTexto(f[iSaldo]) ?? parseMontoCelda(f[iSaldo])
+      if (s !== null && !isNaN(s)) saldoInformado = s
+    }
+    if (saldoInformado === null) {
+      for (let colIdx = 0; colIdx < f.length; colIdx++) {
+        if (colIdx === iFecha || colIdx === iFechaValor || colIdx === iConcepto || colIdx === iDebito || colIdx === iCredito) continue
+        const sDetectado = extraerSaldoDeCeldaTexto(f[colIdx])
+        if (sDetectado !== null) {
+          saldoInformado = sDetectado
+          break
+        }
       }
     }
-
-    const saldo = iSaldo !== -1 && f[iSaldo] ? parseMontoArg(f[iSaldo]) : null
-    const referencia = iComp !== -1 && f[iComp] ? f[iComp] : ''
 
     resultado.push({
       id: `ext_${Date.now()}_${i}_${Math.random().toString(36).substr(2, 5)}`,
       fecha,
       descripcion: concepto,
       monto,
-      saldo,
-      referencia,
-      signoCorregido
+      credito: monto > 0 ? monto : 0,
+      debito: monto < 0 ? Math.abs(monto) : 0,
+      saldo: saldoInformado,
+      saldoInformado: saldoInformado !== null,
+      referencia
     })
   }
 
-  // Número de cuenta que informa el banco en el encabezado (ej. "Cuenta: 070-321476/4(CC $)")
-  const mCta = textoLimpio.match(/Cuenta:?\s*[\t;,]*\s*(\d{2,4}[-\d/]*\d)/i)
-  resultado.cuentaExtracto = mCta ? mCta[1] : null
-  return resultado
+  if (resultado.length === 0) {
+    return { filas: [], meta }
+  }
+
+  // 4. Detectar orden cronológico (BBVA exporta descendente: más reciente primero) y completar saldos intradía
+  const esDescendente = resultado.length > 1 && resultado[0].fecha > resultado[resultado.length - 1].fecha
+  const crono = esDescendente ? [...resultado].reverse() : [...resultado]
+
+  const primerIdxConSaldo = crono.findIndex(r => r.saldo !== null)
+  if (primerIdxConSaldo !== -1) {
+    for (let j = primerIdxConSaldo - 1; j >= 0; j--) {
+      crono[j].saldo = Math.round((crono[j + 1].saldo - crono[j + 1].monto) * 100) / 100
+    }
+    for (let j = primerIdxConSaldo + 1; j < crono.length; j++) {
+      if (crono[j].saldo === null) {
+        crono[j].saldo = Math.round((crono[j - 1].saldo + crono[j].monto) * 100) / 100
+      }
+    }
+  } else if (meta.saldoHeader !== null) {
+    crono[crono.length - 1].saldo = meta.saldoHeader
+    for (let j = crono.length - 2; j >= 0; j--) {
+      crono[j].saldo = Math.round((crono[j + 1].saldo - crono[j + 1].monto) * 100) / 100
+    }
+  }
+
+  const saldoUltimoMovimiento = crono[crono.length - 1]?.saldo ?? null
+  meta.saldoUltimoMovimiento = saldoUltimoMovimiento
+  meta.saldoFinal = meta.saldoHeader !== null ? meta.saldoHeader : saldoUltimoMovimiento
+  meta.esDescendente = esDescendente
+
+  return { filas: resultado, meta }
+}
+
+// Parseo de texto plano (CSV, TSV o copiado directo de Homebanking)
+function parsearResumenBancario(texto, delimitadorForzado) {
+  if (!texto || !texto.trim()) {
+    return { filas: [], meta: { empresa: '', cuenta: '', sucursal: '', saldoHeader: null, saldoUltimoMovimiento: null, saldoFinal: null, periodo: '' } }
+  }
+  const textoLimpio = texto.replace(/^\uFEFF/, '').trim()
+  const lineas = textoLimpio.split(/\r?\n/).map(l => l.trim()).filter(Boolean)
+  if (lineas.length === 0) {
+    return { filas: [], meta: { empresa: '', cuenta: '', sucursal: '', saldoHeader: null, saldoUltimoMovimiento: null, saldoFinal: null, periodo: '' } }
+  }
+
+  let sep = delimitadorForzado
+  if (!sep) {
+    const muestra = lineas.slice(0, 10)
+    const cuentaTabs = muestra.filter(l => l.includes('\t')).length
+    const cuentaSemi = muestra.filter(l => (l.match(/;/g) || []).length >= 2).length
+    const cuentaComa = muestra.filter(l => (l.match(/,/g) || []).length >= 2).length
+    if (cuentaTabs > 0) sep = '\t'
+    else if (cuentaSemi >= cuentaComa && cuentaSemi > 0) sep = ';'
+    else if (cuentaComa > 0) sep = ','
+    else sep = '\t'
+  }
+
+  const filasRaw = lineas.map(l => l.split(sep).map(col => col.trim().replace(/^["']|["']$/g, '')))
+  return parsearMatrizResumenBancario(filasRaw)
 }
 
 function ConciliacionBancaria({
@@ -258,6 +414,7 @@ function ConciliacionBancaria({
   const [textoPegado, setTextoPegado] = useState('')
   const [delimitadorSel] = useState('')
   const [filasPrevia, setFilasPrevia] = useState([])
+  const [metaPrevia, setMetaPrevia] = useState(null)
   const [cargandoArchivo, setCargandoArchivo] = useState(false)
   const [errorCarga, setErrorCarga] = useState('')
 
@@ -338,24 +495,51 @@ function ConciliacionBancaria({
     return new Set(Object.values(conciliacionesMap))
   }, [conciliacionesMap])
 
-  // Procesar archivo al subir
+  // Procesar archivo al subir (.xlsx, .xls, .csv, .txt, .tsv)
   function manejarSubidaArchivo(e) {
     const file = e.target.files?.[0]
     if (!file) return
     setErrorCarga('')
     setCargandoArchivo(true)
+    setFilasPrevia([])
+    setMetaPrevia(null)
     setNombreExtracto(file.name.replace(/\.[^/.]+$/, ''))
+
+    const ext = file.name.split('.').pop()?.toLowerCase() || ''
+    const esExcel = ['xlsx', 'xls', 'xlsm', 'ods'].includes(ext)
 
     const reader = new FileReader()
     reader.onload = (evt) => {
       try {
-        const contenido = evt.target?.result
-        if (typeof contenido === 'string') {
-          const filas = parsearResumenBancario(contenido, delimitadorSel || undefined)
-          if (filas.length === 0) {
-            setErrorCarga('No se pudieron extraer transacciones. Verificá que el archivo contenga columnas de Fecha, Concepto e Importe.')
-          } else {
-            setFilasPrevia(filas)
+        const result = evt.target?.result
+        let parsed = { filas: [], meta: null }
+
+        if (esExcel && result instanceof ArrayBuffer) {
+          try {
+            const wb = XLSX.read(new Uint8Array(result), { type: 'array', cellDates: false })
+            let mejorMatriz = []
+            for (const sheetName of wb.SheetNames) {
+              const ws = wb.Sheets[sheetName]
+              const matriz = XLSX.utils.sheet_to_json(ws, { header: 1, raw: true, defval: '' })
+              if (matriz.length > mejorMatriz.length) mejorMatriz = matriz
+            }
+            parsed = parsearMatrizResumenBancario(mejorMatriz)
+          } catch {
+            // Fallback por si el archivo .xls fuera en realidad texto CSV/TSV
+            const dec = new TextDecoder('utf-8')
+            parsed = parsearResumenBancario(dec.decode(result), delimitadorSel || undefined)
+          }
+        } else if (typeof result === 'string') {
+          parsed = parsearResumenBancario(result, delimitadorSel || undefined)
+        }
+
+        if (!parsed.filas || parsed.filas.length === 0) {
+          setErrorCarga('No se pudieron extraer transacciones del archivo. Verificá que contenga columnas de Fecha, Concepto, Crédito/Débito o Importe.')
+        } else {
+          setFilasPrevia(parsed.filas)
+          setMetaPrevia(parsed.meta)
+          if (parsed.meta?.cuenta && !nombreExtracto) {
+            setNombreExtracto(`${file.name.replace(/\.[^/.]+$/, '')} · ${parsed.meta.cuenta}`)
           }
         }
       } catch (err) {
@@ -368,22 +552,29 @@ function ConciliacionBancaria({
       setErrorCarga('Error al abrir el archivo.')
       setCargandoArchivo(false)
     }
-    reader.readAsText(file, 'UTF-8')
+
+    if (esExcel) {
+      reader.readAsArrayBuffer(file)
+    } else {
+      reader.readAsText(file, 'UTF-8')
+    }
   }
 
   // Procesar texto pegado
   function manejarProcesarTextoPegado() {
     setErrorCarga('')
+    setMetaPrevia(null)
     if (!textoPegado.trim()) {
       setErrorCarga('Pegá las filas de tu Homebanking en el área de texto.')
       return
     }
     try {
-      const filas = parsearResumenBancario(textoPegado, delimitadorSel || undefined)
-      if (filas.length === 0) {
+      const parsed = parsearResumenBancario(textoPegado, delimitadorSel || undefined)
+      if (!parsed.filas || parsed.filas.length === 0) {
         setErrorCarga('No se detectaron transacciones válidas en el texto pegado.')
       } else {
-        setFilasPrevia(filas)
+        setFilasPrevia(parsed.filas)
+        setMetaPrevia(parsed.meta)
       }
     } catch (err) {
       setErrorCarga('Error al procesar: ' + err.message)
@@ -400,10 +591,11 @@ function ConciliacionBancaria({
       alert('No hay transacciones para guardar.')
       return
     }
-    if (cuentaNoCoincide(filasPrevia, cuentaActiva) &&
-        !window.confirm(`Este extracto es de la cuenta ${filasPrevia.cuentaExtracto}, pero elegiste ${cuentaActiva?.banco}. ¿Guardarlo igual?`)) {
-      return
-    }
+
+    const saldoUltimoPorOrden = metaPrevia?.esDescendente
+      ? filasPrevia[0]?.saldo
+      : filasPrevia[filasPrevia.length - 1]?.saldo
+    const saldoFinalCalculado = metaPrevia?.saldoFinal ?? saldoUltimoPorOrden ?? null
 
     const nuevoExtracto = {
       id: `ext_banco_${Date.now()}`,
@@ -412,7 +604,8 @@ function ConciliacionBancaria({
       cuentaId,
       filas: filasPrevia,
       totalMovimientos: filasPrevia.length,
-      saldoFinal: saldoFinalExtracto(filasPrevia)
+      saldoFinal: saldoFinalCalculado,
+      meta: metaPrevia || null
     }
 
     const listaActual = extractosPorCuenta[cuentaId] || []
@@ -423,6 +616,7 @@ function ConciliacionBancaria({
     setExtractoActivoId(nuevoExtracto.id)
     setModalCarga(false)
     setFilasPrevia([])
+    setMetaPrevia(null)
     setTextoPegado('')
     setNombreExtracto('')
 
@@ -579,7 +773,6 @@ function ConciliacionBancaria({
         await supabase.from('pagos_compra').insert([{
           factura_compra_id: factura.id,
           monto: montoFila,
-          fecha_pago: fechaPago,
           medio_pago: 'transferencia',
           cuenta_id: cuentaId,
           referencia: referencia || fila.referencia || null
@@ -1208,12 +1401,14 @@ function ConciliacionBancaria({
               fontSize: '20px',
               fontWeight: '800',
               fontFamily: paleta.fontMono,
-              color: '#0F172A'
+              color: metricas.saldoBancoInformado >= 0 ? '#0F172A' : '#DC2626'
             }}>
               {metricas.saldoBancoInformado.toLocaleString('es-AR', { style: 'currency', currency: 'ARS' })}
             </p>
             <span style={{ fontSize: '11.5px', color: '#0F766E', fontWeight: '600', marginTop: '6px', display: 'block' }}>
-              Reportado por Homebanking
+              {extractoActual?.meta?.saldoHeader != null && extractoActual?.meta?.saldoUltimoMovimiento != null && Math.abs(extractoActual.meta.saldoHeader - extractoActual.meta.saldoUltimoMovimiento) > 0.01
+                ? `Cabecera banco (Últ. mov.: ${Number(extractoActual.meta.saldoUltimoMovimiento).toLocaleString('es-AR', { style: 'currency', currency: 'ARS' })})`
+                : (extractoActual?.meta?.cuenta ? `Cuenta ${extractoActual.meta.cuenta}` : 'Reportado por Homebanking')}
             </span>
           </div>
 
@@ -1321,8 +1516,8 @@ function ConciliacionBancaria({
           <h4 style={{ margin: 0, fontSize: '16px', fontWeight: '700', color: '#0F172A' }}>
             No hay resúmenes bancarios cargados para {cuentaActiva?.banco || 'esta cuenta'}
           </h4>
-          <p style={{ margin: '8px auto 20px', maxWidth: '520px', fontSize: '13px', color: '#64748B', lineHeight: 1.5 }}>
-            Subí el archivo de extracto bancario descargado de tu Homebanking (en formato CSV o TXT) o simplemente copiá y pegá las filas de tu pantalla para conciliar tus movimientos automáticamente.
+          <p style={{ margin: '8px auto 20px', maxWidth: '540px', fontSize: '13px', color: '#64748B', lineHeight: 1.5 }}>
+            Subí el archivo Excel (.xlsx / .xls) o CSV descargado directamente de tu Homebanking (BBVA, Macro, Santander, Galicia, Nación, etc.) con sus movimientos y saldos, o pegá las filas desde tu pantalla.
           </p>
           <button
             type="button"
@@ -1655,6 +1850,7 @@ function ConciliacionBancaria({
                         <th style={s.tablaCabecera('#0F172A')}>Fecha</th>
                         <th style={s.tablaCabecera('#0F172A')}>Concepto & Clasificación</th>
                         <th style={{ ...s.tablaCabecera('#0F172A'), textAlign: 'right' }}>Importe</th>
+                        <th style={{ ...s.tablaCabecera('#0F172A'), textAlign: 'right' }}>Saldo</th>
                         <th style={{ ...s.tablaCabecera('#0F172A'), textAlign: 'center' }}>Acciones</th>
                       </tr>
                     </thead>
@@ -1717,8 +1913,8 @@ function ConciliacionBancaria({
                                 {f.descripcion}
                               </div>
                               {f.referencia && (
-                                <span style={{ fontSize: '11px', color: '#94A3B8' }}>
-                                  Ref: {f.referencia}
+                                <span style={{ fontSize: '11px', color: '#64748B' }}>
+                                  {f.referencia}
                                 </span>
                               )}
                             </td>
@@ -1726,9 +1922,23 @@ function ConciliacionBancaria({
                               ...s.tablaCellBold,
                               textAlign: 'right',
                               whiteSpace: 'nowrap',
+                              fontFamily: paleta.fontMono,
                               color: esCredito ? '#059669' : '#DC2626'
                             }}>
                               {esCredito ? '+' : ''}{Number(f.monto).toLocaleString('es-AR', { style: 'currency', currency: 'ARS' })}
+                            </td>
+                            <td style={{
+                              ...s.tablaCell,
+                              textAlign: 'right',
+                              whiteSpace: 'nowrap',
+                              fontFamily: paleta.fontMono,
+                              fontSize: '11.5px',
+                              fontWeight: f.saldoInformado ? '700' : '500',
+                              color: f.saldo === null || f.saldo === undefined ? '#94A3B8' : (Number(f.saldo) < 0 ? '#DC2626' : '#334155')
+                            }} title={f.saldoInformado ? 'Saldo Disponible informado por el banco' : 'Saldo corrido calculado'}>
+                              {f.saldo !== null && f.saldo !== undefined
+                                ? Number(f.saldo).toLocaleString('es-AR', { style: 'currency', currency: 'ARS' })
+                                : '—'}
                             </td>
                             <td style={{ ...s.tablaCell, textAlign: 'center', whiteSpace: 'nowrap' }}>
                               {estaConciliado ? (
@@ -2050,7 +2260,7 @@ function ConciliacionBancaria({
                   cursor: 'pointer'
                 }}
               >
-                Subir Archivo (CSV / TXT)
+                Subir Archivo (Excel .xlsx / .xls / CSV)
               </button>
               <button
                 type="button"
@@ -2081,20 +2291,20 @@ function ConciliacionBancaria({
                   gap: '8px',
                   border: '2px dashed #CBD5E1',
                   borderRadius: '10px',
-                  padding: '30px 16px',
+                  padding: '28px 16px',
                   cursor: 'pointer',
                   background: '#F8FAFC'
                 }}>
                   <Upload size={28} color="#0F766E" />
                   <span style={{ fontSize: '13px', fontWeight: '700', color: '#0F172A' }}>
-                    {cargandoArchivo ? 'Leyendo archivo...' : 'Seleccioná el archivo CSV o TXT del banco'}
+                    {cargandoArchivo ? 'Leyendo archivo Excel / extracto...' : 'Seleccioná el archivo Excel (.xlsx, .xls) o CSV del banco'}
                   </span>
-                  <span style={{ fontSize: '11.5px', color: '#94A3B8' }}>
-                    Formatos admitidos: Santander, BBVA, Galicia, Macro, Nación, etc.
+                  <span style={{ fontSize: '11.5px', color: '#64748B', textAlign: 'center' }}>
+                    Compatible con exportación directa de BBVA, Macro, Santander, Galicia, Nación (Crédito, Débito, Detalle y Saldo Disponible)
                   </span>
                   <input
                     type="file"
-                    accept=".csv,.txt,.tsv"
+                    accept=".xlsx,.xls,.csv,.txt,.tsv"
                     style={{ display: 'none' }}
                     onChange={manejarSubidaArchivo}
                   />
@@ -2148,52 +2358,97 @@ function ConciliacionBancaria({
               </div>
             )}
 
+            {/* METADATOS DETECTADOS DEL BANCO */}
+            {metaPrevia && (metaPrevia.empresa || metaPrevia.cuenta || metaPrevia.saldoHeader !== null) && (
+              <div style={{
+                background: '#F0FDFA',
+                border: '1px solid #99F6E4',
+                borderRadius: '8px',
+                padding: '10px 14px',
+                marginBottom: '12px',
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))',
+                gap: '8px',
+                fontSize: '11.5px'
+              }}>
+                {metaPrevia.empresa && (
+                  <div>
+                    <span style={{ color: '#64748B', display: 'block', fontSize: '10px', textTransform: 'uppercase' }}>Empresa</span>
+                    <strong style={{ color: '#0F172A' }}>{metaPrevia.empresa}</strong>
+                  </div>
+                )}
+                {metaPrevia.cuenta && (
+                  <div>
+                    <span style={{ color: '#64748B', display: 'block', fontSize: '10px', textTransform: 'uppercase' }}>Cuenta Banco</span>
+                    <strong style={{ color: '#0F172A' }}>{metaPrevia.cuenta}</strong>
+                  </div>
+                )}
+                {metaPrevia.saldoHeader !== null && (
+                  <div>
+                    <span style={{ color: '#64748B', display: 'block', fontSize: '10px', textTransform: 'uppercase' }}>Saldo Cabecera</span>
+                    <strong style={{ color: '#0F766E', fontFamily: paleta.fontMono }}>
+                      {Number(metaPrevia.saldoHeader).toLocaleString('es-AR', { style: 'currency', currency: 'ARS' })}
+                    </strong>
+                  </div>
+                )}
+                {metaPrevia.saldoUltimoMovimiento !== null && (
+                  <div>
+                    <span style={{ color: '#64748B', display: 'block', fontSize: '10px', textTransform: 'uppercase' }}>Saldo Últ. Mov.</span>
+                    <strong style={{ color: '#0F172A', fontFamily: paleta.fontMono }}>
+                      {Number(metaPrevia.saldoUltimoMovimiento).toLocaleString('es-AR', { style: 'currency', currency: 'ARS' })}
+                    </strong>
+                  </div>
+                )}
+              </div>
+            )}
+
             {/* VISTA PREVIA DE FILAS EXTRAÍDAS */}
             {filasPrevia.length > 0 && (
-              <div style={{ marginTop: '16px' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+              <div style={{ marginTop: '12px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px', flexWrap: 'wrap', gap: '8px' }}>
                   <span style={{ fontSize: '12.5px', fontWeight: '700', color: '#0F172A' }}>
                     Vista previa: {filasPrevia.length} transacciones detectadas
                   </span>
                   <span style={{ fontSize: '11.5px', color: '#059669', fontWeight: '700' }}>
-                    Saldo final detectado: {saldoFinalExtracto(filasPrevia) != null ? Number(saldoFinalExtracto(filasPrevia)).toLocaleString('es-AR', { style: 'currency', currency: 'ARS' }) : '—'}
+                    Saldo final detectado: {(metaPrevia?.saldoFinal ?? filasPrevia[0]?.saldo) != null
+                      ? Number(metaPrevia?.saldoFinal ?? filasPrevia[0]?.saldo).toLocaleString('es-AR', { style: 'currency', currency: 'ARS' })
+                      : '—'}
                   </span>
                 </div>
-                {cuentaNoCoincide(filasPrevia, cuentaActiva) && (
-                  <div style={{ marginBottom: 8, padding: '8px 10px', borderRadius: 8, background: '#FFE4E6', color: '#9F1239', fontSize: 12, fontWeight: 600 }}>
-                    Atención: el archivo es de la cuenta {filasPrevia.cuentaExtracto} y tenés seleccionada {cuentaActiva?.banco}. Cambiá de cuenta antes de guardar.
-                  </div>
-                )}
-                {filasPrevia.some(f => f.signoCorregido) && (
-                  <div style={{ marginBottom: 8, padding: '8px 10px', borderRadius: 8, background: '#FEF3C7', color: '#92400E', fontSize: 12 }}>
-                    {filasPrevia.filter(f => f.signoCorregido).length} movimiento(s) de impuestos/comisiones venían con signo positivo en el archivo y se tomaron como débitos (egresos).
-                  </div>
-                )}
-                <div style={{ maxHeight: '180px', overflowY: 'auto', border: '1px solid #E2E8F0', borderRadius: '8px' }}>
+                <div style={{ maxHeight: '220px', overflowY: 'auto', border: '1px solid #E2E8F0', borderRadius: '8px' }}>
                   <table style={s.tabla}>
                     <thead>
                       <tr>
                         <th style={s.tablaCabecera('#0F172A')}>Fecha</th>
-                        <th style={s.tablaCabecera('#0F172A')}>Concepto</th>
+                        <th style={s.tablaCabecera('#0F172A')}>Concepto / Detalle</th>
                         <th style={{ ...s.tablaCabecera('#0F172A'), textAlign: 'right' }}>Monto</th>
+                        <th style={{ ...s.tablaCabecera('#0F172A'), textAlign: 'right' }}>Saldo</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {filasPrevia.slice(0, 10).map((f, i) => (
+                      {filasPrevia.slice(0, 15).map((f, i) => (
                         <tr key={i} style={s.tablaFila(i)}>
-                          <td style={{ ...s.tablaCell, fontSize: '11.5px' }}>{f.fecha}</td>
-                          <td style={{ ...s.tablaCell, fontSize: '11.5px' }}>{f.descripcion}</td>
-                          <td style={{ ...s.tablaCellBold, fontSize: '11.5px', textAlign: 'right', color: f.monto >= 0 ? '#059669' : '#DC2626' }}>
-                            {Number(f.monto).toLocaleString('es-AR', { style: 'currency', currency: 'ARS' })}
+                          <td style={{ ...s.tablaCell, fontSize: '11.5px', whiteSpace: 'nowrap' }}>{f.fecha}</td>
+                          <td style={{ ...s.tablaCell, fontSize: '11.5px' }}>
+                            <div style={{ fontWeight: '600', color: '#0F172A' }}>{f.descripcion}</div>
+                            {f.referencia && <div style={{ fontSize: '10.5px', color: '#64748B' }}>{f.referencia}</div>}
+                          </td>
+                          <td style={{ ...s.tablaCellBold, fontSize: '11.5px', textAlign: 'right', fontFamily: paleta.fontMono, whiteSpace: 'nowrap', color: f.monto >= 0 ? '#059669' : '#DC2626' }}>
+                            {f.monto > 0 ? '+' : ''}{Number(f.monto).toLocaleString('es-AR', { style: 'currency', currency: 'ARS' })}
+                          </td>
+                          <td style={{ ...s.tablaCell, fontSize: '11.5px', textAlign: 'right', fontFamily: paleta.fontMono, whiteSpace: 'nowrap', fontWeight: f.saldoInformado ? '700' : '500', color: (f.saldo ?? 0) < 0 ? '#DC2626' : '#334155' }}>
+                            {f.saldo !== null && f.saldo !== undefined
+                              ? Number(f.saldo).toLocaleString('es-AR', { style: 'currency', currency: 'ARS' })
+                              : '—'}
                           </td>
                         </tr>
                       ))}
                     </tbody>
                   </table>
                 </div>
-                {filasPrevia.length > 10 && (
+                {filasPrevia.length > 15 && (
                   <p style={{ margin: '4px 0 0', fontSize: '11px', color: '#94A3B8', textAlign: 'center' }}>
-                    ... y {filasPrevia.length - 10} filas adicionales
+                    ... y {filasPrevia.length - 15} filas adicionales
                   </p>
                 )}
               </div>
@@ -2207,6 +2462,7 @@ function ConciliacionBancaria({
                 onClick={() => {
                   setModalCarga(false)
                   setFilasPrevia([])
+                  setMetaPrevia(null)
                   setTextoPegado('')
                 }}
               >
@@ -2351,15 +2607,7 @@ function ConciliacionBancaria({
                 </div>
               </div>
 
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '20px', flexWrap: 'wrap' }}>
-                <button
-                  type="button"
-                  style={{ ...s.btnSecundario, marginRight: 'auto', color: '#0F766E' }}
-                  title={Number(incorporandoFila.monto) < 0 ? 'Registrar este pago contra una factura de compra' : 'Registrar este cobro contra una factura de venta'}
-                  onClick={() => { const fila = incorporandoFila; setIncorporandoFila(null); abrirVincularFactura(fila) }}
-                >
-                  <FileText size={13} /> {Number(incorporandoFila.monto) < 0 ? 'Imputar a factura de compra' : 'Imputar a factura de venta'}
-                </button>
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '20px' }}>
                 <button
                   type="button"
                   style={s.btnSecundario}

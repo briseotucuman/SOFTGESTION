@@ -49,14 +49,16 @@ export function clasificarMovimientoBancario(descripcion, monto) {
   const numMonto = Number(monto) || 0
   const esIngreso = numMonto > 0
 
-  // 1. IMPUESTOS (AFIP / ARCA / IIBB / SIRCREB / Déb-Créd / Retenciones / Percepciones / Ley 25413)
+  // 1. IMPUESTOS (AFIP / ARCA / IIBB / SIRCREB / Déb-Créd / Retenciones / Percepciones / Ley 25413 / Sellado)
   if (
     d.includes('afip') || d.includes('arca') || d.includes('iibb') || d.includes('sircreb') ||
     d.includes('deb.cred') || d.includes('deb-cred') || d.includes('debito credito') ||
-    d.includes('ley 25413') || d.includes('impuesto') || d.includes('retenc') ||
+    d.includes('ley 25413') || d.includes('impuest') || d.includes('retenc') ||
     d.includes('percep') || d.includes('iva ') || d.includes(' dgr') || d.includes('rentas') ||
-    d.includes('sellos') || d.includes('tasa ') || d.includes('percepcion') || d.includes('retencion') ||
-    d.includes('imp.cred') || d.includes('imp.deb') || d.includes('ret.iibb') || d.includes('ret.iva')
+    d.includes('sellos') || d.includes('sellado') || d.includes('tasa ') ||
+    d.includes('percepcion') || d.includes('retencion') ||
+    d.includes('imp.cred') || d.includes('imp.deb') || d.includes('ret.iibb') ||
+    d.includes('ret.iva') || d.includes('ret. ib') || d.includes('ret.ib')
   ) {
     return {
       tipo: 'impuesto',
@@ -72,11 +74,13 @@ export function clasificarMovimientoBancario(descripcion, monto) {
 
   // 2. GASTOS BANCARIOS (Comisiones, Mantenimiento, Paquete, Cargos, Resumen, Cheques)
   if (
-    d.includes('comis') || d.includes('mantenimiento') || d.includes('paquete') ||
+    d.includes('comis') || d.includes('comi ') || d.includes('com mant') || d.includes('com.mant') ||
+    d.includes('mantenimiento') || d.includes('paquete') ||
     d.includes('cargo') || d.includes('gasto') || d.includes('costo') ||
     d.includes('resumen') || d.includes('renovacion') || d.includes('emision') ||
     d.includes('cheque rech') || d.includes('chq rech') || d.includes('certific') ||
-    d.includes('interes por descubierto') || d.includes('int.desc') || d.includes('com.transf') ||
+    d.includes('interes por descubierto') || d.includes('interes cobr') ||
+    d.includes('int.desc') || d.includes('int.cob') || d.includes('com.transf') ||
     d.includes('cargo mens') || d.includes('serv.banco')
   ) {
     return {
@@ -155,16 +159,6 @@ export function clasificarMovimientoBancario(descripcion, monto) {
 /**
  * Desglosa el importe total de una factura determinando el Neto y el IVA
  * a partir de la alícuota aplicable (regla: el Total ya incluye el IVA).
- *
- * Fórmula:
- * Factor = 1 + (alicuota / 100) -> ej: 1.21 para alícuota 21%
- * Neto = Total / Factor
- * IVA = Total - Neto
- * Neto + IVA = Total
- *
- * @param {number|string|Object} facturaOTotal - Factura con { total, subtotal, impuestos, alicuota_iva } o número total
- * @param {number} [alicuotaDefault=21] - Alícuota por defecto (21% estándar)
- * @returns {{ total: number, neto: number, iva: number, alicuota: number, factor: number }}
  */
 export function calcularDesgloseFactura(facturaOTotal, alicuotaDefault = 21) {
   let total = 0
@@ -183,12 +177,10 @@ export function calcularDesgloseFactura(facturaOTotal, alicuotaDefault = 21) {
     total = parseFloat(facturaOTotal) || 0
   }
 
-  // Si no hay total pero hay subtotal e impuestos coherentes:
   if (total === 0 && (subtotal > 0 || impuestos > 0)) {
     total = subtotal + impuestos
   }
 
-  // Caso 1: La factura ya tiene guardados explícitamente Neto e IVA válidos tales que Neto + IVA === Total y IVA > 0
   if (impuestos > 0 && subtotal > 0 && Math.abs((subtotal + impuestos) - total) < 0.05) {
     const alicCalc = Math.round((impuestos / subtotal) * 1000) / 10
     return {
@@ -200,12 +192,6 @@ export function calcularDesgloseFactura(facturaOTotal, alicuotaDefault = 21) {
     }
   }
 
-  // Caso 2: El valor Total ya incluye el IVA (regla general solicitada).
-  // A eso debe dividirse en la alícuota para determinar el IVA:
-  // Factor = 1 + (alicuota / 100)  -> ej: 1.21
-  // Neto = Total / Factor
-  // IVA = Total - Neto
-  // Neto + IVA = Total
   const numAlic = parseFloat(alicuota) || 0
   const factor = 1 + (numAlic / 100)
   const neto = factor > 0 ? (total / factor) : total
@@ -220,4 +206,120 @@ export function calcularDesgloseFactura(facturaOTotal, alicuotaDefault = 21) {
   }
 }
 
+/**
+ * Indica si un movimiento financiero es un ajuste contable de saldo / arqueo
+ * (no representa cobranzas ni gastos operativos reales del período).
+ */
+export function esMovimientoAjuste(m) {
+  const cat = String(m?.categoria || '').toLowerCase().trim()
+  return cat === 'ajuste de saldo' || cat === 'transferencia entre cuentas'
+}
+
+/**
+ * Calcula el resumen unificado de Cuentas por Cobrar (facturas de venta pendientes netas de pagos).
+ * Usado por Dashboard, Finanzas, Reportes y Facturación para garantizar cifras idénticas.
+ */
+export function calcularResumenCuentasPorCobrar(facturas = [], pagosVenta = []) {
+  const pagadoPorFact = {}
+  ;(pagosVenta || []).forEach(p => {
+    if (p?.factura_id) {
+      pagadoPorFact[p.factura_id] = (pagadoPorFact[p.factura_id] || 0) + Number(p.monto || 0)
+    }
+  })
+
+  let totalPorCobrar = 0
+  let cantidadPendientes = 0
+
+  ;(facturas || []).forEach(f => {
+    const est = String(f?.estado || '').toLowerCase().trim()
+    if (['pagada', 'cobrada', 'anulada'].includes(est)) return
+    const pagado = pagadoPorFact[f.id] || 0
+    const saldo = Math.max(0, Number(f.total || 0) - pagado)
+    if (saldo > 0.009) {
+      totalPorCobrar += saldo
+      cantidadPendientes++
+    }
+  })
+
+  return {
+    totalPorCobrar: Math.round(totalPorCobrar * 100) / 100,
+    cantidadPendientes,
+    pagadoPorFact
+  }
+}
+
+/**
+ * Calcula el resumen unificado de Cuentas por Pagar (facturas de compra pendientes netas de pagos).
+ */
+export function calcularResumenCuentasPorPagar(facturasCompra = [], pagosCompra = []) {
+  const pagadoPorCompra = {}
+  ;(pagosCompra || []).forEach(p => {
+    if (p?.factura_compra_id) {
+      pagadoPorCompra[p.factura_compra_id] = (pagadoPorCompra[p.factura_compra_id] || 0) + Number(p.monto || 0)
+    }
+  })
+
+  let totalPorPagar = 0
+  let cantidadPendientes = 0
+
+  ;(facturasCompra || []).forEach(f => {
+    const est = String(f?.estado || '').toLowerCase().trim()
+    if (['pagada', 'anulada'].includes(est)) return
+    const pagado = pagadoPorCompra[f.id] || 0
+    const saldo = Math.max(0, Number(f.total || 0) - pagado)
+    if (saldo > 0.009) {
+      totalPorPagar += saldo
+      cantidadPendientes++
+    }
+  })
+
+  return {
+    totalPorPagar: Math.round(totalPorPagar * 100) / 100,
+    cantidadPendientes,
+    pagadoPorCompra
+  }
+}
+
+/**
+ * Calcula saldos consolidados de Caja (Efectivo) y Bancos activos a la fecha.
+ */
+export function calcularSaldosCuentas(cuentas = []) {
+  const activas = (cuentas || []).filter(ct => ct && ct.activa !== false)
+  let totalBancos = 0
+  let totalEfectivo = 0
+  let cantidadBancos = 0
+  let cantidadEfectivo = 0
+
+  activas.forEach(ct => {
+    const saldo = Number(ct.saldo || 0)
+    if (esCuentaBancaria(ct)) {
+      totalBancos += saldo
+      cantidadBancos++
+    } else {
+      totalEfectivo += saldo
+      cantidadEfectivo++
+    }
+  })
+
+  totalBancos = Math.round(totalBancos * 100) / 100
+  totalEfectivo = Math.round(totalEfectivo * 100) / 100
+
+  return {
+    totalBancos,
+    totalEfectivo,
+    totalCajaYBancos: Math.round((totalBancos + totalEfectivo) * 100) / 100,
+    cantidadBancos,
+    cantidadEfectivo,
+    cantidadCuentas: activas.length
+  }
+}
+
+export function formatearMonedaAR(valor, decimales = 2) {
+  return Number(valor || 0).toLocaleString('es-AR', {
+    style: 'currency',
+    currency: 'ARS',
+    minimumFractionDigits: decimales,
+    maximumFractionDigits: decimales
+  })
+}
 

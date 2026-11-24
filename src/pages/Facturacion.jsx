@@ -1,12 +1,9 @@
-import { registrarCobroConRetenciones, retencionesVacias, totalRetenciones, listaChequesVacia, totalCheques, validarCheques, crearChequesTercero, crearChequesPropios } from '../cobrosUtils.js'
-import RetencionesCobro from './RetencionesCobro.jsx'
-import DatosCheque from './DatosCheque.jsx'
-import { useEffect, useState, useMemo, useRef } from 'react'
+import { useEffect, useState, useMemo } from 'react'
 import { supabase, emitirCambioDatos } from '../supabase.js'
 import { s, colores } from '../estilos.js'
-import { Pencil, Plus, Receipt, X, FileUp, Trash2, AlertTriangle, Loader2, Calculator, Info, Search, Ban } from 'lucide-react'
+import { Pencil, Plus, Receipt, X, FileUp, Trash2, AlertTriangle, Loader2, Calculator, Info, Search } from 'lucide-react'
 import ImportarARCA from './ImportarARCA.jsx'
-import { calcularDesgloseFactura } from '../finanzasUtils.js'
+import { calcularDesgloseFactura, calcularResumenCuentasPorCobrar } from '../finanzasUtils.js'
 
 const c = colores.facturacion
 
@@ -32,10 +29,9 @@ function Facturacion()  {
   const [borrandoTodas, setBorrandoTodas] = useState(false)
   const [editando, setEditando] = useState(null)
   const [pagos, setPagos] = useState([])
+  const [pagosTodos, setPagosTodos] = useState([])
   const [cuentas, setCuentas] = useState([])
-  const guardandoPago = useRef(false)
-  const [datosCheque, setDatosCheque] = useState(listaChequesVacia())
-  const [formPago, setFormPago] = useState({ monto: '', medio_pago: 'transferencia', referencia: '', cuenta_id: '', fecha_pago: new Date().toISOString().split('T')[0], retenciones: retencionesVacias(), certificado: '' })
+  const [formPago, setFormPago] = useState({ monto: '', medio_pago: 'transferencia', referencia: '', cuenta_id: '', fecha_pago: new Date().toISOString().split('T')[0] })
   const [busqueda, setBusqueda] = useState('')
   const [filtroEstado, setFiltroEstado] = useState('todos')
   const [form, setForm] = useState({
@@ -60,13 +56,15 @@ function Facturacion()  {
 
   async function cargarDatos() {
     setLoading(true)
-    const [{ data: facts }, { data: conts }, { data: cuentasData }] = await Promise.all([
+    const [{ data: facts }, { data: conts }, { data: cuentasData }, { data: pagosData }] = await Promise.all([
       supabase.from('facturas').select(`*, clientes(razon_social,nombre_contacto), contratos(numero_contrato, tipo_facturacion, valor_hora)`).order('creado_en', { ascending: false }),
       supabase.from('contratos').select(`id, numero_contrato, precio_acordado, tipo_facturacion, valor_hora, clientes(id,razon_social,nombre_contacto)`).eq('estado', 'activo'),
-      supabase.from('cuentas_bancarias').select('*').eq('activa', true)
+      supabase.from('cuentas_bancarias').select('*').eq('activa', true),
+      supabase.from('pagos').select('factura_id, monto')
     ])
     if (facts) setFacturas(facts)
     if (cuentasData) setCuentas(cuentasData)
+    if (pagosData) setPagosTodos(pagosData)
     if (conts) {
       setContratos(conts)
       setContratosHora(conts.filter(ct => ct.tipo_facturacion === 'por_hora'))
@@ -365,57 +363,34 @@ function Facturacion()  {
     if (data) await supabase.from('cuentas_bancarias').update({ saldo: Number(data.saldo) + delta }).eq('id', cuenta_id)
   }
 
-  async function cambiarFechaPago(pago, nuevaFecha) {
-    if (!nuevaFecha || nuevaFecha === (pago.fecha_pago || '').slice(0, 10)) return
-    const fechaVieja = (pago.fecha_pago || '').slice(0, 10)
-    await supabase.from('pagos').update({ fecha_pago: nuevaFecha }).eq('id', pago.id)
-    // Sincroniza el movimiento de caja asociado (es el que usa el tablero y los reportes por mes)
-    let q = supabase.from('movimientos_financieros').update({ fecha: nuevaFecha })
-      .eq('factura_id', pago.factura_id).eq('tipo', 'ingreso').eq('monto', Number(pago.monto) - Number(pago.monto_retenciones || 0))
-    if (fechaVieja) q = q.eq('fecha', fechaVieja)
-    await q
-    await supabase.from('retenciones_cobro').update({ fecha: nuevaFecha }).eq('pago_id', pago.id)
-    await verPagos(mostrarPagos)
-    emitirCambioDatos('facturacion')
-  }
-
   async function registrarPago(e) {
     e.preventDefault()
-    if (guardandoPago.current) return
-    const neto = parseFloat(formPago.monto) || 0
-    const totRet = totalRetenciones(formPago.retenciones)
-    if (neto <= 0 && totRet <= 0) { alert('Ingresá el importe recibido o alguna retención'); return }
-    const esCheque = formPago.medio_pago === 'cheque'
-    if (esCheque && neto > 0) { const eCh = validarCheques(datosCheque, neto); if (eCh) { alert(eCh); return } }
-    if (neto > 0 && !esCheque && !formPago.cuenta_id) { alert('Elegí a qué cuenta entra el cobro'); return }
-    const yaCobrado = pagos.reduce((a, p) => a + Number(p.monto), 0)
-    const saldoFactura = Number(mostrarPagos.total) - yaCobrado
-    if (neto + totRet > saldoFactura + 0.01 && !window.confirm(`El cobro (${(neto + totRet).toLocaleString('es-AR', { style: 'currency', currency: 'ARS' })}) supera el saldo pendiente de la factura (${Math.max(0, saldoFactura).toLocaleString('es-AR', { style: 'currency', currency: 'ARS' })}). ¿Registrarlo igual?`)) return
-    guardandoPago.current = true
-    const fechaCobro = formPago.fecha_pago || new Date().toISOString().split('T')[0]
-    try {
-      let imputado = 0
-      if (esCheque && neto > 0) await crearChequesTercero({ cheques: datosCheque, factura: mostrarPagos })
-      if (!esCheque || totRet > 0) {
-        const r = await registrarCobroConRetenciones({
-          factura: mostrarPagos, neto: esCheque ? 0 : neto, retenciones: formPago.retenciones, certificado: formPago.certificado,
-          fecha: fechaCobro, medio_pago: formPago.medio_pago, cuenta_id: formPago.cuenta_id, referencia: formPago.referencia,
-          descripcion: `Cobro factura ${mostrarPagos.numero_factura}`,
-          forma_pago: FORMA_PAGO_LABEL[formPago.medio_pago] || formPago.medio_pago
-        })
-        imputado = r.imputado
-      }
-      const totalPagado = pagos.reduce((acc, p) => acc + Number(p.monto), 0) + imputado
-      const nuevoEstado = totalPagado >= mostrarPagos.total - 0.01 ? 'pagada' : 'parcial'
-      await supabase.from('facturas').update({ estado: nuevoEstado }).eq('id', mostrarPagos.id)
-    } catch (err) {
-      guardandoPago.current = false
-      alert('No se pudo registrar el cobro: ' + (err.message || err)); return
-    }
-    guardandoPago.current = false
-    setDatosCheque(listaChequesVacia())
-    if (esCheque && neto > 0) alert('Cheque(s) cargado(s) en cartera. La factura se cancela cuando lo deposites o cobres desde Finanzas > Cheques.')
-    setFormPago({ monto: '', medio_pago: 'transferencia', referencia: '', cuenta_id: '', fecha_pago: new Date().toISOString().split('T')[0], retenciones: retencionesVacias(), certificado: '' })
+    const monto = parseFloat(formPago.monto)
+    const fechaPago = formPago.fecha_pago || new Date().toISOString().split('T')[0]
+    await supabase.from('pagos').insert([{
+      factura_id: mostrarPagos.id,
+      fecha_pago: fechaPago,
+      monto,
+      medio_pago: formPago.medio_pago,
+      referencia: formPago.referencia,
+      cuenta_id: formPago.cuenta_id || null
+    }])
+    await supabase.from('movimientos_financieros').insert([{
+      fecha: fechaPago,
+      tipo: 'ingreso',
+      categoria: 'Cobranzas',
+      descripcion: `Cobro factura ${mostrarPagos.numero_factura}`,
+      monto,
+      cuenta_id: formPago.cuenta_id || null,
+      comprobante: formPago.referencia,
+      forma_pago: FORMA_PAGO_LABEL[formPago.medio_pago] || formPago.medio_pago,
+      factura_id: mostrarPagos.id
+    }])
+    await ajustarSaldo(formPago.cuenta_id, monto)
+    const totalPagado = pagos.reduce((acc, p) => acc + Number(p.monto), 0) + monto
+    const nuevoEstado = totalPagado + 0.01 >= Number(mostrarPagos.total) ? 'cobrada' : 'parcial'
+    await supabase.from('facturas').update({ estado: nuevoEstado }).eq('id', mostrarPagos.id)
+    setFormPago({ monto: '', medio_pago: 'transferencia', referencia: '', cuenta_id: '', fecha_pago: new Date().toISOString().split('T')[0] })
     verPagos(mostrarPagos)
     await cargarDatos()
     emitirCambioDatos('facturacion')
@@ -426,9 +401,7 @@ function Facturacion()  {
     let totalNeto = 0
     let totalIVA = 0
     let totalCobrado = 0
-    let totalPendiente = 0
     let cantidadCobradas = 0
-    let cantidadPendientes = 0
 
     facturas.forEach(f => {
       if (f.estado === 'anulada') return
@@ -440,23 +413,23 @@ function Facturacion()  {
       if (['pagada', 'cobrada'].includes(f.estado)) {
         totalCobrado += d.total
         cantidadCobradas++
-      } else {
-        totalPendiente += d.total
-        cantidadPendientes++
       }
     })
+
+    const resumenCobrar = calcularResumenCuentasPorCobrar(facturas, pagosTodos)
+    const totalPendiente = resumenCobrar.totalPorCobrar
 
     return {
       totalFacturado: Math.round(totalFacturado * 100) / 100,
       totalNeto: Math.round(totalNeto * 100) / 100,
       totalIVA: Math.round(totalIVA * 100) / 100,
       totalCobrado: Math.round(totalCobrado * 100) / 100,
-      totalPendiente: Math.round(totalPendiente * 100) / 100,
+      totalPendiente,
       cantidadCobradas,
-      cantidadPendientes,
+      cantidadPendientes: resumenCobrar.cantidadPendientes,
       totalFacturasActivas: facturas.filter(f => f.estado !== 'anulada').length
     }
-  }, [facturas])
+  }, [facturas, pagosTodos])
 
   const facturasFiltradas = useMemo(() => {
     return facturas.filter(f => {
@@ -578,13 +551,13 @@ function Facturacion()  {
 
       {vista === 'facturas' && (<>
       {/* KPIs DE FACTURACIÓN: TOTAL CON IVA, NETO GRAVADO E IVA */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '14px', marginBottom: '14px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(230px, 1fr))', gap: '14px', marginBottom: '14px' }}>
         <div style={{ ...s.card, borderTop: `3px solid ${c.main}` }}>
           <p style={{ ...s.label, color: '#64748B', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <span>Total Facturado</span>
             <span style={{ fontSize: '10px', background: '#FFF1F2', color: c.main, padding: '2px 6px', borderRadius: '4px', fontWeight: '700' }}>Con IVA</span>
           </p>
-          <p style={{ fontSize: 'clamp(17px, 1.7vw, 22px)', fontWeight: '800', color: '#0F172A', margin: '4px 0 2px', fontFamily: 'monospace', whiteSpace: 'nowrap' }}>
+          <p style={{ fontSize: '22px', fontWeight: '800', color: '#0F172A', margin: '4px 0 2px', fontFamily: 'monospace', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
             {metricasFacturacion.totalFacturado.toLocaleString('es-AR', { style: 'currency', currency: 'ARS' })}
           </p>
           <span style={{ fontSize: '11.5px', color: '#64748B' }}>
@@ -597,7 +570,7 @@ function Facturacion()  {
             <span>Neto Gravado</span>
             <span style={{ fontSize: '10px', background: '#F0F9FF', color: '#0284C7', padding: '2px 6px', borderRadius: '4px', fontWeight: '700' }}>Total / 1,21</span>
           </p>
-          <p style={{ fontSize: 'clamp(17px, 1.7vw, 22px)', fontWeight: '800', color: '#0284C7', margin: '4px 0 2px', fontFamily: 'monospace', whiteSpace: 'nowrap' }}>
+          <p style={{ fontSize: '22px', fontWeight: '800', color: '#0284C7', margin: '4px 0 2px', fontFamily: 'monospace', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
             {metricasFacturacion.totalNeto.toLocaleString('es-AR', { style: 'currency', currency: 'ARS' })}
           </p>
           <span style={{ fontSize: '11.5px', color: '#64748B' }}>
@@ -610,7 +583,7 @@ function Facturacion()  {
             <span>IVA Débito Fiscal</span>
             <span style={{ fontSize: '10px', background: '#F5F3FF', color: '#7C3AED', padding: '2px 6px', borderRadius: '4px', fontWeight: '700' }}>Total - Neto</span>
           </p>
-          <p style={{ fontSize: 'clamp(17px, 1.7vw, 22px)', fontWeight: '800', color: '#7C3AED', margin: '4px 0 2px', fontFamily: 'monospace', whiteSpace: 'nowrap' }}>
+          <p style={{ fontSize: '22px', fontWeight: '800', color: '#7C3AED', margin: '4px 0 2px', fontFamily: 'monospace', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
             {metricasFacturacion.totalIVA.toLocaleString('es-AR', { style: 'currency', currency: 'ARS' })}
           </p>
           <span style={{ fontSize: '11.5px', color: '#64748B' }}>
@@ -623,7 +596,7 @@ function Facturacion()  {
             <span>Pendiente de Cobro</span>
             <span style={{ fontSize: '10px', background: '#FEE2E2', color: '#DC2626', padding: '2px 6px', borderRadius: '4px', fontWeight: '700' }}>Por cobrar</span>
           </p>
-          <p style={{ fontSize: 'clamp(17px, 1.7vw, 22px)', fontWeight: '800', color: '#DC2626', margin: '4px 0 2px', fontFamily: 'monospace', whiteSpace: 'nowrap' }}>
+          <p style={{ fontSize: '22px', fontWeight: '800', color: '#DC2626', margin: '4px 0 2px', fontFamily: 'monospace', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
             {metricasFacturacion.totalPendiente.toLocaleString('es-AR', { style: 'currency', currency: 'ARS' })}
           </p>
           <span style={{ fontSize: '11.5px', color: '#991B1B' }}>
@@ -917,7 +890,7 @@ function Facturacion()  {
 
         return (
           <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50, padding: '16px' }}>
-            <div style={{ background: '#fff', borderRadius: '20px', padding: '28px', width: '100%', maxWidth: '520px', maxHeight: '92vh', overflowY: 'auto', boxShadow: '0 20px 60px rgba(0,0,0,0.2)' }}>
+            <div style={{ background: '#fff', borderRadius: '20px', padding: '28px', width: '100%', maxWidth: '520px', boxShadow: '0 20px 60px rgba(0,0,0,0.2)' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
                 <div>
                   <h4 style={{ margin: 0, color: '#0f172a', fontWeight: '800' }}>Pagos y Cobranzas</h4>
@@ -960,17 +933,21 @@ function Facturacion()  {
 
               {pagos.map(p => (
                 <div key={p.id} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid #f1f5f9', fontSize: '13px' }}>
-                  <input type="date" title="Cambiar fecha de pago" value={(p.fecha_pago || '').slice(0, 10)} max={new Date().toISOString().split('T')[0]} onChange={e => cambiarFechaPago(p, e.target.value)} style={{ border: '1px solid #E2E8F0', borderRadius: '6px', padding: '3px 6px', fontSize: '12.5px', color: '#475569', background: '#fff' }} />
+                  <span style={{ color: '#64748b' }}>{formatearFecha(p.fecha_pago)}</span>
                   <span style={{ color: '#64748b', textTransform: 'capitalize' }}>{p.medio_pago}{p.cuenta_id ? ` · ${cuentas.find(ct => ct.id === p.cuenta_id)?.banco || ''}` : ''}</span>
-                  <strong style={{ color: '#059669', fontFamily: 'monospace' }}>{Number(p.monto).toLocaleString('es-AR', { style: 'currency', currency: 'ARS' })}{Number(p.monto_retenciones) > 0 && <span style={{ color: '#B45309', fontSize: '11px', fontWeight: 600 }}> (incl. ret. {Number(p.monto_retenciones).toLocaleString('es-AR', { style: 'currency', currency: 'ARS' })})</span>}</strong>
+                  <strong style={{ color: '#059669', fontFamily: 'monospace' }}>{Number(p.monto).toLocaleString('es-AR', { style: 'currency', currency: 'ARS' })}</strong>
                 </div>
               ))}
 
               <form onSubmit={registrarPago} style={{ marginTop: '16px' }}>
                 <div style={s.grid2}>
                   <div>
-                    <label style={s.label}>Importe recibido en cuenta ($)</label>
-                    <input type="number" step="0.01" style={s.input} value={formPago.monto} onChange={e => setFormPago({...formPago, monto: e.target.value})} />
+                    <label style={s.label}>Fecha de cobro</label>
+                    <input type="date" style={s.input} value={formPago.fecha_pago || ''} onChange={e => setFormPago({...formPago, fecha_pago: e.target.value})} required />
+                  </div>
+                  <div>
+                    <label style={s.label}>Monto ($)</label>
+                    <input type="number" step="0.01" style={s.input} value={formPago.monto} onChange={e => setFormPago({...formPago, monto: e.target.value})} required />
                   </div>
                   <div>
                     <label style={s.label}>Medio de pago</label>
@@ -981,20 +958,12 @@ function Facturacion()  {
                       <option value="tarjeta">Tarjeta</option>
                     </select>
                   </div>
-                  <div style={{ gridColumn: '1 / -1' }}>
+                  <div>
                     <label style={s.label}>Cuenta / caja que recibe el pago</label>
-                    <select style={s.input} value={formPago.cuenta_id} onChange={e => setFormPago({...formPago, cuenta_id: e.target.value})}>
+                    <select style={s.input} value={formPago.cuenta_id} onChange={e => setFormPago({...formPago, cuenta_id: e.target.value})} required>
                       <option value="">Seleccionar cuenta</option>
                       {cuentas.map(ct => <option key={ct.id} value={ct.id}>{ct.banco} — {ct.tipo}</option>)}
                     </select>
-                  </div>
-                  {formPago.medio_pago === 'cheque' && <DatosCheque cheques={datosCheque} onChange={arr => { setDatosCheque(arr); const t = totalCheques(arr); if (t > 0) setFormPago(f => ({ ...f, monto: t.toFixed(2) })) }} />}
-                  <RetencionesCobro retenciones={formPago.retenciones} certificado={formPago.certificado} neto={formPago.monto}
-                    saldo={saldoPendiente}
-                    onChange={r => setFormPago({ ...formPago, retenciones: r })} onCertificado={v => setFormPago({ ...formPago, certificado: v })} />
-                  <div style={{ gridColumn: '1 / -1' }}>
-                    <label style={s.label}>Fecha de pago</label>
-                    <input type="date" style={s.input} value={formPago.fecha_pago || ''} max={new Date().toISOString().split('T')[0]} onChange={e => setFormPago({...formPago, fecha_pago: e.target.value})} required />
                   </div>
                   <div style={{ gridColumn: '1 / -1' }}>
                     <label style={s.label}>Referencia</label>
@@ -1135,7 +1104,7 @@ function Facturacion()  {
             )}
           </div>
         ) : (
-          <table className="sg-tabla-densa" style={{ ...s.tabla, minWidth: '900px', width: '100%' }}>
+          <table style={{ ...s.tabla, minWidth: '1080px', width: '100%' }}>
             <thead>
               <tr>
                 <th style={s.tablaCabecera('#0F172A')}>Número</th>
@@ -1153,8 +1122,8 @@ function Facturacion()  {
                   right: 0,
                   zIndex: 3,
                   textAlign: 'center',
-                  minWidth: '150px',
-                  boxShadow: '-6px 0 8px -4px rgba(15,23,42,0.18)'
+                  minWidth: '175px',
+                  boxShadow: '-4px 0 8px rgba(0,0,0,0.12)'
                 }}>
                   Acciones
                 </th>
@@ -1187,7 +1156,7 @@ function Facturacion()  {
                       {formatearFecha(f.fecha_vencimiento)}
                     </td>
                     {/* NETO GRAVADO (DIVIDIDO POR ALÍCUOTA) */}
-                    <td style={{ ...s.tablaCell, textAlign: 'right', whiteSpace: 'nowrap', fontFamily: 'monospace', color: '#334155', minWidth: '120px' }}>
+                    <td style={{ ...s.tablaCell, textAlign: 'right', whiteSpace: 'nowrap', fontFamily: 'monospace', color: '#334155' }}>
                       {d.neto.toLocaleString('es-AR', { style: 'currency', currency: 'ARS' })}
                     </td>
                     {/* IVA DISCRIMINADO */}
@@ -1211,15 +1180,15 @@ function Facturacion()  {
                       background: bgColor,
                       zIndex: 2,
                       textAlign: 'center',
-                      minWidth: '150px',
-                      boxShadow: '-6px 0 8px -4px rgba(15,23,42,0.12)',
+                      minWidth: '175px',
+                      boxShadow: '-4px 0 8px rgba(0,0,0,0.05)',
                       whiteSpace: 'nowrap'
                     }}>
                       <div style={{ display: 'flex', gap: '6px', justifyContent: 'center' }}>
                         <button onClick={() => verPagos(f)} style={{ ...s.btnPrimario('#059669'), padding: '5px 10px', fontSize: '12px' }}>Pagos</button>
                         <button onClick={() => abrirEdicion(f)} style={{ ...s.btnPrimario(c.main), padding: '5px 10px', fontSize: '12px' }} title="Editar"><Pencil size={14} /></button>
                         {f.estado !== 'anulada' && (
-                          <button onClick={() => anularFactura(f.id)} title="Anular factura" aria-label="Anular factura" style={{ ...s.btnPeligro, padding: '5px 8px', fontSize: '12px' }}><Ban size={13} /></button>
+                          <button onClick={() => anularFactura(f.id)} style={{ ...s.btnPeligro, padding: '5px 10px', fontSize: '12px' }}>Anular</button>
                         )}
                         <button
                           title="Eliminar factura"

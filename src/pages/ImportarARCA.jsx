@@ -461,7 +461,7 @@ function ImportarARCA({ tipoInicial = 'ventas', onImportado }) {
             }
           }
 
-          const { error: errFactura } = await supabase.from('facturas').insert({
+          const { data: facturaCreada, error: errFactura } = await supabase.from('facturas').insert({
             numero_factura: f.numero_factura,
             cliente_id: clienteId,
             fecha_emision: f.fecha_emision,
@@ -472,10 +472,32 @@ function ImportarARCA({ tipoInicial = 'ventas', onImportado }) {
             tipo_comprobante: f.tipoLabel,
             estado: f.yaCompletada ? 'cobrada' : 'emitida',
             observaciones: `Importada desde ARCA Comprobantes Emitidos | CAE: ${f.cae || 's/n'}`
-          })
+          }).select('id').single()
 
           if (errFactura?.code === '23505') continue // ya cargada: se omite, no se duplica
           if (errFactura) throw errFactura
+
+          if (f.yaCompletada && facturaCreada?.id && Number(f.total) > 0) {
+            await supabase.from('pagos').insert([{
+              factura_id: facturaCreada.id,
+              fecha_pago: f.fecha_emision,
+              monto: f.total,
+              medio_pago: 'transferencia',
+              referencia: `ARCA ${f.numero_factura}`
+            }])
+            await supabase.from('movimientos_financieros').insert([{
+              fecha: f.fecha_emision,
+              tipo: 'ingreso',
+              categoria: 'Cobranzas',
+              descripcion: `Cobro factura ${f.numero_factura} — ${f.nombreEntidadResuelto || f.nombreEntidad}`,
+              monto: f.total,
+              cuenta_id: null,
+              forma_pago: 'Transferencia',
+              comprobante: `ARCA ${f.cae || f.numero_factura}`,
+              factura_id: facturaCreada.id
+            }])
+          }
+
           totalImportado++
           totalMonto += f.total
         }
@@ -504,7 +526,7 @@ function ImportarARCA({ tipoInicial = 'ventas', onImportado }) {
             }
           }
 
-          const { error: errCompra } = await supabase.from('facturas_compra').insert({
+          const { data: compraCreada, error: errCompra } = await supabase.from('facturas_compra').insert({
             numero_factura: f.numero_factura,
             proveedor_id: proveedorId,
             fecha_emision: f.fecha_emision,
@@ -514,10 +536,21 @@ function ImportarARCA({ tipoInicial = 'ventas', onImportado }) {
             total: f.total,
             estado: f.yaCompletada ? 'pagada' : 'pendiente',
             observaciones: `Importada desde ARCA Comprobantes Recibidos | CAE: ${f.cae || 's/n'} | ${f.tipoLabel}`
-          })
+          }).select('id').single()
 
           if (errCompra?.code === '23505') continue // ya cargada: se omite, no se duplica
           if (errCompra) throw errCompra
+
+          if (f.yaCompletada && compraCreada?.id && Number(f.total) > 0) {
+            await supabase.from('pagos_compra').insert([{
+              factura_compra_id: compraCreada.id,
+              fecha_pago: f.fecha_emision,
+              monto: f.total,
+              medio_pago: 'transferencia',
+              referencia: `ARCA ${f.numero_factura}`
+            }])
+          }
+
           totalImportado++
           totalMonto += f.total
         }

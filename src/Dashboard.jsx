@@ -1,14 +1,19 @@
-import { useState, useEffect, useMemo, useRef } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { supabase, escucharCambiosDatos } from './supabase.js'
 import { colores, paleta } from './estilos.js'
 import {
   Home, Users, FileText, HardHat, CalendarDays, Wallet, Receipt, Package,
-  BarChart3, ClipboardList, Briefcase, Factory, TrendingUp, UserCog,
+  BarChart3, ClipboardList, Briefcase, Factory, TrendingUp, TrendingDown, UserCog,
   Bell, CheckCircle2, LogOut, ChevronLeft, ChevronRight, RefreshCw,
-  Search, Command, Clock, AlertTriangle, ArrowUpRight,
-  Shield, Check, ExternalLink, Radar, ShieldCheck, Menu, ClipboardCheck, FolderOpen
-  , Calculator
+  Search, Clock, ArrowUpRight, Landmark, Radar, ShieldCheck
 } from 'lucide-react'
+import {
+  calcularResumenCuentasPorCobrar,
+  calcularResumenCuentasPorPagar,
+  calcularSaldosCuentas,
+  esMovimientoAjuste,
+  formatearMonedaAR
+} from './finanzasUtils.js'
 import Clientes from './pages/Clientes.jsx'
 import CRM from './pages/CRM.jsx'
 import Contratos from './pages/Contratos.jsx'
@@ -18,42 +23,22 @@ import Presupuestos from './pages/Presupuestos.jsx'
 import Facturacion from './pages/Facturacion.jsx'
 import Insumos from './pages/Insumos.jsx'
 import Finanzas from './pages/Finanzas.jsx'
-import InicioGlass from './pages/InicioGlass.jsx'
-import ControlDatos from './pages/ControlDatos.jsx'
-import ModuloTabs from './ModuloTabs.jsx'
-import Documentos from './pages/Documentos.jsx'
 import Costos from './pages/Costos.jsx'
 import Sueldos from './pages/Sueldos.jsx'
-import Contabilidad from './pages/Contabilidad.jsx'
-import AumentosContratos from './pages/AumentosContratos.jsx'
-import Vencimientos from './pages/Vencimientos.jsx'
-import Asistencia from './pages/Asistencia.jsx'
-import Inversiones from './pages/Inversiones.jsx'
-import Formulario931 from './pages/Formulario931.jsx'
-import Auditoria from './pages/Auditoria.jsx'
 import Proveedores from './pages/Proveedores.jsx'
 import Reportes from './pages/Reportes.jsx'
 import Usuarios from './pages/Usuarios.jsx'
 
 // Módulos restringidos a rol admin (coincide con las políticas RLS en Supabase)
-const FONDO_GLASS = 'radial-gradient(900px 500px at 8% -10%, rgba(147,197,253,0.55), transparent 60%), radial-gradient(800px 500px at 100% 0%, rgba(191,219,254,0.7), transparent 55%), linear-gradient(160deg, #f8fbff 0%, #e8f0fe 100%) fixed'
-// Qué permiso habilita cada pantalla restringida (el resto es solo para administradores)
-const PERMISO_MODULO = { finanzas: 'finanzas', facturacion: 'finanzas', costos: 'finanzas', conciliacion: 'finanzas', sueldos: 'sueldos', f931: 'sueldos', documentos: 'documentos' }
-const SOLO_ADMIN = ['administracion', 'control', 'documentos', 'facturacion', 'finanzas', 'conciliacion', 'costos', 'sueldos', 'contabilidad', 'f931', 'inversiones', 'auditoria', 'aumentos', 'asistencia', 'vencimientos', 'usuarios']
+const SOLO_ADMIN = ['facturacion', 'finanzas', 'conciliacion', 'costos', 'sueldos', 'usuarios']
 
-const HOJAS_MENU = [
+const GRUPOS_MENU = [
   {
-    label: 'Clientes y ventas',
+    label: 'Operación & Servicios',
     items: [
-      { id: 'clientes',     icon: Users,    label: 'Clientes',     desc: 'Cuentas corporativas, CUIT y sucursales' },
-      { id: 'crm',          icon: Radar,    label: 'CRM',          desc: 'Seguimiento de prospectos y oportunidades' },
-      { id: 'presupuestos', icon: Wallet,   label: 'Presupuestos', desc: 'Cotizaciones comerciales y propuestas' },
-      { id: 'contratos',    icon: FileText, label: 'Contratos',    desc: 'Acuerdos vigentes, SLAs y renovaciones' },
-    ]
-  },
-  {
-    label: 'Operación',
-    items: [
+      { id: 'clientes',    icon: Users,        label: 'Clientes',    desc: 'Cuentas corporativas, CUIT y sucursales' },
+      { id: 'crm',         icon: Radar,        label: 'CRM',         desc: 'Seguimiento de prospectos y oportunidades' },
+      { id: 'contratos',   icon: FileText,     label: 'Contratos',   desc: 'Acuerdos vigentes, SLAs y renovaciones' },
       { id: 'agenda',      icon: CalendarDays, label: 'Agenda',      desc: 'Órdenes de trabajo y cronograma operativo' },
       { id: 'personal',    icon: HardHat,      label: 'Personal',    desc: 'Dotación, legajos y asignación de puestos' },
       { id: 'insumos',     icon: Package,      label: 'Insumos',     desc: 'Control de inventario, stock y reposición' },
@@ -61,71 +46,26 @@ const HOJAS_MENU = [
     ]
   },
   {
-    label: 'Administración',
+    label: 'Administración & Finanzas',
     items: [
-      { id: 'facturacion',  icon: Receipt,       label: 'Facturación',           desc: 'Emisión, cuentas corrientes y cobranzas' },
-      { id: 'finanzas',     icon: BarChart3,     label: 'Finanzas',              desc: 'Caja, cobros y pagos, cheques y bancos' },
-      { id: 'costos',       icon: ClipboardList, label: 'Costos',                desc: 'Costeo operativo por servicio y cliente' },
-      { id: 'sueldos',      icon: Briefcase,     label: 'Sueldos',               desc: 'Liquidación salarial y jornales' },
-      { id: 'contabilidad', icon: Calculator,    label: 'Contabilidad',          desc: 'Plan de cuentas, asientos, mayor, balances e impuestos' },
-      { id: 'f931',        icon: FileText,      label: 'F.931 (SUSS)',          desc: 'Declaración jurada de cargas sociales', oculto: true },
-      { id: 'inversiones', icon: TrendingUp,    label: 'Inversiones',           desc: 'Fondos, acciones, letras y CEDEARs', oculto: true },
-      { id: 'auditoria',   icon: ShieldCheck,   label: 'Auditoría',             desc: 'Quién cambió qué y cuándo', oculto: true },
-      { id: 'asistencia',  icon: Clock,         label: 'Asistencia',            desc: 'Marcaciones y horas trabajadas', oculto: true },
-      { id: 'vencimientos', icon: AlertTriangle, label: 'Vencimientos',         desc: 'ART, seguros, certificados y contratos', oculto: true },
-      { id: 'aumentos',    icon: TrendingUp,    label: 'Aumentos y abonos',     desc: 'Ajuste de contratos y facturación mensual', oculto: true },
-      // Atajo a Finanzas > Conciliación bancaria: no se muestra en el menú, sí en el buscador (Ctrl K)
-      { id: 'conciliacion', icon: ShieldCheck,   label: 'Conciliación Bancaria', desc: 'Resúmenes bancarios y conciliación', oculto: true },
+      { id: 'presupuestos', icon: Wallet,        label: 'Presupuestos',           desc: 'Cotizaciones comerciales y propuestas' },
+      { id: 'facturacion',  icon: Receipt,       label: 'Facturación',            desc: 'Emisión, cuentas corrientes y cobranzas' },
+      { id: 'finanzas',     icon: BarChart3,     label: 'Finanzas',               desc: 'Flujo de caja, ingresos y egresos' },
+      { id: 'conciliacion', icon: ShieldCheck,   label: 'Conciliación Bancaria',  desc: 'Resúmenes bancarios y conciliación' },
+      { id: 'costos',       icon: ClipboardList, label: 'Costos',                 desc: 'Costeo operativo por servicio y cliente' },
+      { id: 'sueldos',      icon: Briefcase,     label: 'Sueldos',                desc: 'Liquidación salarial y jornales' },
     ]
   },
   {
-    label: 'Análisis y accesos',
+    label: 'Inteligencia & Auditoría',
     items: [
-      { id: 'control',   icon: ClipboardCheck, label: 'Control y cierre', desc: 'Qué falta cargar o revisar para que los números cierren' },
-      { id: 'documentos', icon: FolderOpen,    label: 'Documentos',       desc: 'Archivo digital de facturas, cheques y contratos' },
       { id: 'reportes', icon: TrendingUp, label: 'Reportes', desc: 'Métricas gerenciales y rentabilidad' },
       { id: 'usuarios', icon: UserCog,    label: 'Usuarios', desc: 'Permisos del sistema y accesos' },
     ]
   }
 ]
 
-const TODOS_LOS_ITEMS = HOJAS_MENU.flatMap(g => g.items)
-
-// Menú principal: tres módulos con solapas + accesos de análisis
-const MENU_PRINCIPAL = [
-  {
-    label: 'Gestión',
-    items: [
-      { id: 'comercial',      icon: Users,     label: 'Comercial',      desc: 'Clientes, contratos, CRM y presupuestos' },
-      { id: 'operaciones',    icon: HardHat,   label: 'Operaciones',    desc: 'Agenda, personal, insumos y proveedores' },
-      { id: 'administracion', icon: BarChart3, label: 'Administración', desc: 'Finanzas, sueldos y contabilidad' },
-    ]
-  },
-  {
-    label: 'Análisis y accesos',
-    items: [
-      { id: 'control',    icon: ClipboardCheck, label: 'Control y cierre', desc: 'Qué falta cargar o revisar para que los números cierren' },
-      { id: 'documentos', icon: FolderOpen,     label: 'Documentos',       desc: 'Archivo digital de facturas, cheques y contratos' },
-      { id: 'reportes',   icon: TrendingUp,     label: 'Reportes',         desc: 'Métricas gerenciales y rentabilidad' },
-      { id: 'usuarios',   icon: UserCog,        label: 'Usuarios',         desc: 'Permisos del sistema y accesos' },
-    ]
-  }
-]
-
-// Solapas de cada módulo: [id, etiqueta, icono]
-const MODULOS = {
-  comercial:      [['clientes', 'Clientes', Users], ['contratos', 'Contratos', FileText], ['crm', 'CRM', Radar], ['presupuestos', 'Presupuestos', Wallet], ['aumentos', 'Aumentos y abonos', TrendingUp]],
-  operaciones:    [['agenda', 'Agenda', CalendarDays], ['personal', 'Personal', HardHat], ['insumos', 'Insumos', Package], ['proveedores', 'Proveedores', Factory], ['asistencia', 'Asistencia', Clock], ['vencimientos', 'Vencimientos', AlertTriangle]],
-  administracion: [['finanzas', 'Finanzas', BarChart3], ['sueldos', 'Sueldos', Briefcase], ['f931', 'F.931 (SUSS)', FileText], ['contabilidad', 'Contabilidad', Calculator], ['inversiones', 'Inversiones', TrendingUp], ['auditoria', 'Auditoría', ShieldCheck]],
-}
-// Atajos: id de pantalla anterior -> [módulo, solapa, vista interna de Finanzas]
-const RUTAS = {
-  clientes: ['comercial', 'clientes'], contratos: ['comercial', 'contratos'], crm: ['comercial', 'crm'], presupuestos: ['comercial', 'presupuestos'],
-  agenda: ['operaciones', 'agenda'], personal: ['operaciones', 'personal'], insumos: ['operaciones', 'insumos'], proveedores: ['operaciones', 'proveedores'],
-  finanzas: ['administracion', 'finanzas', 'movimientos'], facturacion: ['administracion', 'finanzas', 'facturacion'],
-  costos: ['administracion', 'finanzas', 'costos'], conciliacion: ['administracion', 'finanzas', 'conciliacion'],
-  sueldos: ['administracion', 'sueldos'], f931: ['administracion', 'f931'], contabilidad: ['administracion', 'contabilidad'], inversiones: ['administracion', 'inversiones'], auditoria: ['administracion', 'auditoria'], aumentos: ['comercial', 'aumentos'], asistencia: ['operaciones', 'asistencia'], vencimientos: ['operaciones', 'vencimientos'],
-}
+const TODOS_LOS_ITEMS = GRUPOS_MENU.flatMap(g => g.items)
 
 const alertaEstilo = {
   danger:  { dot: '#BE123C', bg: '#FFF1F2', text: '#BE123C', label: 'Crítico' },
@@ -187,52 +127,11 @@ function obtenerRangosPeriodo() {
   }
 }
 
-// Reloj propio: se actualiza solo y no re-renderiza el resto de la pantalla
-function RelojEncabezado() {
-  const [ahora, setAhora] = useState(new Date())
-  useEffect(() => { const t = setInterval(() => setAhora(new Date()), 30000); return () => clearInterval(t) }, [])
-  return (
-    <>
-      <span style={{ fontFamily: paleta.fontMono, fontSize: '12px', fontWeight: '500' }}>{ahora.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })}</span>
-      <span style={{ color: paleta.muted }}>·</span>
-      <span style={{ color: paleta.muted, fontSize: '12px' }}>{ahora.toLocaleDateString('es-AR', { day: '2-digit', month: 'short', year: 'numeric' })}</span>
-    </>
-  )
-}
-
 function Dashboard({ user }) {
-  const [seccionActiva, setSeccionBase] = useState('inicio')
-  const [tabsModulo, setTabsModulo] = useState({ comercial: 'clientes', operaciones: 'agenda', administracion: 'finanzas' })
-  const [finVista, setFinVista] = useState('movimientos')
-  const [finClave, setFinClave] = useState(0)
-  // Navegar a una sección (o a una pantalla que ahora vive dentro de un módulo)
-  function setSeccionActiva(id) {
-    const r = RUTAS[id]
-    if (!r) { setSeccionBase(id); return }
-    setSeccionBase(r[0])
-    setTabsModulo(t => ({ ...t, [r[0]]: r[1] }))
-    if (r[2]) { setFinVista(r[2]); setFinClave(k => k + 1) }
-  }
+  const [seccionActiva, setSeccionActiva] = useState('inicio')
+  const [vistaFinanzasInicial, setVistaFinanzasInicial] = useState('movimientos')
   const [menuAbierto, setMenuAbierto] = useState(true)
-  const [mostrarModulos, setMostrarModulos] = useState(false)
-  const [esMovil, setEsMovil] = useState(() => typeof window !== 'undefined' && window.matchMedia('(max-width: 820px)').matches)
-  const mainRef = useRef(null)
-  const [drawerAbierto, setDrawerAbierto] = useState(false)
-  useEffect(() => {
-    const mq = window.matchMedia('(max-width: 820px)')
-    const h = (e) => { setEsMovil(e.matches); if (!e.matches) setDrawerAbierto(false) }
-    mq.addEventListener('change', h)
-    return () => mq.removeEventListener('change', h)
-  }, [])
-  const expandido = esMovil ? true : menuAbierto
   const [esAdmin, setEsAdmin] = useState(false)
-  const [modulosUsuario, setModulosUsuario] = useState([])
-  // Permiso por módulo: el administrador ve todo; un usuario ve lo no restringido y lo que se le habilitó
-  const puede = id => {
-    if (esAdmin || !SOLO_ADMIN.includes(id)) return true
-    if (id === 'administracion') return modulosUsuario.some(m => m === 'finanzas' || m === 'sueldos')
-    return modulosUsuario.includes(PERMISO_MODULO[id])
-  }
   const [rolCargado, setRolCargado] = useState(false)
   const [kpis, setKpis] = useState({
     clientes: 0,
@@ -244,16 +143,27 @@ function Dashboard({ user }) {
     ingresosHoy: 0,
     ingresosSemana: 0,
     ingresosMes: 0,
+    egresosHoy: 0,
+    egresosSemana: 0,
+    egresosMes: 0,
     cantIngresosHoy: 0,
     cantIngresosSemana: 0,
     cantIngresosMes: 0,
-    facturasPendientes: 0
+    facturasPendientes: 0,
+    cantPorCobrar: 0,
+    porPagar: 0,
+    cantPorPagar: 0,
+    saldoBancos: 0,
+    saldoEfectivo: 0,
+    saldoCajaYBancos: 0,
+    cantCuentas: 0
   })
   const [alertas, setAlertas] = useState([])
   const [actualizandoKpis, setActualizandoKpis] = useState(false)
   const [filtroPeriodo, setFiltroPeriodo] = useState('mes')
   const [buscadorAbierto, setBuscadorAbierto] = useState(false)
   const [queryBusqueda, setQueryBusqueda] = useState('')
+  const [horaActual, setHoraActual] = useState(new Date())
 
   const rangos = useMemo(() => obtenerRangosPeriodo(), [])
 
@@ -262,6 +172,7 @@ function Dashboard({ user }) {
       return {
         id: 'hoy',
         ingresos: kpis.ingresosHoy,
+        egresos: kpis.egresosHoy,
         cantIngresos: kpis.cantIngresosHoy,
         servicios: kpis.serviciosHoy,
         tituloIngresos: 'Ingresos de Hoy (Cobrados)',
@@ -275,6 +186,7 @@ function Dashboard({ user }) {
       return {
         id: 'semana',
         ingresos: kpis.ingresosSemana,
+        egresos: kpis.egresosSemana,
         cantIngresos: kpis.cantIngresosSemana,
         servicios: kpis.serviciosSemana,
         tituloIngresos: 'Ingresos de la Semana (Cobrados)',
@@ -287,15 +199,22 @@ function Dashboard({ user }) {
     return {
       id: 'mes',
       ingresos: kpis.ingresosMes,
+      egresos: kpis.egresosMes,
       cantIngresos: kpis.cantIngresosMes,
       servicios: kpis.serviciosMes,
       tituloIngresos: 'Ingresos del Mes (Cobrados)',
-      subtituloIngresos: `Mes en curso (${rangos.mes.mes}/${rangos.mes.anio})`,
+      subtituloIngresos: `Período ${rangos.mes.mes}/${rangos.mes.anio}`,
       etiquetaPeriodo: 'Mes actual',
       tituloServicios: 'Servicios del Mes',
       subtituloServicios: 'turnos en agenda este mes'
     }
   }, [filtroPeriodo, kpis, rangos])
+
+  // Actualizar reloj en vivo cada segundo
+  useEffect(() => {
+    const timer = setInterval(() => setHoraActual(new Date()), 1000)
+    return () => clearInterval(timer)
+  }, [])
 
   // Atajo de teclado global Ctrl+K para Command Palette
   useEffect(() => {
@@ -305,18 +224,11 @@ function Dashboard({ user }) {
         setBuscadorAbierto(prev => !prev)
       } else if (e.key === 'Escape') {
         setBuscadorAbierto(false)
-        // Escape también cierra el cuadro de diálogo abierto (clic sobre su fondo)
-        const fondos = [...document.querySelectorAll('.sg-main [style*="position: fixed"]')].filter(el => getComputedStyle(el).inset === '0px' || el.style.inset === '0')
-        const ultimo = fondos[fondos.length - 1]
-        if (ultimo && !/INPUT|TEXTAREA|SELECT/.test(document.activeElement?.tagName || '')) ultimo.click()
       }
     }
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [])
-
-  // Al cambiar de módulo vuelve arriba de todo
-  useEffect(() => { mainRef.current?.scrollTo({ top: 0 }) }, [seccionActiva])
 
   useEffect(() => {
     cargarRol()
@@ -327,7 +239,7 @@ function Dashboard({ user }) {
       cargarKpis()
       cargarAlertas()
     }
-  }, [seccionActiva, esAdmin, modulosUsuario])
+  }, [seccionActiva, esAdmin])
 
   // Sincronización automática en vivo del Tablero
   useEffect(() => {
@@ -394,8 +306,7 @@ function Dashboard({ user }) {
 
   async function cargarRol() {
     try {
-      const { data } = await supabase.from('usuarios_sistema').select('rol, modulos').eq('user_id', user.id).maybeSingle()
-      setModulosUsuario(data?.modulos || [])
+      const { data } = await supabase.from('usuarios_sistema').select('rol').eq('user_id', user.id).maybeSingle()
       setEsAdmin(data?.rol === 'admin' || user.email === 'admin@briseo.com')
       setRolCargado(true)
     } catch {
@@ -415,32 +326,33 @@ function Dashboard({ user }) {
         { count: contratos },
         { count: empleados },
         { data: ordenesData },
-        { data: ingresosRaw },
-        { data: facturasPendientesData },
+        { data: movsPeriodoRaw },
+        { data: todasFacturas, error: errTodasFacturas },
         { data: pagosData },
-        { data: todasFacturas }
+        { data: facturasCompraData },
+        { data: pagosCompraData },
+        { data: cuentasData }
       ] = await Promise.all([
         supabase.from('clientes').select('*', { count: 'exact', head: true }).eq('activo', true),
         supabase.from('contratos').select('*', { count: 'exact', head: true }).eq('estado', 'activo'),
         supabase.from('empleados').select('*', { count: 'exact', head: true }).eq('activo', true),
         supabase.from('ordenes_trabajo').select('id, fecha_programada').gte('fecha_programada', minFecha),
-        supabase.from('movimientos_financieros').select('id, monto, categoria, descripcion, factura_id, fecha').eq('tipo', 'ingreso').gte('fecha', minFecha),
-        supabase.from('facturas').select('id, total, estado').in('estado', ['emitida', 'pendiente', 'parcial', 'vencida']),
-        supabase.from('pagos').select('factura_id, monto'),
-        supabase.from('facturas').select('id, numero_factura')
+        supabase.from('movimientos_financieros').select('id, tipo, monto, categoria, descripcion, factura_id, fecha').gte('fecha', minFecha).limit(5000),
+        supabase.from('facturas').select('id, numero_factura, total, estado, fecha_emision'),
+        supabase.from('pagos').select('id, factura_id, monto, fecha_pago'),
+        supabase.from('facturas_compra').select('id, total, estado'),
+        supabase.from('pagos_compra').select('factura_compra_id, monto'),
+        supabase.from('cuentas_bancarias').select('id, banco, tipo, saldo, activa').eq('activa', true)
       ])
 
       const setFactIds = new Set((todasFacturas || []).map(f => f.id))
-      const setFactNums = new Set((todasFacturas || []).map(f => f.numero_factura).filter(Boolean))
+      const factNumPorId = {}
+      ;(todasFacturas || []).forEach(f => { factNumPorId[f.id] = f.numero_factura })
 
-      // Depuración automática de cobranzas huérfanas de facturas eliminadas
-      const huerfanos = (ingresosRaw || []).filter(m => {
-        const esCobranza = m.categoria === 'Cobranzas' || (m.descripcion && m.descripcion.toLowerCase().includes('cobro factura')) || m.factura_id
-        if (!esCobranza) return false
-        const tieneValida = (m.factura_id && setFactIds.has(m.factura_id)) ||
-          (setFactNums.size > 0 && Array.from(setFactNums).some(n => m.descripcion && m.descripcion.includes(n)))
-        return !tieneValida
-      })
+      // Solo limpiar movimientos vinculados explícitamente (factura_id) a una factura ya eliminada
+      const huerfanos = (!errTodasFacturas && Array.isArray(todasFacturas))
+        ? (movsPeriodoRaw || []).filter(m => m.tipo === 'ingreso' && m.factura_id && !setFactIds.has(m.factura_id))
+        : []
 
       if (huerfanos.length > 0) {
         const idsHuerfanos = huerfanos.map(h => h.id)
@@ -451,35 +363,53 @@ function Dashboard({ user }) {
         }
       }
 
-      // Solo computar ingresos reales que no pertenezcan a facturas eliminadas
-      const ingresosValidos = (ingresosRaw || []).filter(m => !huerfanos.some(h => h.id === m.id))
+      const idsHuerfanosSet = new Set(huerfanos.map(h => h.id))
+      // Excluir movimientos huérfanos y ajustes de saldo / transferencias internas
+      const movsValidos = (movsPeriodoRaw || []).filter(m => !idsHuerfanosSet.has(m.id) && !esMovimientoAjuste(m))
 
-      // Calcular ingresos según los 3 periodos: Hoy, Semana, Mes
-      let ingHoy = 0, cantHoy = 0
-      let ingSem = 0, cantSem = 0
-      let ingMes = 0, cantMes = 0
+      // Calcular ingresos y egresos operativos según los 3 períodos: Hoy, Semana, Mes
+      let ingHoy = 0, cantHoy = 0, egrHoy = 0
+      let ingSem = 0, cantSem = 0, egrSem = 0
+      let ingMes = 0, cantMes = 0, egrMes = 0
 
-      ingresosValidos.forEach(m => {
+      // Registrar cobranzas ya reflejadas en movimientos_financieros para no duplicar con pagos
+      const facturasConMovIngreso = new Set()
+      movsValidos.forEach(m => {
+        if (m.tipo !== 'ingreso') return
+        if (m.factura_id) facturasConMovIngreso.add(m.factura_id)
+        if (m.descripcion) {
+          Object.entries(factNumPorId).forEach(([fid, num]) => {
+            if (num && m.descripcion.includes(num)) facturasConMovIngreso.add(fid)
+          })
+        }
+      })
+
+      movsValidos.forEach(m => {
         const f = normalizarFechaYMD(m.fecha)
         const monto = Number(m.monto || 0)
 
-        // Hoy
-        if (f === rangosActuales.hoy.desde) {
-          ingHoy += monto
-          cantHoy++
+        if (m.tipo === 'ingreso') {
+          if (f === rangosActuales.hoy.desde) { ingHoy += monto; cantHoy++ }
+          if (f >= rangosActuales.semana.desde && f <= rangosActuales.semana.hasta) { ingSem += monto; cantSem++ }
+          if (f >= rangosActuales.mes.desde && f <= rangosActuales.mes.hasta) { ingMes += monto; cantMes++ }
+        } else if (m.tipo === 'egreso') {
+          if (f === rangosActuales.hoy.desde) egrHoy += monto
+          if (f >= rangosActuales.semana.desde && f <= rangosActuales.semana.hasta) egrSem += monto
+          if (f >= rangosActuales.mes.desde && f <= rangosActuales.mes.hasta) egrMes += monto
         }
+      })
 
-        // Semana actual (Lunes a Domingo)
-        if (f >= rangosActuales.semana.desde && f <= rangosActuales.semana.hasta) {
-          ingSem += monto
-          cantSem++
-        }
+      // Incluir también cobros registrados en `pagos` del período que aún no tengan movimiento financiero vinculado
+      ;(pagosData || []).forEach(p => {
+        if (!p?.fecha_pago || !p?.factura_id) return
+        if (facturasConMovIngreso.has(p.factura_id)) return
+        const f = normalizarFechaYMD(p.fecha_pago)
+        const monto = Number(p.monto || 0)
+        if (monto <= 0) return
 
-        // Mes actual (1 al fin de mes)
-        if (f >= rangosActuales.mes.desde && f <= rangosActuales.mes.hasta) {
-          ingMes += monto
-          cantMes++
-        }
+        if (f === rangosActuales.hoy.desde) { ingHoy += monto; cantHoy++ }
+        if (f >= rangosActuales.semana.desde && f <= rangosActuales.semana.hasta) { ingSem += monto; cantSem++ }
+        if (f >= rangosActuales.mes.desde && f <= rangosActuales.mes.hasta) { ingMes += monto; cantMes++ }
       })
 
       // Calcular servicios según los 3 periodos
@@ -494,16 +424,10 @@ function Dashboard({ user }) {
         if (f >= rangosActuales.mes.desde && f <= rangosActuales.mes.hasta) servMes++
       })
 
-      // Calcular saldo neto pendiente de facturas de venta restando los pagos registrados
-      const pagadoPorFact = {}
-      ;(pagosData || []).forEach(p => {
-        pagadoPorFact[p.factura_id] = (pagadoPorFact[p.factura_id] || 0) + Number(p.monto)
-      })
-
-      const totalPendienteReal = (facturasPendientesData || []).reduce((acc, f) => {
-        const pagado = pagadoPorFact[f.id] || 0
-        return acc + Math.max(0, Number(f.total) - pagado)
-      }, 0)
+      // Cálculos unificados idénticos a Finanzas
+      const resumenCobrar = calcularResumenCuentasPorCobrar(todasFacturas || [], pagosData || [])
+      const resumenPagar = calcularResumenCuentasPorPagar(facturasCompraData || [], pagosCompraData || [])
+      const resumenSaldos = calcularSaldosCuentas(cuentasData || [])
 
       setKpis({
         clientes: clientes || 0,
@@ -515,10 +439,20 @@ function Dashboard({ user }) {
         ingresosHoy: Math.round(ingHoy * 100) / 100,
         ingresosSemana: Math.round(ingSem * 100) / 100,
         ingresosMes: Math.round(ingMes * 100) / 100,
+        egresosHoy: Math.round(egrHoy * 100) / 100,
+        egresosSemana: Math.round(egrSem * 100) / 100,
+        egresosMes: Math.round(egrMes * 100) / 100,
         cantIngresosHoy: cantHoy,
         cantIngresosSemana: cantSem,
         cantIngresosMes: cantMes,
-        facturasPendientes: totalPendienteReal
+        facturasPendientes: resumenCobrar.totalPorCobrar,
+        cantPorCobrar: resumenCobrar.cantidadPendientes,
+        porPagar: resumenPagar.totalPorPagar,
+        cantPorPagar: resumenPagar.cantidadPendientes,
+        saldoBancos: resumenSaldos.totalBancos,
+        saldoEfectivo: resumenSaldos.totalEfectivo,
+        saldoCajaYBancos: resumenSaldos.totalCajaYBancos,
+        cantCuentas: resumenSaldos.cantidadCuentas
       })
     } catch {
       // Supabase fallback si tablas aún no tienen datos
@@ -552,24 +486,6 @@ function Dashboard({ user }) {
         modulo: 'facturacion'
       }))
 
-      // Cheques: recordatorio para depositar (de terceros) y para tener fondos (propios)
-      const hoyLocal = hoy.toLocaleDateString('en-CA')
-      const limiteCh = new Date(hoy); limiteCh.setDate(hoy.getDate() + 5)
-      const { data: chAbiertos } = await supabase.from('cheques').select('numero, banco, importe, fecha_pago, tipo, estado, clientes(razon_social,nombre_contacto), proveedores(razon_social)')
-        .in('estado', ['cartera', 'emitido']).lte('fecha_pago', limiteCh.toLocaleDateString('en-CA')).order('fecha_pago')
-      ;(chAbiertos || []).forEach(ch => {
-        const dias = Math.round((new Date(ch.fecha_pago + 'T12:00:00') - new Date(hoyLocal + 'T12:00:00')) / 86400000)
-        const cuando = dias < 0 ? `venció hace ${-dias} día${dias === -1 ? '' : 's'}` : dias === 0 ? 'vence HOY' : `vence en ${dias} día${dias === 1 ? '' : 's'}`
-        const quien = ch.tipo === 'tercero' ? (ch.clientes?.razon_social || ch.clientes?.nombre_contacto || '') : (ch.proveedores?.razon_social || '')
-        nuevasAlertas.push({
-          tipo: dias <= 0 ? 'danger' : 'warning',
-          titulo: ch.tipo === 'tercero' ? `Depositar cheque ${ch.numero}: ${cuando}` : `Cheque propio ${ch.numero}: ${cuando} (tener fondos)`,
-          detalle: [ch.banco, quien].filter(Boolean).join(' · ') || 'Cheque',
-          monto: Number(ch.importe),
-          modulo: 'finanzas'
-        })
-      })
-
       const { data: empleadosActivos } = await supabase.from('empleados').select('id, nombre, apellido').eq('activo', true)
       const { data: liquidacionesMes } = await supabase.from('liquidaciones_sueldo').select('empleado_id').eq('periodo', mes)
       const liquidados = (liquidacionesMes || []).map(l => l.empleado_id)
@@ -602,44 +518,22 @@ function Dashboard({ user }) {
         modulo: 'contratos'
       }))
 
-      // Vencimientos de documentación (ART, seguros, certificados) y F.931 pendiente
-      const hoyIso = hoy.toLocaleDateString('en-CA')
-      const { data: venc } = await supabase.from('vencimientos').select('tipo, titulo, fecha_vencimiento, aviso_dias').eq('cumplido', false).order('fecha_vencimiento')
-      ;(venc || []).forEach(v => {
-        const dias = Math.round((new Date(v.fecha_vencimiento + 'T12:00:00') - new Date(hoyIso + 'T12:00:00')) / 86400000)
-        if (dias > (v.aviso_dias || 30)) return
-        nuevasAlertas.push({ tipo: dias < 0 ? 'danger' : dias <= 7 ? 'warning' : 'info', titulo: dias < 0 ? `${v.tipo} vencido hace ${-dias} días` : dias === 0 ? `${v.tipo} vence HOY` : `${v.tipo} vence en ${dias} días`, detalle: v.titulo, modulo: 'vencimientos' })
-      })
-      const { data: f931 } = await supabase.from('declaraciones_931').select('periodo, total_a_pagar, fecha_vencimiento').eq('estado', 'pendiente')
-      ;(f931 || []).forEach(f => {
-        const dias = f.fecha_vencimiento ? Math.round((new Date(f.fecha_vencimiento + 'T12:00:00') - new Date(hoyIso + 'T12:00:00')) / 86400000) : null
-        nuevasAlertas.push({ tipo: dias !== null && dias < 0 ? 'danger' : 'warning', titulo: dias === null ? `F.931 ${f.periodo} pendiente de pago` : dias < 0 ? `F.931 ${f.periodo} vencido hace ${-dias} días` : `F.931 ${f.periodo} vence en ${dias} días`, detalle: 'Cargas sociales a ingresar a ARCA', monto: Number(f.total_a_pagar), modulo: 'f931' })
-      })
-
-      // Asistencia: marcaciones por celular fuera de zona / sin ubicación, y entradas que quedaron sin salida
-      const hace7 = new Date(hoy); hace7.setDate(hace7.getDate() - 7)
-      const { data: marc } = await supabase.from('asistencias').select('fecha, origen, tipo, entrada, salida, lat, en_zona, en_zona_salida').gte('fecha', hace7.toLocaleDateString('en-CA'))
-      const rev = (marc || []).filter(a => a.origen === 'celular' && (a.lat == null || a.en_zona === false || a.en_zona_salida === false))
-      if (rev.length) nuevasAlertas.push({ tipo: 'warning', titulo: `${rev.length} marcaciones para revisar (últimos 7 días)`, detalle: `${rev.filter(a => a.lat != null).length} fuera de zona · ${rev.filter(a => a.lat == null).length} sin ubicación`, modulo: 'asistencia' })
-      const sinSalida = (marc || []).filter(a => a.tipo === 'trabajado' && a.entrada && !a.salida && a.fecha < hoyIso)
-      if (sinSalida.length) nuevasAlertas.push({ tipo: 'warning', titulo: `${sinSalida.length} entradas sin salida marcada`, detalle: 'Hay que completar la salida para que se calculen las horas', modulo: 'asistencia' })
-
-      setAlertas(nuevasAlertas.filter(a => puede(a.modulo)))
+      setAlertas(nuevasAlertas.filter(a => esAdmin || !SOLO_ADMIN.includes(a.modulo)))
     } catch {
       // Ignorar si aún no hay conexión Supabase
     }
   }
 
   const menuVisible = useMemo(() => {
-    return MENU_PRINCIPAL.map(g => ({
+    return GRUPOS_MENU.map(g => ({
       ...g,
-      items: g.items.filter(i => !i.oculto && (puede(i.id)))
+      items: g.items.filter(i => esAdmin || !SOLO_ADMIN.includes(i.id))
     })).filter(g => g.items.length > 0)
-  }, [esAdmin, modulosUsuario])
+  }, [esAdmin])
 
   const todosItemsDisponibles = useMemo(() => {
-    return TODOS_LOS_ITEMS.filter(i => puede(i.id))
-  }, [esAdmin, modulosUsuario])
+    return TODOS_LOS_ITEMS.filter(i => esAdmin || !SOLO_ADMIN.includes(i.id))
+  }, [esAdmin])
 
   const resultadosBusqueda = useMemo(() => {
     if (!queryBusqueda.trim()) return todosItemsDisponibles
@@ -650,8 +544,8 @@ function Dashboard({ user }) {
     )
   }, [queryBusqueda, todosItemsDisponibles])
 
-  const itemActivo = MENU_PRINCIPAL.flatMap(g => g.items).find(m => m.id === seccionActiva)
-  const grupoActivo = MENU_PRINCIPAL.find(g => g.items.some(it => it.id === seccionActiva))
+  const itemActivo = TODOS_LOS_ITEMS.find(m => m.id === seccionActiva)
+  const grupoActivo = GRUPOS_MENU.find(g => g.items.some(it => it.id === seccionActiva))
   const nombreUsuario = user.email.split('@')[0]
   const iniciales = nombreUsuario.slice(0, 2).toUpperCase()
 
@@ -659,8 +553,7 @@ function Dashboard({ user }) {
   const conteoAlertasPorModulo = useMemo(() => {
     const mapa = {}
     alertas.forEach(a => {
-      const k = RUTAS[a.modulo]?.[0] || a.modulo
-      mapa[k] = (mapa[k] || 0) + 1
+      mapa[a.modulo] = (mapa[a.modulo] || 0) + 1
     })
     return mapa
   }, [alertas])
@@ -671,7 +564,7 @@ function Dashboard({ user }) {
         <div style={{ background: '#FFFFFF', padding: '10px', borderRadius: '12px', marginBottom: '16px' }}>
           <img src="/logo.jpg" alt="Briseo" style={{ height: '36px', width: '36px', objectFit: 'contain' }} />
         </div>
-        <p style={{ margin: 0, fontSize: '15px', fontWeight: '600', color: '#F8FAFC' }}>Iniciando Briseo Limpieza…</p>
+        <p style={{ margin: 0, fontSize: '15px', fontWeight: '600', color: '#F8FAFC' }}>Iniciando entorno ERP…</p>
         <p style={{ margin: '6px 0 0', fontSize: '12px', color: '#64748B' }}>Cargando permisos y políticas de seguridad</p>
       </div>
     )
@@ -683,41 +576,37 @@ function Dashboard({ user }) {
       {/* ============================================================ */}
       {/* SIDEBAR CORPORATIVO */}
       {/* ============================================================ */}
-      {esMovil && drawerAbierto && (
-        <div onClick={() => setDrawerAbierto(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.55)', zIndex: 39 }} />
-      )}
-      <aside className="sg-aside" style={{
-        ...(esMovil ? { position: 'fixed', top: 0, bottom: 0, left: 0, height: '100dvh', zIndex: 40, boxShadow: drawerAbierto ? '8px 0 30px rgba(0,0,0,0.35)' : 'none', transform: drawerAbierto ? 'translateX(0)' : 'translateX(-105%)' } : {}),
-        width: esMovil ? 'min(290px, 85vw)' : (expandido ? '250px' : '68px'),
+      <aside style={{
+        width: menuAbierto ? '250px' : '68px',
         background: '#0F172A',
         borderRight: '1px solid #1E293B',
         display: 'flex',
         flexDirection: 'column',
-        transition: esMovil ? 'transform 0.22s ease' : 'width 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
+        transition: 'width 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
         flexShrink: 0,
-        zIndex: esMovil ? 40 : 30
+        zIndex: 30
       }}>
         {/* LOGO & BRANDING */}
         <div style={{
           height: '64px',
-          padding: expandido ? '0 18px' : '0 12px',
+          padding: menuAbierto ? '0 18px' : '0 12px',
           display: 'flex',
           alignItems: 'center',
-          justifyContent: expandido ? 'space-between' : 'center',
+          justifyContent: menuAbierto ? 'space-between' : 'center',
           borderBottom: '1px solid #1E293B',
           background: '#0B1120'
         }}>
-          {expandido ? (
+          {menuAbierto ? (
             <div style={{ display: 'flex', alignItems: 'center', gap: '11px', minWidth: 0 }}>
               <div style={{ background: '#FFFFFF', borderRadius: '8px', padding: '3px', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid #334155' }}>
                 <img src="/logo.jpg" alt="Briseo" style={{ height: '26px', width: '26px', objectFit: 'contain', borderRadius: '5px' }} />
               </div>
               <div style={{ minWidth: 0 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <span style={{ color: '#FFFFFF', fontWeight: '800', fontSize: '14px', letterSpacing: '-0.02em', whiteSpace: 'nowrap' }}>Briseo Limpieza</span>
+                  <span style={{ color: '#FFFFFF', fontWeight: '800', fontSize: '14px', letterSpacing: '-0.02em', whiteSpace: 'nowrap' }}>BRISEO</span>
                   <span style={{ background: '#0F766E', color: '#FFFFFF', fontSize: '9px', fontWeight: '700', padding: '1px 5px', borderRadius: '3px', letterSpacing: '0.04em' }}>ERP</span>
                 </div>
-                <p style={{ margin: '1px 0 0', color: '#64748B', fontSize: '10.5px', whiteSpace: 'nowrap', fontWeight: '500' }}>DAG Group S.R.L.</p>
+                <p style={{ margin: '1px 0 0', color: '#64748B', fontSize: '10.5px', whiteSpace: 'nowrap', fontWeight: '500' }}>Softgestión Enterprise</p>
               </div>
             </div>
           ) : (
@@ -731,14 +620,14 @@ function Dashboard({ user }) {
         <nav style={{ flex: 1, padding: '12px 8px', overflowY: 'auto' }}>
           {/* BOTÓN RESUMEN EJECUTIVO / INICIO */}
           <button
-            onClick={() => { setSeccionActiva('inicio'); setDrawerAbierto(false) }}
+            onClick={() => setSeccionActiva('inicio')}
             style={{
               width: '100%',
               display: 'flex',
               alignItems: 'center',
               gap: '10px',
-              padding: expandido ? '8px 12px' : '9px',
-              justifyContent: expandido ? 'flex-start' : 'center',
+              padding: menuAbierto ? '8px 12px' : '9px',
+              justifyContent: menuAbierto ? 'flex-start' : 'center',
               background: seccionActiva === 'inicio' ? 'rgba(15, 118, 110, 0.25)' : 'transparent',
               border: 'none',
               borderLeft: seccionActiva === 'inicio' ? `3px solid #14B8A6` : '3px solid transparent',
@@ -749,7 +638,7 @@ function Dashboard({ user }) {
             }}
           >
             <Home size={17} color={seccionActiva === 'inicio' ? '#2DD4BF' : '#94A3B8'} />
-            {expandido && (
+            {menuAbierto && (
               <span style={{
                 color: seccionActiva === 'inicio' ? '#FFFFFF' : '#CBD5E1',
                 fontSize: '13px',
@@ -764,7 +653,7 @@ function Dashboard({ user }) {
           {/* GRUPOS MODULARES */}
           {menuVisible.map(grupo => (
             <div key={grupo.label} style={{ marginBottom: '18px' }}>
-              {expandido && (
+              {menuAbierto && (
                 <div style={{
                   padding: '4px 10px 6px',
                   display: 'flex',
@@ -791,15 +680,18 @@ function Dashboard({ user }) {
                   return (
                     <button
                       key={item.id}
-                      onClick={() => { setSeccionActiva(item.id); setDrawerAbierto(false) }}
-                      title={!expandido ? item.label : undefined}
+                      onClick={() => {
+                        if (item.id === 'finanzas') setVistaFinanzasInicial('movimientos')
+                        setSeccionActiva(item.id)
+                      }}
+                      title={!menuAbierto ? item.label : undefined}
                       style={{
                         width: '100%',
                         display: 'flex',
                         alignItems: 'center',
                         gap: '10px',
-                        padding: expandido ? '7px 11px' : '9px',
-                        justifyContent: expandido ? 'flex-start' : 'center',
+                        padding: menuAbierto ? '7px 11px' : '9px',
+                        justifyContent: menuAbierto ? 'flex-start' : 'center',
                         background: activo ? 'rgba(15, 118, 110, 0.22)' : 'transparent',
                         border: 'none',
                         borderLeft: activo ? `3px solid #14B8A6` : '3px solid transparent',
@@ -809,7 +701,7 @@ function Dashboard({ user }) {
                       }}
                     >
                       <Icon size={16} color={activo ? '#2DD4BF' : '#94A3B8'} style={{ flexShrink: 0 }} />
-                      {expandido && (
+                      {menuAbierto && (
                         <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'space-between', minWidth: 0 }}>
                           <span style={{
                             color: activo ? '#FFFFFF' : '#CBD5E1',
@@ -850,7 +742,7 @@ function Dashboard({ user }) {
           borderTop: '1px solid #1E293B',
           background: '#0B1120'
         }}>
-          {expandido ? (
+          {menuAbierto ? (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                 <div style={{
@@ -888,7 +780,7 @@ function Dashboard({ user }) {
               </div>
 
               <div style={{ display: 'flex', gap: '6px' }}>
-                {!esMovil && <button
+                <button
                   onClick={() => setMenuAbierto(false)}
                   style={{
                     flex: 1,
@@ -906,7 +798,7 @@ function Dashboard({ user }) {
                   }}
                 >
                   <ChevronLeft size={13} /> Contraer
-                </button>}
+                </button>
                 <button
                   onClick={() => supabase.auth.signOut()}
                   title="Cerrar sesión"
@@ -973,11 +865,11 @@ function Dashboard({ user }) {
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, overflow: 'hidden' }}>
 
         {/* TOP COMMAND / APP BAR */}
-        <header className="sg-header" style={{
-          height: esMovil ? '56px' : '64px',
+        <header style={{
+          height: '64px',
           background: '#FFFFFF',
           borderBottom: `1px solid ${paleta.line}`,
-          padding: esMovil ? '0 12px' : '0 24px',
+          padding: '0 24px',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
@@ -986,14 +878,9 @@ function Dashboard({ user }) {
         }}>
           {/* BREADCRUMB & CONTEXTO */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0 }}>
-            {esMovil && (
-              <button onClick={() => setDrawerAbierto(true)} aria-label="Abrir menú" style={{ background: '#F1F5F9', border: '1px solid #E2E8F0', borderRadius: '8px', width: '40px', height: '40px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0 }}>
-                <Menu size={20} color="#0F172A" />
-              </button>
-            )}
-            {!esMovil && <span style={{ color: paleta.muted, fontSize: '13px', fontWeight: '500' }}>Briseo Limpieza</span>}
-            {!esMovil && <span style={{ color: paleta.lineStrong, fontSize: '13px' }}>/</span>}
-            {grupoActivo && !esMovil && (
+            <span style={{ color: paleta.muted, fontSize: '13px', fontWeight: '500' }}>Briseo ERP</span>
+            <span style={{ color: paleta.lineStrong, fontSize: '13px' }}>/</span>
+            {grupoActivo && (
               <>
                 <span style={{ color: paleta.muted, fontSize: '13px', fontWeight: '500' }}>{grupoActivo.label}</span>
                 <span style={{ color: paleta.lineStrong, fontSize: '13px' }}>/</span>
@@ -1022,8 +909,7 @@ function Dashboard({ user }) {
           <button
             onClick={() => setBuscadorAbierto(true)}
             style={{
-              flex: esMovil ? '0 0 auto' : '0 1 420px',
-              marginLeft: esMovil ? 'auto' : undefined,
+              flex: '0 1 420px',
               background: '#F1F5F9',
               border: '1px solid #E2E8F0',
               borderRadius: '6px',
@@ -1039,9 +925,9 @@ function Dashboard({ user }) {
           >
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
               <Search size={14} color="#94A3B8" />
-              {!esMovil && <span>Buscar módulo, clientes o acciones…</span>}
+              <span>Buscar módulo, clientes o acciones…</span>
             </div>
-            {!esMovil && <span style={{
+            <span style={{
               background: '#FFFFFF',
               border: '1px solid #CBD5E1',
               borderRadius: '4px',
@@ -1052,11 +938,11 @@ function Dashboard({ user }) {
               fontFamily: paleta.fontMono
             }}>
               Ctrl K
-            </span>}
+            </span>
           </button>
 
           {/* DERECHA: ESTADO DEL SISTEMA, RELOJ Y ROL */}
-          <div style={{ display: esMovil ? 'none' : 'flex', alignItems: 'center', gap: '14px', flexShrink: 0 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '14px', flexShrink: 0 }}>
             {/* Live operational badge */}
             <div style={{ display: 'flex', alignItems: 'center', gap: '6px', background: '#F0FDF4', border: '1px solid #BBF7D0', padding: '4px 9px', borderRadius: '5px' }}>
               <span style={{ width: '7px', height: '7px', borderRadius: '50%', background: '#16A34A', display: 'inline-block' }} />
@@ -1068,7 +954,13 @@ function Dashboard({ user }) {
             {/* Live Clock & Date */}
             <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: paleta.inkSoft, fontSize: '12px' }}>
               <Clock size={13} color={paleta.muted} />
-              <RelojEncabezado />
+              <span style={{ fontFamily: paleta.fontMono, fontSize: '12px', fontWeight: '500' }}>
+                {horaActual.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+              </span>
+              <span style={{ color: paleta.muted }}>·</span>
+              <span style={{ color: paleta.muted, fontSize: '12px' }}>
+                {horaActual.toLocaleDateString('es-AR', { day: '2-digit', month: 'short', year: 'numeric' })}
+              </span>
             </div>
 
             {/* Badge de Rol */}
@@ -1089,71 +981,603 @@ function Dashboard({ user }) {
         </header>
 
         {/* CUERPO DEL CONTENIDO */}
-        <main ref={mainRef} className="sg-main" style={{ flex: 1, padding: esMovil ? '12px 12px 76px' : '24px', overflowY: 'auto', background: FONDO_GLASS }}>
+        <main style={{ flex: 1, padding: '24px', overflowY: 'auto', background: paleta.paper }}>
           {seccionActiva === 'inicio' ? (
             <div style={{ maxWidth: '1440px', margin: '0 auto' }}>
-              <InicioGlass
-                kpis={kpis} metrica={metricaPeriodo} alertas={alertas} esAdmin={esAdmin}
-                nombre={nombreUsuario.charAt(0).toUpperCase() + nombreUsuario.slice(1)}
-                filtroPeriodo={filtroPeriodo} setFiltroPeriodo={setFiltroPeriodo}
-                onIr={id => setSeccionActiva(id)}
-                grupos={HOJAS_MENU.map(g => ({ ...g, items: g.items.filter(i => !i.oculto && (puede(i.id))) })).filter(g => g.items.length)}
-                actualizando={actualizandoKpis} onActualizar={() => { cargarKpis(); cargarAlertas() }}
-              />
+
+              {/* ENCABEZADO GERENCIAL */}
+              <div style={{
+                background: 'linear-gradient(135deg, #0F172A 0%, #1E293B 100%)',
+                borderRadius: '10px',
+                padding: '24px 28px',
+                marginBottom: '22px',
+                color: '#FFFFFF',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.05)',
+                border: '1px solid #334155'
+              }}>
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+                    <span style={{ fontSize: '11px', fontWeight: '700', color: '#2DD4BF', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+                      SISTEMA INTEGRAL DE GESTIÓN OPERATIVA
+                    </span>
+                  </div>
+                  <h1 style={{ margin: '0 0 6px', fontSize: '22px', fontWeight: '800', letterSpacing: '-0.02em', color: '#F8FAFC' }}>
+                    Panel de Control Gerencial · Briseo SRL
+                  </h1>
+                  <p style={{ margin: 0, fontSize: '13px', color: '#94A3B8' }}>
+                    Monitoreo en tiempo real de facturación, dotación de personal, órdenes de trabajo y alertas operativas.
+                  </p>
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  {/* Selector de periodo rápido */}
+                  <div style={{ background: '#0F172A', border: '1px solid #334155', borderRadius: '6px', padding: '3px', display: 'flex', gap: '2px' }}>
+                    {[
+                      { id: 'hoy', label: 'Hoy' },
+                      { id: 'semana', label: 'Semana' },
+                      { id: 'mes', label: 'Mes actual' },
+                    ].map(p => (
+                      <button
+                        key={p.id}
+                        onClick={() => setFiltroPeriodo(p.id)}
+                        style={{
+                          background: filtroPeriodo === p.id ? '#0F766E' : 'transparent',
+                          color: filtroPeriodo === p.id ? '#FFFFFF' : '#94A3B8',
+                          border: 'none',
+                          borderRadius: '4px',
+                          padding: '6px 13px',
+                          fontSize: '11.5px',
+                          fontWeight: filtroPeriodo === p.id ? '700' : '600',
+                          cursor: 'pointer',
+                          transition: 'all 0.15s ease',
+                          boxShadow: filtroPeriodo === p.id ? '0 1px 2px rgba(0,0,0,0.2)' : 'none'
+                        }}
+                      >
+                        {p.label}
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* Botón sincronizar métricas */}
+                  <button
+                    onClick={() => { cargarKpis(); cargarAlertas() }}
+                    disabled={actualizandoKpis}
+                    title="Actualizar datos desde la nube"
+                    style={{
+                      background: '#1E293B',
+                      border: '1px solid #475569',
+                      borderRadius: '6px',
+                      padding: '7px 12px',
+                      color: '#F8FAFC',
+                      fontSize: '12px',
+                      fontWeight: '600',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                      transition: 'background 0.15s ease'
+                    }}
+                  >
+                    <RefreshCw size={13} className={actualizandoKpis ? 'animate-spin' : ''} />
+                    <span>{actualizandoKpis ? 'Actualizando…' : 'Sincronizar'}</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* GRID PRINCIPAL: MÉTRICAS Y TABLERO OPERATIVO */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 340px', gap: '22px', alignItems: 'start' }}>
+
+                {/* COLUMNA IZQUIERDA: TARJETAS KPI & ACCESOS DIRECTOS */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '22px' }}>
+
+                  {/* BANDA DE KPIS FINANCIEROS (SINCRONIZADOS CON FINANZAS) */}
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '14px' }}>
+                    {/* KPI 1: INGRESOS DEL PERIODO (HOY, SEMANA, MES) */}
+                    <div
+                      onClick={() => {
+                        setVistaFinanzasInicial('movimientos')
+                        setSeccionActiva('finanzas')
+                      }}
+                      style={{
+                        background: '#FFFFFF',
+                        border: '1px solid #CBD5E1',
+                        borderTop: '3px solid #0F766E',
+                        borderRadius: '8px',
+                        padding: '16px 18px',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        justifyContent: 'space-between',
+                        boxShadow: '0 1px 3px 0 rgba(15, 23, 42, 0.04)'
+                      }}
+                    >
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '8px' }}>
+                        <div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                            <span style={{ fontSize: '11px', fontWeight: '700', color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                              {metricaPeriodo.tituloIngresos}
+                            </span>
+                            <span style={{ fontSize: '10px', fontWeight: '700', background: '#CCFBF1', color: '#0F766E', padding: '2px 6px', borderRadius: '4px' }}>
+                              {metricaPeriodo.etiquetaPeriodo}
+                            </span>
+                          </div>
+                          <p style={{ margin: '4px 0 0', fontSize: '11.5px', color: '#0F766E', fontWeight: '600' }}>
+                            {metricaPeriodo.subtituloIngresos} · {metricaPeriodo.cantIngresos} {metricaPeriodo.cantIngresos === 1 ? 'ingreso' : 'ingresos'}
+                          </p>
+                        </div>
+                        <div style={{ background: '#F0FDFA', padding: '7px', borderRadius: '6px', border: '1px solid #CCFBF1', flexShrink: 0 }}>
+                          <BarChart3 size={17} color="#0F766E" />
+                        </div>
+                      </div>
+                      <div style={{ marginTop: '14px' }}>
+                        <div style={{ fontFamily: paleta.fontMono, fontSize: '21px', fontWeight: '700', color: '#0F172A', letterSpacing: '-0.02em' }}>
+                          {formatearMonedaAR(metricaPeriodo.ingresos)}
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '6px' }}>
+                          <span style={{ fontSize: '11px', color: '#64748B' }}>
+                            Egresos: {formatearMonedaAR(metricaPeriodo.egresos)}
+                          </span>
+                          <span style={{ fontSize: '11px', color: '#0F766E', fontWeight: '600', display: 'flex', alignItems: 'center' }}>
+                            Finanzas <ArrowUpRight size={12} />
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* KPI 2: CUENTAS POR COBRAR */}
+                    <div
+                      onClick={() => {
+                        setVistaFinanzasInicial('por-cobrar')
+                        setSeccionActiva('finanzas')
+                      }}
+                      style={{
+                        background: '#FFFFFF',
+                        border: '1px solid #CBD5E1',
+                        borderTop: '3px solid #1D4ED8',
+                        borderRadius: '8px',
+                        padding: '16px 18px',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        justifyContent: 'space-between',
+                        boxShadow: '0 1px 3px 0 rgba(15, 23, 42, 0.04)'
+                      }}
+                    >
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '8px' }}>
+                        <div>
+                          <span style={{ fontSize: '11px', fontWeight: '700', color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                            Cuentas por Cobrar
+                          </span>
+                          <p style={{ margin: '4px 0 0', fontSize: '11.5px', color: '#1D4ED8', fontWeight: '600' }}>
+                            {kpis.cantPorCobrar} {kpis.cantPorCobrar === 1 ? 'factura pendiente' : 'facturas pendientes'}
+                          </p>
+                        </div>
+                        <div style={{ background: '#EFF6FF', padding: '7px', borderRadius: '6px', border: '1px solid #BFDBFE', flexShrink: 0 }}>
+                          <TrendingUp size={17} color="#1D4ED8" />
+                        </div>
+                      </div>
+                      <div style={{ marginTop: '14px' }}>
+                        <div style={{ fontFamily: paleta.fontMono, fontSize: '21px', fontWeight: '700', color: '#0F172A', letterSpacing: '-0.02em' }}>
+                          {formatearMonedaAR(kpis.facturasPendientes)}
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '6px' }}>
+                          <span style={{ fontSize: '11px', color: '#64748B' }}>Saldo neto a cobrar</span>
+                          <span style={{ fontSize: '11px', color: '#1D4ED8', fontWeight: '600', display: 'flex', alignItems: 'center' }}>
+                            Por cobrar <ArrowUpRight size={12} />
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* KPI 3: CUENTAS POR PAGAR */}
+                    <div
+                      onClick={() => {
+                        setVistaFinanzasInicial('por-pagar')
+                        setSeccionActiva('finanzas')
+                      }}
+                      style={{
+                        background: '#FFFFFF',
+                        border: '1px solid #CBD5E1',
+                        borderTop: '3px solid #C2410C',
+                        borderRadius: '8px',
+                        padding: '16px 18px',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        justifyContent: 'space-between',
+                        boxShadow: '0 1px 3px 0 rgba(15, 23, 42, 0.04)'
+                      }}
+                    >
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '8px' }}>
+                        <div>
+                          <span style={{ fontSize: '11px', fontWeight: '700', color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                            Cuentas por Pagar
+                          </span>
+                          <p style={{ margin: '4px 0 0', fontSize: '11.5px', color: '#C2410C', fontWeight: '600' }}>
+                            {kpis.cantPorPagar} {kpis.cantPorPagar === 1 ? 'comprobante pendiente' : 'comprobantes pendientes'}
+                          </p>
+                        </div>
+                        <div style={{ background: '#FFF7ED', padding: '7px', borderRadius: '6px', border: '1px solid #FED7AA', flexShrink: 0 }}>
+                          <TrendingDown size={17} color="#C2410C" />
+                        </div>
+                      </div>
+                      <div style={{ marginTop: '14px' }}>
+                        <div style={{ fontFamily: paleta.fontMono, fontSize: '21px', fontWeight: '700', color: '#0F172A', letterSpacing: '-0.02em' }}>
+                          {formatearMonedaAR(kpis.porPagar)}
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '6px' }}>
+                          <span style={{ fontSize: '11px', color: '#64748B' }}>Saldo neto proveedores</span>
+                          <span style={{ fontSize: '11px', color: '#C2410C', fontWeight: '600', display: 'flex', alignItems: 'center' }}>
+                            Por pagar <ArrowUpRight size={12} />
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* KPI 4: CAJA + BANCOS A LA FECHA */}
+                    <div
+                      onClick={() => {
+                        setVistaFinanzasInicial('movimientos')
+                        setSeccionActiva('finanzas')
+                      }}
+                      style={{
+                        background: '#FFFFFF',
+                        border: '1px solid #CBD5E1',
+                        borderTop: '3px solid #0F172A',
+                        borderRadius: '8px',
+                        padding: '16px 18px',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        justifyContent: 'space-between',
+                        boxShadow: '0 1px 3px 0 rgba(15, 23, 42, 0.04)'
+                      }}
+                    >
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '8px' }}>
+                        <div>
+                          <span style={{ fontSize: '11px', fontWeight: '700', color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                            Caja + Bancos a la fecha
+                          </span>
+                          <p style={{ margin: '4px 0 0', fontSize: '11.5px', color: '#334155', fontWeight: '600' }}>
+                            {kpis.cantCuentas} {kpis.cantCuentas === 1 ? 'cuenta activa' : 'cuentas activas'}
+                          </p>
+                        </div>
+                        <div style={{ background: '#F1F5F9', padding: '7px', borderRadius: '6px', border: '1px solid #CBD5E1', flexShrink: 0 }}>
+                          <Landmark size={17} color="#0F172A" />
+                        </div>
+                      </div>
+                      <div style={{ marginTop: '14px' }}>
+                        <div style={{ fontFamily: paleta.fontMono, fontSize: '21px', fontWeight: '700', color: kpis.saldoCajaYBancos >= 0 ? '#0F172A' : '#DC2626', letterSpacing: '-0.02em' }}>
+                          {formatearMonedaAR(kpis.saldoCajaYBancos)}
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '6px' }}>
+                          <span style={{ fontSize: '11px', color: '#64748B', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                            Bancos: {formatearMonedaAR(kpis.saldoBancos)} · Efec.: {formatearMonedaAR(kpis.saldoEfectivo)}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* FILA SECUNDARIA DE OPERACIONES */}
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '14px' }}>
+                    {/* CUENTAS CORPORATIVAS */}
+                    <div
+                      onClick={() => setSeccionActiva('clientes')}
+                      style={{
+                        background: '#FFFFFF',
+                        border: '1px solid #E2E8F0',
+                        borderRadius: '8px',
+                        padding: '16px 18px',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between'
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                        <div style={{ background: '#EFF6FF', padding: '10px', borderRadius: '6px', border: '1px solid #BFDBFE' }}>
+                          <Users size={20} color="#2563EB" />
+                        </div>
+                        <div>
+                          <p style={{ margin: 0, fontSize: '11px', fontWeight: '700', color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Cuentas Corporativas</p>
+                          <p style={{ margin: '2px 0 0', fontSize: '18px', fontWeight: '700', color: '#0F172A', fontFamily: paleta.fontMono }}>
+                            {kpis.clientes} <span style={{ fontSize: '12px', color: '#64748B', fontWeight: '400' }}>clientes · {kpis.contratos} contratos</span>
+                          </p>
+                        </div>
+                      </div>
+                      <span style={{ color: '#2563EB', fontSize: '12px', fontWeight: '600' }}>Ver →</span>
+                    </div>
+
+                    {/* PERSONAL EN SERVICIO */}
+                    <div
+                      onClick={() => setSeccionActiva('personal')}
+                      style={{
+                        background: '#FFFFFF',
+                        border: '1px solid #E2E8F0',
+                        borderRadius: '8px',
+                        padding: '16px 18px',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between'
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                        <div style={{ background: '#F0FDF4', padding: '10px', borderRadius: '6px', border: '1px solid #DCFCE7' }}>
+                          <HardHat size={20} color="#15803D" />
+                        </div>
+                        <div>
+                          <p style={{ margin: 0, fontSize: '11px', fontWeight: '700', color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Dotación de Personal</p>
+                          <p style={{ margin: '2px 0 0', fontSize: '18px', fontWeight: '700', color: '#0F172A', fontFamily: paleta.fontMono }}>
+                            {kpis.empleados} <span style={{ fontSize: '12px', color: '#64748B', fontWeight: '400' }}>operarios activos</span>
+                          </p>
+                        </div>
+                      </div>
+                      <span style={{ color: '#15803D', fontSize: '12px', fontWeight: '600' }}>Gestionar →</span>
+                    </div>
+
+                    {/* AGENDA DEL PERIODO */}
+                    <div
+                      onClick={() => setSeccionActiva('agenda')}
+                      style={{
+                        background: '#FFFFFF',
+                        border: '1px solid #E2E8F0',
+                        borderRadius: '8px',
+                        padding: '16px 18px',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between'
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                        <div style={{ background: '#FFFBEB', padding: '10px', borderRadius: '6px', border: '1px solid #FEF3C7' }}>
+                          <CalendarDays size={20} color="#D97706" />
+                        </div>
+                        <div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                            <p style={{ margin: 0, fontSize: '11px', fontWeight: '700', color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                              {metricaPeriodo.tituloServicios}
+                            </p>
+                            <span style={{ fontSize: '9.5px', fontWeight: '700', color: '#D97706', background: '#FEF3C7', padding: '1px 5px', borderRadius: '4px' }}>
+                              {metricaPeriodo.etiquetaPeriodo}
+                            </span>
+                          </div>
+                          <p style={{ margin: '2px 0 0', fontSize: '18px', fontWeight: '700', color: '#0F172A', fontFamily: paleta.fontMono }}>
+                            {metricaPeriodo.servicios} <span style={{ fontSize: '12px', color: '#64748B', fontWeight: '400' }}>{metricaPeriodo.subtituloServicios}</span>
+                          </p>
+                        </div>
+                      </div>
+                      <span style={{ color: '#D97706', fontSize: '12px', fontWeight: '600' }}>Ver agenda →</span>
+                    </div>
+                  </div>
+
+                  {/* MATRIZ DE MÓDULOS DEL SISTEMA */}
+                  <div style={{ background: '#FFFFFF', borderRadius: '10px', padding: '22px', border: '1px solid #E2E8F0', boxShadow: '0 1px 3px 0 rgba(15, 23, 42, 0.04)' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
+                      <div>
+                        <h3 style={{ margin: 0, fontSize: '15px', fontWeight: '700', color: '#0F172A', letterSpacing: '-0.01em' }}>
+                          Módulos del Sistema ERP
+                        </h3>
+                        <p style={{ margin: '3px 0 0', fontSize: '12.5px', color: '#64748B' }}>
+                          Seleccioná un módulo para operar registros y emitir comprobantes
+                        </p>
+                      </div>
+                      <span style={{ fontSize: '11px', color: '#64748B', background: '#F8FAFC', padding: '4px 8px', borderRadius: '4px', border: '1px solid #E2E8F0' }}>
+                        {todosItemsDisponibles.length} módulos habilitados
+                      </span>
+                    </div>
+
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '10px' }}>
+                      {todosItemsDisponibles.map(item => {
+                        const Icon = item.icon
+                        const colorMod = colores[item.id]?.main || '#0F766E'
+                        return (
+                          <button
+                            key={item.id}
+                            onClick={() => {
+                              if (item.id === 'finanzas') setVistaFinanzasInicial('movimientos')
+                              setSeccionActiva(item.id)
+                            }}
+                            style={{
+                              background: '#F8FAFC',
+                              border: '1px solid #E2E8F0',
+                              borderRadius: '7px',
+                              padding: '12px 14px',
+                              cursor: 'pointer',
+                              textAlign: 'left',
+                              display: 'flex',
+                              alignItems: 'flex-start',
+                              gap: '11px',
+                              transition: 'all 0.15s ease'
+                            }}
+                          >
+                            <div style={{
+                              width: '32px',
+                              height: '32px',
+                              borderRadius: '6px',
+                              background: '#FFFFFF',
+                              border: `1px solid ${colorMod}33`,
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              flexShrink: 0
+                            }}>
+                              <Icon size={16} color={colorMod} />
+                            </div>
+                            <div style={{ minWidth: 0 }}>
+                              <p style={{ margin: 0, fontSize: '13px', fontWeight: '600', color: '#0F172A' }}>{item.label}</p>
+                              <p style={{ margin: '2px 0 0', fontSize: '11px', color: '#64748B', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                {item.desc || 'Acceder al módulo'}
+                              </p>
+                            </div>
+                          </button>
+                        )
+                      })}
+                    </div>
+                  </div>
+
+                </div>
+
+                {/* COLUMNA DERECHA: ALERTAS Y AUDITORÍA OPERATIVA */}
+                <div style={{ position: 'sticky', top: '16px' }}>
+                  <div style={{
+                    background: '#FFFFFF',
+                    borderRadius: '10px',
+                    padding: '20px',
+                    border: '1px solid #E2E8F0',
+                    boxShadow: '0 1px 3px 0 rgba(15, 23, 42, 0.04)'
+                  }}>
+                    {/* Header de Alertas */}
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px', paddingBottom: '12px', borderBottom: '1px solid #F1F5F9' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <Bell size={16} color="#0F172A" />
+                        <h3 style={{ margin: 0, fontSize: '14px', fontWeight: '700', color: '#0F172A' }}>
+                          Alertas & Auditoría
+                        </h3>
+                      </div>
+                      {alertas.length > 0 ? (
+                        <span style={{
+                          background: '#BE123C',
+                          color: '#FFFFFF',
+                          borderRadius: '4px',
+                          fontSize: '11px',
+                          fontWeight: '700',
+                          padding: '2px 7px',
+                          fontFamily: paleta.fontMono
+                        }}>
+                          {alertas.length} ACTIVAS
+                        </span>
+                      ) : (
+                        <span style={{
+                          background: '#DCFCE7',
+                          color: '#15803D',
+                          borderRadius: '4px',
+                          fontSize: '11px',
+                          fontWeight: '600',
+                          padding: '2px 7px'
+                        }}>
+                          AL DÍA
+                        </span>
+                      )}
+                    </div>
+
+                    {/* Lista de alertas */}
+                    {alertas.length === 0 ? (
+                      <div style={{ textAlign: 'center', padding: '36px 12px' }}>
+                        <div style={{ width: '42px', height: '42px', borderRadius: '50%', background: '#F0FDF4', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', marginBottom: '10px' }}>
+                          <CheckCircle2 size={24} color="#16A34A" />
+                        </div>
+                        <p style={{ margin: 0, fontSize: '13.5px', fontWeight: '600', color: '#0F172A' }}>Sin alertas operativas</p>
+                        <p style={{ margin: '4px 0 0', fontSize: '12px', color: '#64748B' }}>Todos los contratos, facturas y sueldos se encuentran al día.</p>
+                      </div>
+                    ) : (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '420px', overflowY: 'auto' }}>
+                        {alertas.map((a, i) => {
+                          const conf = alertaEstilo[a.tipo] || alertaEstilo.info
+                          return (
+                            <button
+                              key={i}
+                              onClick={() => setSeccionActiva(a.modulo)}
+                              style={{
+                                background: '#F8FAFC',
+                                border: '1px solid #E2E8F0',
+                                borderLeft: `3px solid ${conf.dot}`,
+                                borderRadius: '6px',
+                                padding: '10px 12px',
+                                cursor: 'pointer',
+                                textAlign: 'left',
+                                width: '100%',
+                                display: 'flex',
+                                flexDirection: 'column',
+                                gap: '3px',
+                                transition: 'background 0.12s ease'
+                              }}
+                            >
+                              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '6px' }}>
+                                <span style={{ fontSize: '12px', fontWeight: '700', color: '#0F172A' }}>
+                                  {a.titulo}
+                                </span>
+                                <span style={{
+                                  background: conf.bg,
+                                  color: conf.text,
+                                  fontSize: '10px',
+                                  fontWeight: '700',
+                                  padding: '1px 5px',
+                                  borderRadius: '3px',
+                                  textTransform: 'uppercase'
+                                }}>
+                                  {conf.label}
+                                </span>
+                              </div>
+                              <p style={{ margin: 0, fontSize: '11.5px', color: '#64748B', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                {a.detalle}
+                              </p>
+                              {a.monto && (
+                                <p style={{ margin: '2px 0 0', fontSize: '12px', fontWeight: '700', color: conf.text, fontFamily: paleta.fontMono }}>
+                                  {a.monto.toLocaleString('es-AR', { style: 'currency', currency: 'ARS' })}
+                                </p>
+                              )}
+                            </button>
+                          )
+                        })}
+                      </div>
+                    )}
+
+                    <div style={{ marginTop: '16px', paddingTop: '12px', borderTop: '1px solid #F1F5F9' }}>
+                      <button
+                        onClick={() => cargarAlertas()}
+                        style={{
+                          width: '100%',
+                          padding: '7px 12px',
+                          background: '#F8FAFC',
+                          border: '1px solid #CBD5E1',
+                          borderRadius: '6px',
+                          color: '#334155',
+                          fontSize: '12px',
+                          fontWeight: '600',
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: '6px'
+                        }}
+                      >
+                        <RefreshCw size={12} />
+                        <span>Actualizar alertas</span>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+              </div>
+
             </div>
           ) : (
             /* RENDERIZADO DE LOS MÓDULOS ESPECÍFICOS */
             <div style={{ maxWidth: '1440px', margin: '0 auto' }}>
-              {MODULOS[seccionActiva] && (puede(seccionActiva)) && (() => {
-                const tabs = MODULOS[seccionActiva].filter(t => puede(t[0]))
-                const activa = tabs.some(t => t[0] === tabsModulo[seccionActiva]) ? tabsModulo[seccionActiva] : tabs[0]?.[0]
-                const titulos = { comercial: 'Comercial', operaciones: 'Operaciones', administracion: 'Administración' }
-                return (
-                  <ModuloTabs titulo={titulos[seccionActiva]} tabs={tabs} activa={activa} onCambiar={id => setTabsModulo(t => ({ ...t, [seccionActiva]: id }))}>
-                    {activa === 'clientes' && <Clientes />}
-                    {activa === 'contratos' && <Contratos />}
-                    {activa === 'crm' && <CRM />}
-                    {activa === 'presupuestos' && <Presupuestos />}
-                    {activa === 'agenda' && <Agenda />}
-                    {activa === 'personal' && <Personal />}
-                    {activa === 'insumos' && <Insumos />}
-                    {activa === 'proveedores' && <Proveedores />}
-                    {activa === 'finanzas' && <Finanzas key={finClave} vistaInicial={finVista} />}
-                    {activa === 'sueldos' && <Sueldos />}
-                    {activa === 'contabilidad' && <Contabilidad />}
-                    {activa === 'inversiones' && <Inversiones />}
-                    {activa === 'f931' && <Formulario931 />}
-                    {activa === 'auditoria' && <Auditoria />}
-                    {activa === 'aumentos' && <AumentosContratos />}
-                    {activa === 'asistencia' && <Asistencia />}
-                    {activa === 'vencimientos' && <Vencimientos />}
-                  </ModuloTabs>
-                )
-              })()}
-              {seccionActiva === 'control' && esAdmin && <ControlDatos onIr={id => setSeccionActiva(id)} />}
-              {seccionActiva === 'documentos' && puede('documentos') && <Documentos />}
+              {seccionActiva === 'clientes' && <Clientes />}
+              {seccionActiva === 'crm' && <CRM />}
+              {seccionActiva === 'contratos' && <Contratos />}
+              {seccionActiva === 'personal' && <Personal />}
+              {seccionActiva === 'agenda' && <Agenda />}
+              {seccionActiva === 'presupuestos' && <Presupuestos />}
+              {seccionActiva === 'facturacion' && esAdmin && <Facturacion />}
+              {seccionActiva === 'insumos' && <Insumos />}
+              {seccionActiva === 'finanzas' && esAdmin && <Finanzas vistaInicial={vistaFinanzasInicial} />}
+              {seccionActiva === 'conciliacion' && esAdmin && <Finanzas vistaInicial="conciliacion" />}
+              {seccionActiva === 'costos' && esAdmin && <Costos />}
+              {seccionActiva === 'sueldos' && esAdmin && <Sueldos />}
+              {seccionActiva === 'proveedores' && <Proveedores />}
               {seccionActiva === 'reportes' && <Reportes />}
               {seccionActiva === 'usuarios' && esAdmin && <Usuarios />}
             </div>
           )}
         </main>
-
-        {/* BARRA INFERIOR (celular): acceso directo a los módulos con el pulgar */}
-        {esMovil && (
-          <nav className="no-print" style={{ position: 'fixed', left: 0, right: 0, bottom: 0, zIndex: 35, background: '#FFFFFF', borderTop: `1px solid ${paleta.line}`, display: 'flex', paddingBottom: 'env(safe-area-inset-bottom)', boxShadow: '0 -6px 20px -12px rgba(15,23,42,0.25)' }}>
-            {[['inicio', 'Inicio', Home], ['comercial', 'Comercial', Users], ['operaciones', 'Operaciones', HardHat], ['administracion', 'Administración', BarChart3]].filter(([id]) => id === 'inicio' || puede(id)).map(([id, label, Icono]) => {
-              const on = seccionActiva === id || (id !== 'inicio' && MODULOS[id]?.some(x => x[0] === seccionActiva))
-              return (
-                <button key={id} onClick={() => setSeccionActiva(id)} style={{ flex: 1, background: 'transparent', border: 0, padding: '8px 2px 7px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, color: on ? paleta.brand : paleta.muted, fontSize: 10.5, fontWeight: on ? 700 : 500, cursor: 'pointer', minHeight: 54 }}>
-                  <Icono size={20} />{label}
-                </button>
-              )
-            })}
-            <button onClick={() => setDrawerAbierto(true)} style={{ flex: 1, background: 'transparent', border: 0, padding: '8px 2px 7px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, color: paleta.muted, fontSize: 10.5, fontWeight: 500, cursor: 'pointer', minHeight: 54 }}>
-              <Menu size={20} />Más
-            </button>
-          </nav>
-        )}
       </div>
 
       {/* ============================================================ */}
@@ -1226,6 +1650,7 @@ function Dashboard({ user }) {
                     <button
                       key={item.id}
                       onClick={() => {
+                        if (item.id === 'finanzas') setVistaFinanzasInicial('movimientos')
                         setSeccionActiva(item.id)
                         setBuscadorAbierto(false)
                         setQueryBusqueda('')
