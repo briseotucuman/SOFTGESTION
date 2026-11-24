@@ -474,6 +474,7 @@ function ImportarARCA({ tipoInicial = 'ventas', onImportado }) {
             observaciones: `Importada desde ARCA Comprobantes Emitidos | CAE: ${f.cae || 's/n'}`
           })
 
+          if (errFactura?.code === '23505') continue // ya cargada: se omite, no se duplica
           if (errFactura) throw errFactura
           totalImportado++
           totalMonto += f.total
@@ -515,6 +516,7 @@ function ImportarARCA({ tipoInicial = 'ventas', onImportado }) {
             observaciones: `Importada desde ARCA Comprobantes Recibidos | CAE: ${f.cae || 's/n'} | ${f.tipoLabel}`
           })
 
+          if (errCompra?.code === '23505') continue // ya cargada: se omite, no se duplica
           if (errCompra) throw errCompra
           totalImportado++
           totalMonto += f.total
