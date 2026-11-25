@@ -1156,27 +1156,28 @@ function ConciliacionBancaria({
       {/* CABECERA DE CONCILIACIÓN BANCARIA */}
       <div style={{
         background: '#FFFFFF',
-        borderRadius: '12px',
-        padding: '20px 24px',
-        border: '1px solid #E2E8F0',
+        borderRadius: '20px',
+        padding: '22px 24px',
+        border: '1px solid #E5E7EB',
         marginBottom: '20px',
-        boxShadow: '0 1px 3px 0 rgba(15, 23, 42, 0.04)'
+        boxShadow: '0 8px 30px rgba(0, 0, 0, 0.04)'
       }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px' }}>
           <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
-              <span style={{
-                background: '#F0FDFA', color: '#0F766E', fontSize: '11px',
-                fontWeight: '700', padding: '3px 8px', borderRadius: '4px', border: '1px solid #99F6E4'
-              }}>
-                MÓDULO DE CONTROL CONTABLE
-              </span>
-            </div>
-            <h3 style={{ margin: 0, fontSize: '20px', fontWeight: '800', color: '#0F172A', letterSpacing: '-0.02em' }}>
+            <span style={{
+              color: '#3B66F5',
+              fontSize: '11.5px',
+              fontWeight: '600',
+              display: 'block',
+              marginBottom: '4px'
+            }}>
+              Control contable · Solo cuentas bancarias
+            </span>
+            <h3 style={{ margin: 0, fontSize: '20px', fontWeight: '700', color: '#0F172A', letterSpacing: '-0.02em' }}>
               Conciliación Bancaria y Resúmenes
             </h3>
             <p style={{ margin: '4px 0 0', fontSize: '13px', color: '#64748B' }}>
-              Comprobá los saldos de extractos contra tus movimientos contables, auto-conciliá cobros y pagos, y detectá débitos no registrados. (Solo cuentas de banco habilitadas).
+              Comprobá los saldos de extractos contra tus movimientos contables, auto-conciliá cobros y pagos, y detectá débitos no registrados.
             </p>
           </div>
 
@@ -1186,13 +1187,13 @@ function ConciliacionBancaria({
               type="button"
               onClick={() => setModalCarga(true)}
               style={{
-                ...s.btnPrimario(c.main),
+                ...s.btnPrimario('#3B66F5'),
                 display: 'inline-flex',
                 alignItems: 'center',
                 gap: '6px',
-                padding: '9px 16px',
+                padding: '9px 18px',
                 fontSize: '13px',
-                fontWeight: '700'
+                fontWeight: '600'
               }}
             >
               <Upload size={15} />
@@ -1205,13 +1206,13 @@ function ConciliacionBancaria({
                   onClick={() => autoConciliar()}
                   title="Emparejar automáticamente por monto y fecha coincidente"
                   style={{
-                    background: '#F0FDFA',
-                    border: '1px solid #99F6E4',
-                    color: '#0F766E',
-                    borderRadius: '8px',
-                    padding: '9px 14px',
+                    background: '#EEF2FF',
+                    border: '1px solid #DBEAFE',
+                    color: '#3B66F5',
+                    borderRadius: '999px',
+                    padding: '9px 16px',
                     fontSize: '13px',
-                    fontWeight: '700',
+                    fontWeight: '600',
                     cursor: 'pointer',
                     display: 'inline-flex',
                     alignItems: 'center',
@@ -1225,11 +1226,11 @@ function ConciliacionBancaria({
                   type="button"
                   onClick={() => setVistaInforme(!vistaInforme)}
                   style={{
-                    background: vistaInforme ? '#0F172A' : '#F8FAFC',
-                    border: '1px solid #CBD5E1',
+                    background: vistaInforme ? '#18191C' : '#FFFFFF',
+                    border: '1px solid #E5E7EB',
                     color: vistaInforme ? '#FFFFFF' : '#334155',
-                    borderRadius: '8px',
-                    padding: '9px 14px',
+                    borderRadius: '999px',
+                    padding: '9px 16px',
                     fontSize: '13px',
                     fontWeight: '600',
                     cursor: 'pointer',
@@ -1249,10 +1250,10 @@ function ConciliacionBancaria({
               onClick={() => setModalGuia(true)}
               style={{
                 background: '#FFFFFF',
-                border: '1px solid #CBD5E1',
+                border: '1px solid #E5E7EB',
                 color: '#334155',
-                borderRadius: '8px',
-                padding: '9px 14px',
+                borderRadius: '999px',
+                padding: '9px 16px',
                 fontSize: '13px',
                 fontWeight: '600',
                 cursor: 'pointer',
@@ -1262,7 +1263,7 @@ function ConciliacionBancaria({
               }}
               title="Guía práctica: cómo registrar gastos, impuestos y vincular facturas con pagos"
             >
-              <HelpCircle size={15} color="#0F766E" />
+              <HelpCircle size={15} color="#3B66F5" />
               <span>¿Cómo conciliar?</span>
             </button>
           </div>
@@ -1282,8 +1283,8 @@ function ConciliacionBancaria({
           <div style={{ display: 'flex', alignItems: 'center', gap: '14px', flexWrap: 'wrap' }}>
             {/* Cuenta Bancaria */}
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-              <span style={{ fontSize: '12px', fontWeight: '700', color: '#475569', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                <Landmark size={14} color="#0F766E" />
+              <span style={{ fontSize: '12px', fontWeight: '600', color: '#475569', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                <Landmark size={14} color="#3B66F5" />
                 <span>Cuenta bancaria:</span>
               </span>
               <select
@@ -1392,20 +1393,20 @@ function ConciliacionBancaria({
       {extractoActual ? (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '14px', marginBottom: '20px' }}>
           {/* Card 1: Saldo según Extracto */}
-          <div style={{ ...s.card, background: '#FFFFFF', borderTop: '3px solid #0F766E' }}>
-            <span style={{ fontSize: '11px', fontWeight: '700', color: '#64748B', textTransform: 'uppercase' }}>
+          <div style={{ background: '#3B66F5', color: '#FFFFFF', borderRadius: '18px', padding: '18px 20px', boxShadow: '0 12px 30px rgba(59, 102, 245, 0.22)' }}>
+            <span style={{ fontSize: '12px', fontWeight: '600', color: 'rgba(255,255,255,0.82)' }}>
               Saldo según Extracto Bancario
             </span>
             <p style={{
               margin: '6px 0 0',
-              fontSize: '20px',
-              fontWeight: '800',
-              fontFamily: paleta.fontMono,
-              color: metricas.saldoBancoInformado >= 0 ? '#0F172A' : '#DC2626'
+              fontSize: '21px',
+              fontWeight: '700',
+              fontVariantNumeric: 'tabular-nums',
+              color: '#FFFFFF'
             }}>
               {metricas.saldoBancoInformado.toLocaleString('es-AR', { style: 'currency', currency: 'ARS' })}
             </p>
-            <span style={{ fontSize: '11.5px', color: '#0F766E', fontWeight: '600', marginTop: '6px', display: 'block' }}>
+            <span style={{ fontSize: '11.5px', color: 'rgba(255,255,255,0.78)', fontWeight: '500', marginTop: '6px', display: 'block' }}>
               {extractoActual?.meta?.saldoHeader != null && extractoActual?.meta?.saldoUltimoMovimiento != null && Math.abs(extractoActual.meta.saldoHeader - extractoActual.meta.saldoUltimoMovimiento) > 0.01
                 ? `Cabecera banco (Últ. mov.: ${Number(extractoActual.meta.saldoUltimoMovimiento).toLocaleString('es-AR', { style: 'currency', currency: 'ARS' })})`
                 : (extractoActual?.meta?.cuenta ? `Cuenta ${extractoActual.meta.cuenta}` : 'Reportado por Homebanking')}
@@ -1413,15 +1414,15 @@ function ConciliacionBancaria({
           </div>
 
           {/* Card 2: Saldo según Sistema */}
-          <div style={{ ...s.card, background: '#FFFFFF', borderTop: '3px solid #334155' }}>
-            <span style={{ fontSize: '11px', fontWeight: '700', color: '#64748B', textTransform: 'uppercase' }}>
+          <div style={{ ...s.card, margin: 0, padding: '18px 20px' }}>
+            <span style={{ fontSize: '12px', fontWeight: '600', color: '#64748B' }}>
               Saldo según Libros (Finanzas)
             </span>
             <p style={{
               margin: '6px 0 0',
-              fontSize: '20px',
-              fontWeight: '800',
-              fontFamily: paleta.fontMono,
+              fontSize: '21px',
+              fontWeight: '700',
+              fontVariantNumeric: 'tabular-nums',
               color: metricas.saldoSistema >= 0 ? '#0F172A' : '#DC2626'
             }}>
               {metricas.saldoSistema.toLocaleString('es-AR', { style: 'currency', currency: 'ARS' })}
@@ -1434,30 +1435,31 @@ function ConciliacionBancaria({
           {/* Card 3: Diferencia de Conciliación */}
           <div style={{
             ...s.card,
-            background: Math.abs(metricas.diferencia) < 0.01 ? '#F0FDFA' : '#FFF7ED',
-            borderTop: `3px solid ${Math.abs(metricas.diferencia) < 0.01 ? '#0F766E' : '#C2410C'}`
+            margin: 0,
+            padding: '18px 20px',
+            background: Math.abs(metricas.diferencia) < 0.01 ? '#F0FDF4' : '#FFF7ED',
+            borderColor: Math.abs(metricas.diferencia) < 0.01 ? '#BBF7D0' : '#FED7AA'
           }}>
             <span style={{
-              fontSize: '11px',
-              fontWeight: '700',
-              color: Math.abs(metricas.diferencia) < 0.01 ? '#0F766E' : '#9A3412',
-              textTransform: 'uppercase'
+              fontSize: '12px',
+              fontWeight: '600',
+              color: Math.abs(metricas.diferencia) < 0.01 ? '#15803D' : '#9A3412'
             }}>
               Diferencia de Conciliación
             </span>
             <p style={{
               margin: '6px 0 0',
-              fontSize: '20px',
-              fontWeight: '800',
-              fontFamily: paleta.fontMono,
-              color: Math.abs(metricas.diferencia) < 0.01 ? '#0F766E' : '#C2410C'
+              fontSize: '21px',
+              fontWeight: '700',
+              fontVariantNumeric: 'tabular-nums',
+              color: Math.abs(metricas.diferencia) < 0.01 ? '#15803D' : '#C2410C'
             }}>
               {Math.abs(metricas.diferencia) < 0.01 ? '$ 0,00' : metricas.diferencia.toLocaleString('es-AR', { style: 'currency', currency: 'ARS' })}
             </p>
             <span style={{
               fontSize: '11.5px',
-              fontWeight: '700',
-              color: Math.abs(metricas.diferencia) < 0.01 ? '#0F766E' : '#C2410C',
+              fontWeight: '600',
+              color: Math.abs(metricas.diferencia) < 0.01 ? '#15803D' : '#C2410C',
               marginTop: '6px',
               display: 'flex',
               alignItems: 'center',
@@ -1465,7 +1467,7 @@ function ConciliacionBancaria({
             }}>
               {Math.abs(metricas.diferencia) < 0.01 ? (
                 <>
-                  <CheckCircle2 size={13} color="#0F766E" /> Conciliación Cuadrada
+                  <CheckCircle2 size={13} color="#15803D" /> Conciliación Cuadrada
                 </>
               ) : (
                 <>
@@ -1476,28 +1478,29 @@ function ConciliacionBancaria({
           </div>
 
           {/* Card 4: Estado de Partidas */}
-          <div style={{ ...s.card, background: '#FFFFFF', borderTop: '3px solid #2563EB' }}>
-            <span style={{ fontSize: '11px', fontWeight: '700', color: '#64748B', textTransform: 'uppercase' }}>
+          <div style={{ background: '#18191C', color: '#FFFFFF', borderRadius: '18px', padding: '18px 20px', boxShadow: '0 12px 30px rgba(24, 25, 28, 0.18)' }}>
+            <span style={{ fontSize: '12px', fontWeight: '600', color: 'rgba(255,255,255,0.78)' }}>
               Progreso Conciliado
             </span>
             <p style={{
               margin: '6px 0 0',
-              fontSize: '20px',
-              fontWeight: '800',
-              fontFamily: paleta.fontMono,
-              color: '#0F172A'
+              fontSize: '21px',
+              fontWeight: '700',
+              fontVariantNumeric: 'tabular-nums',
+              color: '#FFFFFF'
             }}>
               {metricas.porcentajeConciliado}%
             </p>
-            <div style={{ background: '#F1F5F9', borderRadius: '4px', height: '6px', overflow: 'hidden', margin: '8px 0 4px' }}>
+            <div style={{ background: 'rgba(255,255,255,0.14)', borderRadius: '999px', height: '6px', overflow: 'hidden', margin: '8px 0 4px' }}>
               <div style={{
-                background: '#0F766E',
+                background: '#A6BEFF',
                 height: '100%',
+                borderRadius: '999px',
                 width: `${metricas.porcentajeConciliado}%`,
                 transition: 'width 0.4s ease'
               }} />
             </div>
-            <span style={{ fontSize: '11px', color: '#64748B' }}>
+            <span style={{ fontSize: '11px', color: 'rgba(255,255,255,0.72)' }}>
               {metricas.conciliadosCount} de {metricas.totalBanco} en extracto
             </span>
           </div>
@@ -1505,14 +1508,14 @@ function ConciliacionBancaria({
       ) : (
         /* BANNER DE BIENVENIDA A LA CONCILIACIÓN */
         <div style={{
-          background: '#F8FAFC',
+          background: '#FFFFFF',
           border: '2px dashed #CBD5E1',
-          borderRadius: '12px',
+          borderRadius: '20px',
           padding: '48px 24px',
           textAlign: 'center',
           marginBottom: '20px'
         }}>
-          <FileSpreadsheet size={40} color="#0F766E" style={{ margin: '0 auto 14px' }} />
+          <FileSpreadsheet size={40} color="#3B66F5" style={{ margin: '0 auto 14px' }} />
           <h4 style={{ margin: 0, fontSize: '16px', fontWeight: '700', color: '#0F172A' }}>
             No hay resúmenes bancarios cargados para {cuentaActiva?.banco || 'esta cuenta'}
           </h4>
@@ -1523,10 +1526,10 @@ function ConciliacionBancaria({
             type="button"
             onClick={() => setModalCarga(true)}
             style={{
-              ...s.btnPrimario(c.main),
-              padding: '10px 20px',
+              ...s.btnPrimario('#3B66F5'),
+              padding: '10px 22px',
               fontSize: '13px',
-              fontWeight: '700',
+              fontWeight: '600',
               display: 'inline-flex',
               alignItems: 'center',
               gap: '8px'
@@ -1624,9 +1627,9 @@ function ConciliacionBancaria({
           position: 'sticky',
           top: '20px',
           zIndex: 40,
-          background: '#0F172A',
+          background: '#18191C',
           color: '#FFFFFF',
-          borderRadius: '10px',
+          borderRadius: '18px',
           padding: '14px 20px',
           marginBottom: '18px',
           display: 'flex',
@@ -1634,10 +1637,10 @@ function ConciliacionBancaria({
           justifyContent: 'space-between',
           flexWrap: 'wrap',
           gap: '12px',
-          boxShadow: '0 10px 25px -5px rgba(15, 23, 42, 0.3)'
+          boxShadow: '0 14px 32px -5px rgba(24, 25, 28, 0.35)'
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-            <Link2 size={18} color="#2DD4BF" />
+            <Link2 size={18} color="#A6BEFF" />
             <div>
               <span style={{ fontSize: '13px', fontWeight: '700' }}>
                 Conciliar pareja seleccionada:
@@ -1655,14 +1658,14 @@ function ConciliacionBancaria({
                 setBancoSeleccionado(null)
                 setSistemaSeleccionado(null)
               }}
-              style={{ background: 'transparent', border: '1px solid #475569', color: '#CBD5E1', borderRadius: '6px', padding: '6px 12px', fontSize: '12px', cursor: 'pointer' }}
+              style={{ background: 'transparent', border: '1px solid #475569', color: '#CBD5E1', borderRadius: '999px', padding: '6px 14px', fontSize: '12px', cursor: 'pointer' }}
             >
               Cancelar
             </button>
             <button
               type="button"
               onClick={vincularParejaSeleccionada}
-              style={{ background: '#2DD4BF', border: 'none', color: '#0F172A', borderRadius: '6px', padding: '6px 14px', fontSize: '12px', fontWeight: '700', cursor: 'pointer' }}
+              style={{ background: '#3B66F5', border: 'none', color: '#FFFFFF', borderRadius: '999px', padding: '6px 16px', fontSize: '12px', fontWeight: '600', cursor: 'pointer' }}
             >
               Confirmar vinculación
             </button>
@@ -1685,7 +1688,7 @@ function ConciliacionBancaria({
             {/* Filtros de estado y categoría */}
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
               {/* Segmented buttons de estado */}
-              <div style={{ display: 'inline-flex', background: '#F1F5F9', padding: '3px', borderRadius: '8px', border: '1px solid #E2E8F0' }}>
+              <div style={{ display: 'inline-flex', background: '#FFFFFF', padding: '4px', borderRadius: '999px', border: '1px solid #E5E7EB', gap: '3px' }}>
                 {[
                   { id: 'todos', label: `Todos (${metricas.totalBanco})` },
                   { id: 'pendientes', label: `Pendientes (${metricas.pendientesBanco})` },
@@ -1695,15 +1698,14 @@ function ConciliacionBancaria({
                     key={tab.id}
                     onClick={() => setFiltroVista(tab.id)}
                     style={{
-                      background: filtroVista === tab.id ? '#FFFFFF' : 'transparent',
-                      color: filtroVista === tab.id ? '#0F172A' : '#64748B',
+                      background: filtroVista === tab.id ? '#18191C' : 'transparent',
+                      color: filtroVista === tab.id ? '#FFFFFF' : '#64748B',
                       border: 'none',
-                      borderRadius: '6px',
-                      padding: '5px 12px',
+                      borderRadius: '999px',
+                      padding: '5px 14px',
                       fontSize: '12px',
-                      fontWeight: filtroVista === tab.id ? '700' : '500',
-                      cursor: 'pointer',
-                      boxShadow: filtroVista === tab.id ? '0 1px 2px rgba(0,0,0,0.05)' : 'none'
+                      fontWeight: '600',
+                      cursor: 'pointer'
                     }}
                   >
                     {tab.label}
@@ -1712,14 +1714,14 @@ function ConciliacionBancaria({
               </div>
 
               {/* Filtros por tipo de movimiento */}
-              <div style={{ display: 'inline-flex', background: '#FFFFFF', padding: '2px', borderRadius: '8px', border: '1px solid #E2E8F0', gap: '3px' }}>
+              <div style={{ display: 'inline-flex', background: '#FFFFFF', padding: '4px', borderRadius: '999px', border: '1px solid #E5E7EB', gap: '3px' }}>
                 <button
                   type="button"
                   onClick={() => setFiltroTipo('todos')}
                   style={{
-                    background: filtroTipo === 'todos' ? '#0F172A' : 'transparent',
+                    background: filtroTipo === 'todos' ? '#3B66F5' : 'transparent',
                     color: filtroTipo === 'todos' ? '#FFFFFF' : '#475569',
-                    border: 'none', borderRadius: '6px', padding: '4px 10px', fontSize: '11.5px', fontWeight: '600', cursor: 'pointer'
+                    border: 'none', borderRadius: '999px', padding: '5px 12px', fontSize: '11.5px', fontWeight: '600', cursor: 'pointer'
                   }}
                 >
                   Todas las categorías

@@ -1013,7 +1013,7 @@ function Dashboard({ user }) {
                   todosItemsDisponibles={todosItemsDisponibles}
                 />
               ) : (
-                <div className="sg-main rounded-2xl bg-white/85 border border-[#E5E7EB] p-3 sm:p-5 shadow-[0_8px_30px_rgb(0,0,0,0.04)] overflow-x-auto">
+                <div className="sg-main overflow-x-auto">
                   {seccionActiva === 'clientes' && <Clientes />}
                   {seccionActiva === 'crm' && <CRM />}
                   {seccionActiva === 'contratos' && <Contratos />}

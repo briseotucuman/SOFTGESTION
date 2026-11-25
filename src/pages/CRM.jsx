@@ -425,35 +425,37 @@ function CRM() {
   return (
     <div style={{ fontFamily: paleta.font, color: paleta.ink }}>
 
-      {/* HEADER PRINCIPAL */}
+      {/* HEADER PRINCIPAL BENTO */}
       <div style={{
-        background: 'linear-gradient(135deg, #0F172A 0%, #1E293B 100%)',
-        borderRadius: '10px',
+        background: 'linear-gradient(135deg, #18191C 0%, #262930 100%)',
+        borderRadius: '20px',
         padding: '20px 24px',
         marginBottom: '20px',
         color: '#FFFFFF',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'space-between',
-        border: '1px solid #334155',
-        boxShadow: '0 1px 3px 0 rgba(15, 23, 42, 0.08)'
+        flexWrap: 'wrap',
+        gap: '12px',
+        border: '1px solid rgba(255, 255, 255, 0.12)',
+        boxShadow: '0 12px 32px -12px rgba(24, 25, 28, 0.25)'
       }}>
         <div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
-            <Radar size={18} color="#38BDF8" />
-            <span style={{ fontSize: '11px', fontWeight: '700', color: '#38BDF8', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+            <Radar size={18} color="#A6BEFF" />
+            <span style={{ fontSize: '11px', fontWeight: '700', color: '#A6BEFF', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
               GESTIÓN DE RELACIONES COMERCIALES & CLIENTES
             </span>
           </div>
-          <h2 style={{ margin: 0, fontSize: '20px', fontWeight: '800', letterSpacing: '-0.02em', color: '#F8FAFC' }}>
+          <h2 style={{ margin: 0, fontSize: '20px', fontWeight: '700', letterSpacing: '-0.02em', color: '#FFFFFF' }}>
             CRM & Pipeline Comercial
           </h2>
-          <p style={{ margin: '3px 0 0', fontSize: '12.5px', color: '#94A3B8' }}>
+          <p style={{ margin: '3px 0 0', fontSize: '12.5px', color: 'rgba(255,255,255,0.68)' }}>
             Control de prospectos, datos de contacto, seguimiento por WhatsApp y tareas programadas.
           </p>
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
           <button
             onClick={() => {
               setOpEditando(null)
@@ -465,18 +467,18 @@ function CRM() {
               setMostrarFormOp(true)
             }}
             style={{
-              background: '#2563EB',
-              border: '1px solid rgba(255, 255, 255, 0.15)',
-              borderRadius: '6px',
-              padding: '8px 16px',
+              background: '#3B66F5',
+              border: '1px solid rgba(255, 255, 255, 0.2)',
+              borderRadius: '999px',
+              padding: '8px 18px',
               color: '#FFFFFF',
-              fontSize: '13px',
+              fontSize: '12.5px',
               fontWeight: '600',
               cursor: 'pointer',
               display: 'flex',
               alignItems: 'center',
               gap: '6px',
-              boxShadow: '0 1px 2px 0 rgba(0, 0, 0, 0.05)'
+              boxShadow: '0 6px 16px -6px rgba(59, 102, 245, 0.5)'
             }}
           >
             <Plus size={15} />
@@ -486,12 +488,12 @@ function CRM() {
           <button
             onClick={() => abrirNuevoRecordatorio()}
             style={{
-              background: '#1E293B',
-              border: '1px solid #475569',
-              borderRadius: '6px',
-              padding: '8px 14px',
+              background: '#26282E',
+              border: '1px solid rgba(255, 255, 255, 0.14)',
+              borderRadius: '999px',
+              padding: '8px 16px',
               color: '#F8FAFC',
-              fontSize: '13px',
+              fontSize: '12.5px',
               fontWeight: '600',
               cursor: 'pointer',
               display: 'flex',
@@ -499,7 +501,7 @@ function CRM() {
               gap: '6px'
             }}
           >
-            <Clock size={15} color="#38BDF8" />
+            <Clock size={15} color="#A6BEFF" />
             <span>Crear Recordatorio</span>
           </button>
         </div>
@@ -507,13 +509,15 @@ function CRM() {
 
       {/* TABS DE VISTA CRM */}
       <div style={{
-        background: '#F1F5F9',
-        border: '1px solid #E2E8F0',
-        borderRadius: '8px',
+        background: 'rgba(255, 255, 255, 0.85)',
+        border: '1px solid #E5E7EB',
+        borderRadius: '999px',
         padding: '4px',
         display: 'inline-flex',
+        flexWrap: 'wrap',
         gap: '4px',
-        marginBottom: '20px'
+        marginBottom: '20px',
+        boxShadow: '0 4px 16px rgba(0, 0, 0, 0.03)'
       }}>
         {[
           { id: 'pipeline', label: 'Pipeline Comercial', icon: Target, badge: opsAbiertas.length },
@@ -528,31 +532,30 @@ function CRM() {
               key={tab.id}
               onClick={() => setVista(tab.id)}
               style={{
-                background: activa ? '#FFFFFF' : 'transparent',
-                color: activa ? '#0F172A' : '#64748B',
+                background: activa ? '#18191C' : 'transparent',
+                color: activa ? '#FFFFFF' : '#64748B',
                 border: 'none',
-                borderRadius: '6px',
+                borderRadius: '999px',
                 padding: '8px 16px',
                 fontSize: '12.5px',
-                fontWeight: activa ? '700' : '500',
+                fontWeight: '600',
                 cursor: 'pointer',
                 display: 'flex',
                 alignItems: 'center',
                 gap: '7px',
-                boxShadow: activa ? '0 1px 2px 0 rgba(0, 0, 0, 0.05)' : 'none',
-                transition: 'all 0.12s ease'
+                transition: 'all 0.14s ease'
               }}
             >
-              <Icon size={14} color={activa ? '#2563EB' : '#64748B'} />
+              <Icon size={14} color={activa ? '#A6BEFF' : '#64748B'} />
               <span>{tab.label}</span>
               {tab.badge && (
                 <span style={{
-                  background: tab.alert ? '#BE123C' : (activa ? '#EFF6FF' : '#E2E8F0'),
-                  color: tab.alert ? '#FFFFFF' : (activa ? '#1D4ED8' : '#475569'),
+                  background: tab.alert ? '#BE123C' : (activa ? '#3B66F5' : '#E5E7EB'),
+                  color: (tab.alert || activa) ? '#FFFFFF' : '#475569',
                   fontSize: '10.5px',
                   fontWeight: '700',
-                  padding: '1px 6px',
-                  borderRadius: '10px'
+                  padding: '1px 7px',
+                  borderRadius: '999px'
                 }}>
                   {tab.badge}
                 </span>
@@ -1271,37 +1274,37 @@ function CRM() {
           {vista === 'panel' && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '14px' }}>
-                <div style={{ background: '#FFFFFF', borderRadius: '8px', padding: '16px', border: '1px solid #E2E8F0', borderTop: '3px solid #BE123C' }}>
-                  <span style={{ fontSize: '11px', fontWeight: '700', color: '#64748B', textTransform: 'uppercase' }}>Clientes en Riesgo</span>
-                  <p style={{ margin: '6px 0 0', fontSize: '24px', fontWeight: '700', color: '#BE123C', fontFamily: paleta.fontMono }}>{clientesEnRiesgo.length}</p>
+                <div style={{ background: '#FFFFFF', borderRadius: '18px', padding: '18px 20px', border: '1px solid #E5E7EB', boxShadow: '0 8px 30px rgba(0,0,0,0.04)' }}>
+                  <span style={{ fontSize: '12px', fontWeight: '600', color: '#64748B' }}>Clientes en Riesgo</span>
+                  <p style={{ margin: '6px 0 0', fontSize: '24px', fontWeight: '700', color: '#BE123C', fontVariantNumeric: 'tabular-nums' }}>{clientesEnRiesgo.length}</p>
                   <p style={{ margin: '4px 0 0', fontSize: '11.5px', color: '#64748B' }}>Con facturas vencidas o sin contacto reciente</p>
                 </div>
 
-                <div style={{ background: '#FFFFFF', borderRadius: '8px', padding: '16px', border: '1px solid #E2E8F0', borderTop: '3px solid #B45309' }}>
-                  <span style={{ fontSize: '11px', fontWeight: '700', color: '#64748B', textTransform: 'uppercase' }}>Tareas Vencidas</span>
-                  <p style={{ margin: '6px 0 0', fontSize: '24px', fontWeight: '700', color: '#B45309', fontFamily: paleta.fontMono }}>{tareasVencidas.length}</p>
+                <div style={{ background: '#FFFFFF', borderRadius: '18px', padding: '18px 20px', border: '1px solid #E5E7EB', boxShadow: '0 8px 30px rgba(0,0,0,0.04)' }}>
+                  <span style={{ fontSize: '12px', fontWeight: '600', color: '#64748B' }}>Tareas Vencidas</span>
+                  <p style={{ margin: '6px 0 0', fontSize: '24px', fontWeight: '700', color: '#B45309', fontVariantNumeric: 'tabular-nums' }}>{tareasVencidas.length}</p>
                   <p style={{ margin: '4px 0 0', fontSize: '11.5px', color: '#64748B' }}>Requieren resolución inmediata</p>
                 </div>
 
-                <div style={{ background: '#FFFFFF', borderRadius: '8px', padding: '16px', border: '1px solid #E2E8F0', borderTop: '3px solid #2563EB' }}>
-                  <span style={{ fontSize: '11px', fontWeight: '700', color: '#64748B', textTransform: 'uppercase' }}>Valor en Pipeline</span>
-                  <p style={{ margin: '6px 0 0', fontSize: '20px', fontWeight: '700', color: '#0F172A', fontFamily: paleta.fontMono }}>
+                <div style={{ background: '#3B66F5', color: '#FFFFFF', borderRadius: '18px', padding: '18px 20px', boxShadow: '0 12px 30px rgba(59, 102, 245, 0.2)' }}>
+                  <span style={{ fontSize: '12px', fontWeight: '600', color: 'rgba(255,255,255,0.82)' }}>Valor en Pipeline</span>
+                  <p style={{ margin: '6px 0 0', fontSize: '21px', fontWeight: '700', color: '#FFFFFF', fontVariantNumeric: 'tabular-nums' }}>
                     {valorPipeline.toLocaleString('es-AR', { style: 'currency', currency: 'ARS', maximumFractionDigits: 0 })}
                   </p>
-                  <p style={{ margin: '4px 0 0', fontSize: '11.5px', color: '#64748B' }}>{opsAbiertas.length} propuestas abiertas</p>
+                  <p style={{ margin: '4px 0 0', fontSize: '11.5px', color: 'rgba(255,255,255,0.75)' }}>{opsAbiertas.length} propuestas abiertas</p>
                 </div>
 
-                <div style={{ background: '#FFFFFF', borderRadius: '8px', padding: '16px', border: '1px solid #E2E8F0', borderTop: '3px solid #15803D' }}>
-                  <span style={{ fontSize: '11px', fontWeight: '700', color: '#64748B', textTransform: 'uppercase' }}>Tasa de Conversión</span>
-                  <p style={{ margin: '6px 0 0', fontSize: '24px', fontWeight: '700', color: '#15803D', fontFamily: paleta.fontMono }}>
+                <div style={{ background: '#18191C', color: '#FFFFFF', borderRadius: '18px', padding: '18px 20px', boxShadow: '0 12px 30px rgba(24, 25, 28, 0.18)' }}>
+                  <span style={{ fontSize: '12px', fontWeight: '600', color: 'rgba(255,255,255,0.75)' }}>Tasa de Conversión</span>
+                  <p style={{ margin: '6px 0 0', fontSize: '24px', fontWeight: '700', color: '#FFFFFF', fontVariantNumeric: 'tabular-nums' }}>
                     {tasaConversion != null ? `${tasaConversion.toFixed(0)}%` : '—'}
                   </p>
-                  <p style={{ margin: '4px 0 0', fontSize: '11.5px', color: '#64748B' }}>{ganadas} ganadas vs {perdidas} perdidas</p>
+                  <p style={{ margin: '4px 0 0', fontSize: '11.5px', color: 'rgba(255,255,255,0.68)' }}>{ganadas} ganadas vs {perdidas} perdidas</p>
                 </div>
               </div>
 
               {/* LISTA DE CLIENTES EN RIESGO CON BOTÓN DE CONTACTO RÁPIDO */}
-              <div style={{ background: '#FFFFFF', borderRadius: '10px', padding: '20px', border: '1px solid #E2E8F0' }}>
+              <div style={{ background: '#FFFFFF', borderRadius: '20px', padding: '22px', border: '1px solid #E5E7EB', boxShadow: '0 8px 30px rgba(0,0,0,0.04)' }}>
                 <h4 style={{ margin: '0 0 14px', fontSize: '14.5px', fontWeight: '700', color: '#0F172A', display: 'flex', alignItems: 'center', gap: '8px' }}>
                   <AlertTriangle size={16} color="#BE123C" /> Cuentas que requieren contacto de seguimiento
                 </h4>
@@ -1314,11 +1317,11 @@ function CRM() {
                       const dias = diasDesde(ultimoContactoPorCliente[cl.id])
                       const moroso = clientesConFacturaVencida.has(cl.id)
                       return (
-                        <div key={cl.id} style={{ border: '1px solid #CBD5E1', borderRadius: '8px', padding: '14px', background: '#F8FAFC', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', gap: '10px' }}>
+                        <div key={cl.id} style={{ border: '1px solid #E5E7EB', borderRadius: '16px', padding: '16px', background: '#F3F5FA', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', gap: '10px' }}>
                           <div>
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                               <p style={{ margin: 0, fontSize: '13.5px', fontWeight: '700', color: '#0F172A' }}>{cl.razon_social || cl.nombre_contacto}</p>
-                              {moroso && <span style={{ background: '#FFE4E6', color: '#BE123C', fontSize: '10px', fontWeight: '700', padding: '1px 6px', borderRadius: '3px' }}>Factura Vencida</span>}
+                              {moroso && <span style={{ background: '#FFE4E6', color: '#BE123C', fontSize: '10.5px', fontWeight: '700', padding: '2px 8px', borderRadius: '999px' }}>Factura Vencida</span>}
                             </div>
                             <p style={{ margin: '3px 0 0', fontSize: '12px', color: '#64748B' }}>
                               {cl.nombre_contacto ? `Contacto: ${cl.nombre_contacto}` : 'Sin contacto'}
@@ -1328,22 +1331,22 @@ function CRM() {
                             </p>
                           </div>
 
-                          <div style={{ display: 'flex', gap: '6px', paddingTop: '8px', borderTop: '1px solid #E2E8F0' }}>
+                          <div style={{ display: 'flex', gap: '6px', paddingTop: '8px', borderTop: '1px solid #E5E7EB' }}>
                             <button
                               onClick={() => abrirModalMensajePara(cl, false)}
-                              style={{ flex: 1, background: '#FFFFFF', border: '1px solid #CBD5E1', borderRadius: '5px', padding: '5px 8px', fontSize: '11.5px', fontWeight: '600', color: '#0F172A', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }}
+                              style={{ flex: 1, background: '#FFFFFF', border: '1px solid #E5E7EB', borderRadius: '999px', padding: '6px 10px', fontSize: '11.5px', fontWeight: '600', color: '#0F172A', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }}
                             >
-                              <MessageSquare size={12} color="#2563EB" /> Contactar
+                              <MessageSquare size={12} color="#3B66F5" /> Contactar
                             </button>
                             <button
                               onClick={() => abrirNuevoRecordatorio(cl.id, '', `Seguimiento de ${cl.razon_social || cl.nombre_contacto}`)}
-                              style={{ background: '#FFFFFF', border: '1px solid #CBD5E1', borderRadius: '5px', padding: '5px 8px', fontSize: '11.5px', fontWeight: '600', color: '#0F172A', cursor: 'pointer' }}
+                              style={{ background: '#FFFFFF', border: '1px solid #E5E7EB', borderRadius: '999px', padding: '6px 10px', fontSize: '11.5px', fontWeight: '600', color: '#0F172A', cursor: 'pointer' }}
                             >
                               Recordar
                             </button>
                             <button
                               onClick={() => setClienteFichaSeleccionado(cl)}
-                              style={{ background: '#0F766E', color: '#FFFFFF', border: 'none', borderRadius: '5px', padding: '5px 8px', fontSize: '11.5px', fontWeight: '600', cursor: 'pointer' }}
+                              style={{ background: '#18191C', color: '#FFFFFF', border: 'none', borderRadius: '999px', padding: '6px 12px', fontSize: '11.5px', fontWeight: '600', cursor: 'pointer' }}
                             >
                               Ficha
                             </button>

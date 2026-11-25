@@ -690,52 +690,52 @@ function Finanzas({ vistaInicial = 'movimientos' }) {
 
       {/* INDICADOR DE FLUJO */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: '14px', marginBottom: '14px' }}>
-        <div style={{ ...s.card, background: '#eff6ff', display: 'flex', alignItems: 'center', gap: '12px' }}>
-          <div style={{ width: 38, height: 38, borderRadius: 10, background: '#dbeafe', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}><TrendingUp size={18} color="#1d4ed8" /></div>
+        <div style={{ ...s.card, margin: 0, display: 'flex', alignItems: 'center', gap: '14px' }}>
+          <div style={{ width: 40, height: 40, borderRadius: 12, background: '#EEF2FF', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}><TrendingUp size={18} color="#3B66F5" /></div>
           <div>
-            <p style={{ ...s.label, color: '#1d4ed8', margin: 0 }}>Por cobrar</p>
-            <p style={{ fontSize: '19px', fontWeight: '800', color: '#1d4ed8', margin: 0 }}>{porCobrar.toLocaleString('es-AR', { style: 'currency', currency: 'ARS' })}</p>
+            <p style={{ ...s.label, color: '#64748B', margin: 0 }}>Por cobrar</p>
+            <p style={{ fontSize: '20px', fontWeight: '700', color: '#0F172A', margin: '2px 0 0', fontVariantNumeric: 'tabular-nums' }}>{porCobrar.toLocaleString('es-AR', { style: 'currency', currency: 'ARS' })}</p>
           </div>
         </div>
-        <div style={{ ...s.card, background: '#fff7ed', display: 'flex', alignItems: 'center', gap: '12px' }}>
-          <div style={{ width: 38, height: 38, borderRadius: 10, background: '#fed7aa', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}><TrendingDown size={18} color="#c2410c" /></div>
+        <div style={{ ...s.card, margin: 0, display: 'flex', alignItems: 'center', gap: '14px' }}>
+          <div style={{ width: 40, height: 40, borderRadius: 12, background: '#FFF7ED', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}><TrendingDown size={18} color="#C2410C" /></div>
           <div>
-            <p style={{ ...s.label, color: '#c2410c', margin: 0 }}>Por pagar</p>
-            <p style={{ fontSize: '19px', fontWeight: '800', color: '#c2410c', margin: 0 }}>{porPagar.toLocaleString('es-AR', { style: 'currency', currency: 'ARS' })}</p>
+            <p style={{ ...s.label, color: '#64748B', margin: 0 }}>Por pagar</p>
+            <p style={{ fontSize: '20px', fontWeight: '700', color: '#C2410C', margin: '2px 0 0', fontVariantNumeric: 'tabular-nums' }}>{porPagar.toLocaleString('es-AR', { style: 'currency', currency: 'ARS' })}</p>
           </div>
         </div>
-        <div style={{ ...s.card, background: flujoProyectado >= 0 ? '#f0fdf4' : '#fef2f2', display: 'flex', alignItems: 'center', gap: '12px' }}>
-          <div style={{ width: 38, height: 38, borderRadius: 10, background: flujoProyectado >= 0 ? '#bbf7d0' : '#fecaca', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}><ArrowRightLeft size={18} color={flujoProyectado >= 0 ? '#15803d' : '#b91c1c'} /></div>
+        <div style={{ background: '#18191C', color: '#FFFFFF', borderRadius: '20px', padding: '20px 22px', display: 'flex', alignItems: 'center', gap: '14px', boxShadow: '0 12px 30px rgba(24, 25, 28, 0.18)' }}>
+          <div style={{ width: 40, height: 40, borderRadius: 12, background: 'rgba(255,255,255,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}><ArrowRightLeft size={18} color="#A6BEFF" /></div>
           <div>
-            <p style={{ ...s.label, color: flujoProyectado >= 0 ? '#15803d' : '#b91c1c', margin: 0 }}>Flujo proyectado (cobrar − pagar)</p>
-            <p style={{ fontSize: '19px', fontWeight: '800', color: flujoProyectado >= 0 ? '#15803d' : '#b91c1c', margin: 0 }}>{flujoProyectado.toLocaleString('es-AR', { style: 'currency', currency: 'ARS' })}</p>
+            <p style={{ fontSize: '12px', fontWeight: '600', color: 'rgba(255,255,255,0.75)', margin: 0 }}>Flujo proyectado (cobrar − pagar)</p>
+            <p style={{ fontSize: '20px', fontWeight: '700', color: '#FFFFFF', margin: '2px 0 0', fontVariantNumeric: 'tabular-nums' }}>{flujoProyectado.toLocaleString('es-AR', { style: 'currency', currency: 'ARS' })}</p>
           </div>
         </div>
       </div>
 
       {/* RESUMEN DEL MES */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: '14px', marginBottom: '20px' }}>
-        <div style={{ ...s.card, background: '#f0fdf4' }}>
-          <p style={{ ...s.label, color: '#059669', margin: '0 0 4px' }}>Ingresos del mes ({filtroMes})</p>
-          <p style={{ fontSize: '20px', fontWeight: '800', color: '#059669', margin: 0 }}>{formatearMonedaAR(totalIngresos)}</p>
-          <p style={{ fontSize: '11px', color: '#047857', margin: '4px 0 0' }}>
+        <div style={{ ...s.card, margin: 0 }}>
+          <p style={{ ...s.label, color: '#64748B', margin: '0 0 4px' }}>Ingresos del mes ({filtroMes})</p>
+          <p style={{ fontSize: '21px', fontWeight: '700', color: '#15803D', margin: 0, fontVariantNumeric: 'tabular-nums' }}>{formatearMonedaAR(totalIngresos)}</p>
+          <p style={{ fontSize: '11.5px', color: '#64748B', margin: '6px 0 0' }}>
             Cobranzas e ingresos operativos{ajustesMes.length > 0 ? ` (excl. ${ajustesMes.length} ajuste/s)` : ''}
           </p>
         </div>
-        <div style={{ ...s.card, background: '#fff1f2' }}>
-          <p style={{ ...s.label, color: '#dc2626', margin: '0 0 4px' }}>Egresos del mes ({filtroMes})</p>
-          <p style={{ fontSize: '20px', fontWeight: '800', color: '#dc2626', margin: 0 }}>{formatearMonedaAR(totalEgresos)}</p>
-          <p style={{ fontSize: '11px', color: '#b91c1c', margin: '4px 0 0' }}>Gastos, pagos e impuestos</p>
+        <div style={{ ...s.card, margin: 0 }}>
+          <p style={{ ...s.label, color: '#64748B', margin: '0 0 4px' }}>Egresos del mes ({filtroMes})</p>
+          <p style={{ fontSize: '21px', fontWeight: '700', color: '#BE123C', margin: 0, fontVariantNumeric: 'tabular-nums' }}>{formatearMonedaAR(totalEgresos)}</p>
+          <p style={{ fontSize: '11.5px', color: '#64748B', margin: '6px 0 0' }}>Gastos, pagos e impuestos</p>
         </div>
-        <div style={{ ...s.card, background: balance >= 0 ? '#eff6ff' : '#fff7ed' }}>
-          <p style={{ ...s.label, color: balance >= 0 ? '#1d4ed8' : '#d97706', margin: '0 0 4px' }}>Resultado neto del mes</p>
-          <p style={{ fontSize: '20px', fontWeight: '800', color: balance >= 0 ? '#1d4ed8' : '#d97706', margin: 0 }}>{formatearMonedaAR(balance)}</p>
-          <p style={{ fontSize: '11px', color: balance >= 0 ? '#1e40af' : '#b45309', margin: '4px 0 0' }}>Ingresos − Egresos de {filtroMes}</p>
+        <div style={{ ...s.card, margin: 0 }}>
+          <p style={{ ...s.label, color: '#64748B', margin: '0 0 4px' }}>Resultado neto del mes</p>
+          <p style={{ fontSize: '21px', fontWeight: '700', color: balance >= 0 ? '#0F172A' : '#B45309', margin: 0, fontVariantNumeric: 'tabular-nums' }}>{formatearMonedaAR(balance)}</p>
+          <p style={{ fontSize: '11.5px', color: '#64748B', margin: '6px 0 0' }}>Ingresos − Egresos de {filtroMes}</p>
         </div>
-        <div style={s.card}>
-          <p style={{ ...s.label, color: '#64748b', margin: '0 0 4px' }}>Caja + Bancos a la fecha</p>
-          <p style={{ fontSize: '20px', fontWeight: '800', color: saldoTotal >= 0 ? '#0f172a' : '#dc2626', margin: 0 }}>{formatearMonedaAR(saldoTotal)}</p>
-          <p style={{ fontSize: '11px', color: '#64748b', margin: '4px 0 0' }}>
+        <div style={{ background: '#3B66F5', color: '#FFFFFF', borderRadius: '20px', padding: '22px', boxShadow: '0 12px 30px rgba(59, 102, 245, 0.22)' }}>
+          <p style={{ fontSize: '12px', fontWeight: '600', color: 'rgba(255,255,255,0.82)', margin: '0 0 4px' }}>Caja + Bancos a la fecha</p>
+          <p style={{ fontSize: '22px', fontWeight: '700', color: '#FFFFFF', margin: 0, fontVariantNumeric: 'tabular-nums' }}>{formatearMonedaAR(saldoTotal)}</p>
+          <p style={{ fontSize: '11.5px', color: 'rgba(255,255,255,0.75)', margin: '6px 0 0', fontVariantNumeric: 'tabular-nums' }}>
             Bancos: {formatearMonedaAR(resumenSaldos.totalBancos)} · Efec.: {formatearMonedaAR(resumenSaldos.totalEfectivo)}
           </p>
         </div>
@@ -1022,7 +1022,7 @@ function Finanzas({ vistaInicial = 'movimientos' }) {
                     <input
                       type="number"
                       step="0.01"
-                      style={{ ...s.input, fontSize: '16px', fontWeight: '700', color: '#0F766E', borderColor: '#0F766E' }}
+                      style={{ ...s.input, fontSize: '16px', fontWeight: '700', color: '#3B66F5', borderColor: '#3B66F5' }}
                       value={formEditCuenta.saldoNuevo}
                       onChange={e => setFormEditCuenta({...formEditCuenta, saldoNuevo: e.target.value})}
                       required
@@ -1174,16 +1174,13 @@ function Finanzas({ vistaInicial = 'movimientos' }) {
 
       {/* SECCIÓN DE CUENTAS BANCARIAS Y EFECTIVO */}
       <div style={{ marginBottom: '22px' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px', flexWrap: 'wrap', gap: '8px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px', flexWrap: 'wrap', gap: '8px' }}>
           <div>
-            <h4 style={{ margin: 0, fontSize: '14px', fontWeight: '700', color: '#0F172A', display: 'flex', alignItems: 'center', gap: '7px', flexWrap: 'wrap' }}>
-              <Landmark size={15} color="#0F766E" />
+            <h4 style={{ margin: 0, fontSize: '14.5px', fontWeight: '700', color: '#0F172A', display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+              <Landmark size={16} color="#3B66F5" />
               <span>Saldos de Bancos y Efectivo</span>
-              <span style={{ fontSize: '11px', background: '#F1F5F9', color: '#64748B', padding: '2px 8px', borderRadius: '10px', fontWeight: '600' }}>
-                {cuentas.length} {cuentas.length === 1 ? 'cuenta' : 'cuentas'}
-              </span>
-              <span style={{ fontSize: '12px', background: '#ECFDF5', color: '#047857', border: '1px solid #A7F3D0', padding: '2px 10px', borderRadius: '10px', fontWeight: '700' }}>
-                Total Caja + Bancos: {formatearMonedaAR(saldoTotal)}
+              <span style={{ fontSize: '12px', color: '#64748B', fontWeight: '500' }}>
+                · {cuentas.length} {cuentas.length === 1 ? 'cuenta' : 'cuentas'} · Total {formatearMonedaAR(saldoTotal)}
               </span>
             </h4>
           </div>
@@ -1193,18 +1190,18 @@ function Finanzas({ vistaInicial = 'movimientos' }) {
                 setFormCuenta({ banco: 'Caja Efectivo', tipo: 'caja_chica', numero: 'Caja 1', cbu: '', saldo: '0' })
                 setMostrarCuenta(true)
               }}
-              style={{ ...s.btnSecundario, padding: '5px 10px', fontSize: '11.5px', display: 'flex', alignItems: 'center', gap: '5px' }}
+              style={{ ...s.btnSecundario, padding: '7px 14px', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '6px' }}
               title="Crear cuenta para control de efectivo físico / caja chica"
             >
-              <Banknote size={13} color="#059669" />
+              <Banknote size={14} color="#15803D" />
               <span>+ Caja Efectivo</span>
             </button>
             <button
               onClick={abrirAjusteTodosSaldos}
-              style={{ ...s.btnSecundario, padding: '5px 10px', fontSize: '11.5px', display: 'flex', alignItems: 'center', gap: '5px' }}
+              style={{ ...s.btnSecundario, padding: '7px 14px', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '6px' }}
               title="Modificar o ajustar saldos de todas las cuentas"
             >
-              <SlidersHorizontal size={13} color="#0F766E" />
+              <SlidersHorizontal size={14} color="#3B66F5" />
               <span>Ajustar saldos</span>
             </button>
           </div>
@@ -1214,23 +1211,23 @@ function Finanzas({ vistaInicial = 'movimientos' }) {
           {cuentas.map(ct => {
             const esCaja = ct.tipo === 'caja_chica' || ct.banco?.toLowerCase().includes('efectivo') || ct.banco?.toLowerCase().includes('caja')
             return (
-              <div key={ct.id} style={{ ...s.card, margin: 0, padding: '16px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', border: '1px solid #E2E8F0', position: 'relative' }}>
+              <div key={ct.id} style={{ ...s.card, margin: 0, padding: '18px 20px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', border: '1px solid #E5E7EB', position: 'relative' }}>
                 <div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '8px' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      <div style={{ width: 32, height: 32, borderRadius: 8, background: esCaja ? '#DCFCE7' : '#E0F2FE', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                        {esCaja ? <Banknote size={17} color="#15803D" /> : <Building2 size={17} color="#0369A1" />}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                      <div style={{ width: 34, height: 34, borderRadius: 10, background: esCaja ? '#DCFCE7' : '#EEF2FF', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        {esCaja ? <Banknote size={17} color="#15803D" /> : <Building2 size={17} color="#3B66F5" />}
                       </div>
                       <div>
                         <p style={{ margin: 0, fontSize: '14px', fontWeight: '700', color: '#0F172A' }}>{ct.banco}</p>
-                        <span style={{ fontSize: '10.5px', fontWeight: '600', color: esCaja ? '#15803D' : '#0369A1', textTransform: 'uppercase' }}>
+                        <span style={{ fontSize: '11px', fontWeight: '600', color: esCaja ? '#15803D' : '#3B66F5' }}>
                           {esCaja ? 'Efectivo / Caja' : ct.tipo.replace('_', ' ')}
                         </span>
                       </div>
                     </div>
                     <button
                       onClick={() => abrirEditarCuenta(ct)}
-                      style={{ background: '#F8FAFC', border: '1px solid #CBD5E1', borderRadius: '6px', padding: '5px 7px', cursor: 'pointer', color: '#475569', display: 'flex', alignItems: 'center', gap: '4px', fontSize: '11px', fontWeight: '600' }}
+                      style={{ background: '#F3F5FA', border: '1px solid #E5E7EB', borderRadius: '999px', padding: '5px 10px', cursor: 'pointer', color: '#334155', display: 'flex', alignItems: 'center', gap: '4px', fontSize: '11px', fontWeight: '600' }}
                       title="Modificar cuenta o ajustar saldo"
                     >
                       <Pencil size={11} />
@@ -1239,23 +1236,23 @@ function Finanzas({ vistaInicial = 'movimientos' }) {
                   </div>
 
                   {ct.numero && (
-                    <p style={{ margin: '0 0 6px', fontSize: '11px', color: '#94A3B8' }}>Nº / Alias: {ct.numero}</p>
+                    <p style={{ margin: '0 0 6px', fontSize: '11.5px', color: '#94A3B8' }}>Nº / Alias: {ct.numero}</p>
                   )}
 
-                  <div style={{ marginTop: '10px' }}>
-                    <p style={{ margin: 0, fontSize: '11px', color: '#64748B' }}>Saldo disponible:</p>
-                    <p style={{ fontSize: '20px', fontWeight: '800', color: Number(ct.saldo) >= 0 ? '#0F172A' : '#DC2626', margin: '2px 0 0' }}>
+                  <div style={{ marginTop: '12px' }}>
+                    <p style={{ margin: 0, fontSize: '11.5px', color: '#64748B', fontWeight: '500' }}>Saldo disponible:</p>
+                    <p style={{ fontSize: '21px', fontWeight: '700', color: Number(ct.saldo) >= 0 ? '#0F172A' : '#DC2626', margin: '2px 0 0', fontVariantNumeric: 'tabular-nums' }}>
                       {Number(ct.saldo).toLocaleString('es-AR', { style: 'currency', currency: 'ARS' })}
                     </p>
                   </div>
                 </div>
 
-                <div style={{ display: 'flex', gap: '6px', marginTop: '14px', paddingTop: '10px', borderTop: '1px solid #F1F5F9' }}>
+                <div style={{ display: 'flex', gap: '8px', marginTop: '14px', paddingTop: '12px', borderTop: '1px solid #F1F5F9' }}>
                   <button
                     onClick={() => abrirEditarCuenta(ct)}
-                    style={{ flex: 1, background: '#F1F5F9', border: 'none', borderRadius: '6px', padding: '6px 8px', fontSize: '11.5px', fontWeight: '600', color: '#334155', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px' }}
+                    style={{ flex: 1, background: '#F3F5FA', border: '1px solid #E5E7EB', borderRadius: '999px', padding: '6px 10px', fontSize: '11.5px', fontWeight: '600', color: '#334155', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px' }}
                   >
-                    <SlidersHorizontal size={12} color="#0F766E" />
+                    <SlidersHorizontal size={12} color="#3B66F5" />
                     <span>Ajustar saldo</span>
                   </button>
                   {esCuentaBancaria(ct) ? (
@@ -1264,15 +1261,15 @@ function Finanzas({ vistaInicial = 'movimientos' }) {
                         setCuentaSeleccionadaId(ct.id)
                         setVista('conciliacion')
                       }}
-                      style={{ flex: 1, background: '#F0FDFA', border: '1px solid #CCFBF1', borderRadius: '6px', padding: '6px 8px', fontSize: '11.5px', fontWeight: '600', color: '#0F766E', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px' }}
+                      style={{ flex: 1, background: '#18191C', border: 'none', borderRadius: '999px', padding: '6px 10px', fontSize: '11.5px', fontWeight: '600', color: '#FFFFFF', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px' }}
                       title="Cargar extracto bancario y conciliar movimientos"
                     >
-                      <ShieldCheck size={12} color="#0F766E" />
+                      <ShieldCheck size={12} color="#A6BEFF" />
                       <span>Conciliar</span>
                     </button>
                   ) : (
                     <div
-                      style={{ flex: 1, background: '#F8FAFC', border: '1px dashed #E2E8F0', borderRadius: '6px', padding: '6px 8px', fontSize: '11px', fontWeight: '500', color: '#94A3B8', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }}
+                      style={{ flex: 1, background: '#F8FAFC', border: '1px dashed #E2E8F0', borderRadius: '999px', padding: '6px 10px', fontSize: '11px', fontWeight: '500', color: '#94A3B8', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }}
                       title="Las cuentas de efectivo y cajas físicas se controlan por arqueo / ajuste manual, no por conciliación bancaria"
                     >
                       <span>Caja física</span>
@@ -1398,16 +1395,15 @@ function Finanzas({ vistaInicial = 'movimientos' }) {
                   style={{ ...s.buscador, paddingLeft: '32px', minWidth: '240px' }}
                 />
               </div>
-              <div style={{ display: 'flex', background: '#F1F5F9', padding: '3px', borderRadius: '8px', gap: '4px' }}>
+              <div style={{ display: 'flex', background: '#FFFFFF', padding: '4px', borderRadius: '999px', border: '1px solid #E5E7EB', gap: '4px' }}>
                 <button
                   type="button"
                   onClick={() => setFiltroCobrar('todas')}
                   style={{
-                    background: filtroCobrar === 'todas' ? '#FFFFFF' : 'transparent',
-                    color: filtroCobrar === 'todas' ? '#0F172A' : '#64748B',
-                    fontWeight: filtroCobrar === 'todas' ? '700' : '500',
-                    border: 'none', borderRadius: '6px', padding: '5px 10px', fontSize: '12px', cursor: 'pointer',
-                    boxShadow: filtroCobrar === 'todas' ? '0 1px 3px rgba(0,0,0,0.06)' : 'none'
+                    background: filtroCobrar === 'todas' ? '#18191C' : 'transparent',
+                    color: filtroCobrar === 'todas' ? '#FFFFFF' : '#64748B',
+                    fontWeight: '600',
+                    border: 'none', borderRadius: '999px', padding: '5px 12px', fontSize: '12px', cursor: 'pointer'
                   }}
                 >
                   Todas ({facturasCobrarTodas.filter(f => f.estado !== 'anulada').length})
@@ -1416,11 +1412,10 @@ function Finanzas({ vistaInicial = 'movimientos' }) {
                   type="button"
                   onClick={() => setFiltroCobrar('pendientes')}
                   style={{
-                    background: filtroCobrar === 'pendientes' ? '#FFFFFF' : 'transparent',
-                    color: filtroCobrar === 'pendientes' ? '#1D4ED8' : '#64748B',
-                    fontWeight: filtroCobrar === 'pendientes' ? '700' : '500',
-                    border: 'none', borderRadius: '6px', padding: '5px 10px', fontSize: '12px', cursor: 'pointer',
-                    boxShadow: filtroCobrar === 'pendientes' ? '0 1px 3px rgba(0,0,0,0.06)' : 'none'
+                    background: filtroCobrar === 'pendientes' ? '#3B66F5' : 'transparent',
+                    color: filtroCobrar === 'pendientes' ? '#FFFFFF' : '#64748B',
+                    fontWeight: '600',
+                    border: 'none', borderRadius: '999px', padding: '5px 12px', fontSize: '12px', cursor: 'pointer'
                   }}
                 >
                   Pendientes ({facturasCobrarTodas.filter(f => !['pagada','cobrada','anulada'].includes(f.estado)).length})
@@ -1429,24 +1424,22 @@ function Finanzas({ vistaInicial = 'movimientos' }) {
                   type="button"
                   onClick={() => setFiltroCobrar('cobradas')}
                   style={{
-                    background: filtroCobrar === 'cobradas' ? '#FFFFFF' : 'transparent',
-                    color: filtroCobrar === 'cobradas' ? '#059669' : '#64748B',
-                    fontWeight: filtroCobrar === 'cobradas' ? '700' : '500',
-                    border: 'none', borderRadius: '6px', padding: '5px 10px', fontSize: '12px', cursor: 'pointer',
-                    boxShadow: filtroCobrar === 'cobradas' ? '0 1px 3px rgba(0,0,0,0.06)' : 'none'
+                    background: filtroCobrar === 'cobradas' ? '#15803D' : 'transparent',
+                    color: filtroCobrar === 'cobradas' ? '#FFFFFF' : '#64748B',
+                    fontWeight: '600',
+                    border: 'none', borderRadius: '999px', padding: '5px 12px', fontSize: '12px', cursor: 'pointer'
                   }}
                 >
                   Cobradas ({facturasCobrarTodas.filter(f => ['pagada','cobrada'].includes(f.estado)).length})
                 </button>
               </div>
             </div>
-            <div style={{ fontSize: '12px', color: '#64748B', display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <span style={{ display: 'inline-block', width: '8px', height: '8px', borderRadius: '50%', background: '#0F766E' }}></span>
-              <span>Columna <strong>Acción (Registrar cobro)</strong> fija a la derecha</span>
+            <div style={{ fontSize: '12px', color: '#64748B' }}>
+              Columna <strong>Acción (Registrar cobro)</strong> fija a la derecha
             </div>
           </div>
 
-          <div style={{ ...s.card, padding: 0, overflowX: 'auto', WebkitOverflowScrolling: 'touch', border: '1px solid #E2E8F0', borderRadius: '10px' }}>
+          <div style={{ ...s.card, padding: 0, overflowX: 'auto', WebkitOverflowScrolling: 'touch', border: '1px solid #E5E7EB', borderRadius: '20px' }}>
             {loading ? <div style={s.empty}>Cargando...</div>
             : (() => {
                 const facturasCobrarFiltradas = facturasCobrarTodas.filter(f => {
@@ -1645,16 +1638,15 @@ function Finanzas({ vistaInicial = 'movimientos' }) {
                       style={{ ...s.buscador, paddingLeft: '32px', minWidth: '240px' }}
                     />
                   </div>
-                  <div style={{ display: 'flex', background: '#F1F5F9', padding: '3px', borderRadius: '8px', gap: '4px' }}>
+                  <div style={{ display: 'flex', background: '#FFFFFF', padding: '4px', borderRadius: '999px', border: '1px solid #E5E7EB', gap: '4px' }}>
                     <button
                       type="button"
                       onClick={() => setFiltroPagar('todas')}
                       style={{
-                        background: filtroPagar === 'todas' ? '#FFFFFF' : 'transparent',
-                        color: filtroPagar === 'todas' ? '#0F172A' : '#64748B',
-                        fontWeight: filtroPagar === 'todas' ? '700' : '500',
-                        border: 'none', borderRadius: '6px', padding: '5px 10px', fontSize: '12px', cursor: 'pointer',
-                        boxShadow: filtroPagar === 'todas' ? '0 1px 3px rgba(0,0,0,0.06)' : 'none'
+                        background: filtroPagar === 'todas' ? '#18191C' : 'transparent',
+                        color: filtroPagar === 'todas' ? '#FFFFFF' : '#64748B',
+                        fontWeight: '600',
+                        border: 'none', borderRadius: '999px', padding: '5px 12px', fontSize: '12px', cursor: 'pointer'
                       }}
                     >
                       Todas ({facturasCompra.length})
@@ -1663,11 +1655,10 @@ function Finanzas({ vistaInicial = 'movimientos' }) {
                       type="button"
                       onClick={() => setFiltroPagar('pendientes')}
                       style={{
-                        background: filtroPagar === 'pendientes' ? '#FFFFFF' : 'transparent',
-                        color: filtroPagar === 'pendientes' ? '#C2410C' : '#64748B',
-                        fontWeight: filtroPagar === 'pendientes' ? '700' : '500',
-                        border: 'none', borderRadius: '6px', padding: '5px 10px', fontSize: '12px', cursor: 'pointer',
-                        boxShadow: filtroPagar === 'pendientes' ? '0 1px 3px rgba(0,0,0,0.06)' : 'none'
+                        background: filtroPagar === 'pendientes' ? '#3B66F5' : 'transparent',
+                        color: filtroPagar === 'pendientes' ? '#FFFFFF' : '#64748B',
+                        fontWeight: '600',
+                        border: 'none', borderRadius: '999px', padding: '5px 12px', fontSize: '12px', cursor: 'pointer'
                       }}
                     >
                       Pendientes ({facturasCompra.filter(f => f.estado !== 'pagada' && f.estado !== 'anulada').length})
@@ -1676,24 +1667,22 @@ function Finanzas({ vistaInicial = 'movimientos' }) {
                       type="button"
                       onClick={() => setFiltroPagar('pagadas')}
                       style={{
-                        background: filtroPagar === 'pagadas' ? '#FFFFFF' : 'transparent',
-                        color: filtroPagar === 'pagadas' ? '#059669' : '#64748B',
-                        fontWeight: filtroPagar === 'pagadas' ? '700' : '500',
-                        border: 'none', borderRadius: '6px', padding: '5px 10px', fontSize: '12px', cursor: 'pointer',
-                        boxShadow: filtroPagar === 'pagadas' ? '0 1px 3px rgba(0,0,0,0.06)' : 'none'
+                        background: filtroPagar === 'pagadas' ? '#15803D' : 'transparent',
+                        color: filtroPagar === 'pagadas' ? '#FFFFFF' : '#64748B',
+                        fontWeight: '600',
+                        border: 'none', borderRadius: '999px', padding: '5px 12px', fontSize: '12px', cursor: 'pointer'
                       }}
                     >
                       Pagadas ({facturasCompra.filter(f => f.estado === 'pagada').length})
                     </button>
                   </div>
                 </div>
-                <div style={{ fontSize: '12px', color: '#64748B', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <span style={{ display: 'inline-block', width: '8px', height: '8px', borderRadius: '50%', background: '#0F766E' }}></span>
-                  <span>Columna <strong>Acción (Registrar pago)</strong> anclada a la derecha</span>
+                <div style={{ fontSize: '12px', color: '#64748B' }}>
+                  Columna <strong>Acción (Registrar pago)</strong> anclada a la derecha
                 </div>
               </div>
 
-              <div style={{ ...s.card, padding: 0, overflowX: 'auto', WebkitOverflowScrolling: 'touch', border: '1px solid #E2E8F0', borderRadius: '10px' }}>
+              <div style={{ ...s.card, padding: 0, overflowX: 'auto', WebkitOverflowScrolling: 'touch', border: '1px solid #E5E7EB', borderRadius: '20px' }}>
                 {loading ? <div style={s.empty}>Cargando...</div>
                 : (() => {
                     const facturasCompraFiltradas = facturasCompra.filter(f => {

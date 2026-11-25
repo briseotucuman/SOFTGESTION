@@ -56,35 +56,35 @@ function nombreMes(mesStr) {
 }
 
 // Gráfico comparativo de barras de alta densidad ejecutiva
-function GraficoBarras({ meses, serieA, serieB, labelA, labelB, colorA = '#0F172A', colorB = '#64748B', formatoMoneda = true }) {
+function GraficoBarras({ meses, serieA, serieB, labelA, labelB, colorA = '#3B66F5', colorB = '#A6BEFF', formatoMoneda = true }) {
   const max = Math.max(...serieA, ...serieB, 1)
   const fmt = (v) => formatoMoneda ? v.toLocaleString('es-AR', { style: 'currency', currency: 'ARS', maximumFractionDigits: 0 }) : v
   return (
     <div>
       <div style={{ display: 'flex', gap: '20px', marginBottom: '16px', fontSize: '12px' }}>
         <span style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#334155', fontWeight: '600' }}>
-          <span style={{ width: 10, height: 10, borderRadius: 2, background: colorA, display: 'inline-block' }} />
+          <span style={{ width: 10, height: 10, borderRadius: 99, background: colorA, display: 'inline-block' }} />
           {labelA}
         </span>
         <span style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#64748B', fontWeight: '600' }}>
-          <span style={{ width: 10, height: 10, borderRadius: 2, background: colorB, display: 'inline-block' }} />
+          <span style={{ width: 10, height: 10, borderRadius: 99, background: colorB, display: 'inline-block' }} />
           {labelB}
         </span>
       </div>
-      <div style={{ display: 'flex', alignItems: 'flex-end', gap: '16px', height: '170px', paddingBottom: '8px', borderBottom: '1px solid #E2E8F0' }}>
+      <div style={{ display: 'flex', alignItems: 'flex-end', gap: '16px', height: '170px', paddingBottom: '8px', borderBottom: '1px solid #E5E7EB' }}>
         {meses.map((mesStr, i) => (
           <div key={mesStr} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px' }}>
-            <div style={{ display: 'flex', alignItems: 'flex-end', gap: '4px', height: '130px', width: '100%', justifyContent: 'center' }}>
+            <div style={{ display: 'flex', alignItems: 'flex-end', gap: '5px', height: '130px', width: '100%', justifyContent: 'center' }}>
               <div
                 title={`${labelA}: ${fmt(serieA[i])}`}
-                style={{ width: '38%', maxWidth: '24px', height: `${Math.max(3, (serieA[i] / max) * 130)}px`, background: colorA, borderRadius: '2px 2px 0 0', transition: 'height 0.3s ease' }}
+                style={{ width: '38%', maxWidth: '24px', height: `${Math.max(4, (serieA[i] / max) * 130)}px`, background: colorA, borderRadius: '6px 6px 0 0', transition: 'height 0.3s ease' }}
               />
               <div
                 title={`${labelB}: ${fmt(serieB[i])}`}
-                style={{ width: '38%', maxWidth: '24px', height: `${Math.max(3, (serieB[i] / max) * 130)}px`, background: colorB, borderRadius: '2px 2px 0 0', transition: 'height 0.3s ease' }}
+                style={{ width: '38%', maxWidth: '24px', height: `${Math.max(4, (serieB[i] / max) * 130)}px`, background: colorB, borderRadius: '6px 6px 0 0', transition: 'height 0.3s ease' }}
               />
             </div>
-            <span style={{ fontSize: '11px', color: '#64748B', textTransform: 'capitalize', fontWeight: '500', fontFamily: paleta.fontMono }}>
+            <span style={{ fontSize: '11px', color: '#64748B', textTransform: 'capitalize', fontWeight: '600', fontVariantNumeric: 'tabular-nums' }}>
               {nombreMes(mesStr)}
             </span>
           </div>
@@ -473,30 +473,32 @@ function Reportes() {
   return (
     <div style={{ fontFamily: paleta.font, color: paleta.ink }}>
 
-      {/* ENCABEZADO EJECUTIVO / BUSINESS INTELLIGENCE */}
+      {/* ENCABEZADO EJECUTIVO BENTO */}
       <div style={{
-        background: 'linear-gradient(135deg, #0F172A 0%, #1E293B 100%)',
-        borderRadius: '10px',
+        background: 'linear-gradient(135deg, #18191C 0%, #262930 100%)',
+        borderRadius: '20px',
         padding: '20px 24px',
         marginBottom: '20px',
         color: '#FFFFFF',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'space-between',
-        border: '1px solid #334155',
-        boxShadow: '0 1px 3px 0 rgba(15, 23, 42, 0.08)'
+        flexWrap: 'wrap',
+        gap: '14px',
+        border: '1px solid rgba(255, 255, 255, 0.12)',
+        boxShadow: '0 12px 32px -12px rgba(24, 25, 28, 0.25)'
       }}>
         <div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
-            <TrendingUp size={18} color="#2DD4BF" />
-            <span style={{ fontSize: '11px', fontWeight: '700', color: '#2DD4BF', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+            <TrendingUp size={17} color="#A6BEFF" />
+            <span style={{ fontSize: '11px', fontWeight: '700', color: '#A6BEFF', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
               MÓDULO DE INTELIGENCIA DE NEGOCIOS
             </span>
           </div>
-          <h2 style={{ margin: 0, fontSize: '20px', fontWeight: '800', letterSpacing: '-0.02em', color: '#F8FAFC' }}>
+          <h2 style={{ margin: 0, fontSize: '20px', fontWeight: '700', letterSpacing: '-0.02em', color: '#FFFFFF' }}>
             Reportes y Métricas Gerenciales
           </h2>
-          <p style={{ margin: '3px 0 0', fontSize: '12.5px', color: '#94A3B8' }}>
+          <p style={{ margin: '3px 0 0', fontSize: '12.5px', color: 'rgba(255,255,255,0.68)' }}>
             Análisis de rentabilidad por cuenta, balance financiero consolidado y seguimiento de costos.
           </p>
         </div>
@@ -509,11 +511,12 @@ function Reportes() {
             onClick={() => cambiarMesRelativo(-1)}
             title="Mes anterior"
             style={{
-              background: '#0F172A',
-              border: '1px solid #334155',
-              borderRadius: '6px',
-              color: '#CBD5E1',
-              padding: '7px 9px',
+              background: '#26282E',
+              border: '1px solid rgba(255,255,255,0.14)',
+              borderRadius: '999px',
+              color: '#E2E8F0',
+              width: '36px',
+              height: '36px',
               cursor: 'pointer',
               display: 'flex',
               alignItems: 'center',
@@ -531,27 +534,28 @@ function Reportes() {
               onChange={e => setMesNum(e.target.value)}
               aria-label="Seleccionar Mes"
               style={{
-                background: '#0F172A',
-                border: '1px solid #334155',
-                borderRadius: '6px',
+                backgroundColor: '#26282E',
+                border: '1px solid rgba(255,255,255,0.16)',
+                borderRadius: '999px',
                 color: '#FFFFFF',
                 fontSize: '13px',
                 fontWeight: '600',
-                padding: '7px 30px 7px 12px',
+                padding: '7px 32px 7px 14px',
                 outline: 'none',
                 cursor: 'pointer',
                 fontFamily: paleta.font,
                 appearance: 'none',
-                WebkitAppearance: 'none'
+                WebkitAppearance: 'none',
+                colorScheme: 'dark'
               }}
             >
               {MESES.map(m => (
-                <option key={m.valor} value={m.valor} style={{ background: '#0F172A', color: '#FFFFFF' }}>
+                <option key={m.valor} value={m.valor} style={{ backgroundColor: '#18191C', color: '#FFFFFF' }}>
                   {m.nombre}
                 </option>
               ))}
             </select>
-            <ChevronDown size={14} color="#94A3B8" style={{ position: 'absolute', right: '10px', pointerEvents: 'none' }} />
+            <ChevronDown size={14} color="#A6BEFF" style={{ position: 'absolute', right: '11px', pointerEvents: 'none' }} />
           </div>
 
           {/* Selector de Año */}
@@ -561,27 +565,29 @@ function Reportes() {
               onChange={e => setAnioNum(e.target.value)}
               aria-label="Seleccionar Año"
               style={{
-                background: '#0F172A',
-                border: '1px solid #334155',
-                borderRadius: '6px',
+                backgroundColor: '#26282E',
+                border: '1px solid rgba(255,255,255,0.16)',
+                borderRadius: '999px',
                 color: '#FFFFFF',
                 fontSize: '13px',
                 fontWeight: '600',
-                padding: '7px 28px 7px 12px',
+                padding: '7px 30px 7px 14px',
                 outline: 'none',
                 cursor: 'pointer',
-                fontFamily: paleta.fontMono,
+                fontVariantNumeric: 'tabular-nums',
+                fontFamily: paleta.font,
                 appearance: 'none',
-                WebkitAppearance: 'none'
+                WebkitAppearance: 'none',
+                colorScheme: 'dark'
               }}
             >
               {ANIOS.map(a => (
-                <option key={a} value={String(a)} style={{ background: '#0F172A', color: '#FFFFFF' }}>
+                <option key={a} value={String(a)} style={{ backgroundColor: '#18191C', color: '#FFFFFF' }}>
                   {a}
                 </option>
               ))}
             </select>
-            <ChevronDown size={14} color="#94A3B8" style={{ position: 'absolute', right: '8px', pointerEvents: 'none' }} />
+            <ChevronDown size={14} color="#A6BEFF" style={{ position: 'absolute', right: '10px', pointerEvents: 'none' }} />
           </div>
 
           {/* Botón Mes Siguiente */}
@@ -590,11 +596,12 @@ function Reportes() {
             onClick={() => cambiarMesRelativo(1)}
             title="Mes siguiente"
             style={{
-              background: '#0F172A',
-              border: '1px solid #334155',
-              borderRadius: '6px',
-              color: '#CBD5E1',
-              padding: '7px 9px',
+              background: '#26282E',
+              border: '1px solid rgba(255,255,255,0.14)',
+              borderRadius: '999px',
+              color: '#E2E8F0',
+              width: '36px',
+              height: '36px',
               cursor: 'pointer',
               display: 'flex',
               alignItems: 'center',
@@ -612,13 +619,13 @@ function Reportes() {
               onClick={irAlMesActual}
               title="Volver al período en curso"
               style={{
-                background: '#1E293B',
-                border: '1px solid #475569',
-                borderRadius: '6px',
-                color: '#2DD4BF',
+                background: 'rgba(166, 190, 255, 0.16)',
+                border: '1px solid rgba(166, 190, 255, 0.35)',
+                borderRadius: '999px',
+                color: '#A6BEFF',
                 fontSize: '12px',
                 fontWeight: '600',
-                padding: '7px 12px',
+                padding: '7px 14px',
                 cursor: 'pointer',
                 display: 'flex',
                 alignItems: 'center',
@@ -635,18 +642,18 @@ function Reportes() {
             onClick={() => cargarReportes()}
             title="Recalcular métricas y sincronizar con la base de datos"
             style={{
-              background: '#0F172A',
-              border: '1px solid #334155',
-              borderRadius: '6px',
-              color: '#CBD5E1',
+              background: '#3B66F5',
+              border: '1px solid rgba(255,255,255,0.2)',
+              borderRadius: '999px',
+              color: '#FFFFFF',
               fontSize: '12px',
               fontWeight: '600',
-              padding: '7px 12px',
+              padding: '8px 16px',
               cursor: 'pointer',
               display: 'flex',
               alignItems: 'center',
               gap: '6px',
-              transition: 'background 0.15s ease'
+              boxShadow: '0 6px 16px -6px rgba(59, 102, 245, 0.5)'
             }}
           >
             <RefreshCw size={14} className={loading ? "animate-spin" : ""} />
@@ -734,15 +741,17 @@ function Reportes() {
             </div>
           )}
 
-          {/* SELECTOR SEGMENTADO DE VISTAS (PESTAÑAS PROFESIONALES) */}
+          {/* SELECTOR SEGMENTADO DE VISTAS (PÍLDORAS BENTO) */}
           <div style={{
-            background: '#F1F5F9',
-            border: '1px solid #E2E8F0',
-            borderRadius: '8px',
+            background: 'rgba(255, 255, 255, 0.85)',
+            border: '1px solid #E5E7EB',
+            borderRadius: '999px',
             padding: '4px',
             display: 'inline-flex',
+            flexWrap: 'wrap',
             gap: '4px',
-            marginBottom: '20px'
+            marginBottom: '20px',
+            boxShadow: '0 4px 16px rgba(0, 0, 0, 0.03)'
           }}>
             {[
               { id: 'general', label: 'Resumen Ejecutivo' },
@@ -756,16 +765,15 @@ function Reportes() {
                   key={tab.id}
                   onClick={() => setVista(tab.id)}
                   style={{
-                    background: activa ? '#FFFFFF' : 'transparent',
-                    color: activa ? '#0F172A' : '#64748B',
+                    background: activa ? '#18191C' : 'transparent',
+                    color: activa ? '#FFFFFF' : '#64748B',
                     border: 'none',
-                    borderRadius: '6px',
+                    borderRadius: '999px',
                     padding: '8px 16px',
                     fontSize: '12.5px',
-                    fontWeight: activa ? '700' : '500',
+                    fontWeight: '600',
                     cursor: 'pointer',
-                    boxShadow: activa ? '0 1px 2px 0 rgba(0, 0, 0, 0.05)' : 'none',
-                    transition: 'all 0.12s ease'
+                    transition: 'all 0.14s ease'
                   }}
                 >
                   {tab.label}
@@ -780,64 +788,81 @@ function Reportes() {
           {vista === 'general' && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
 
-              {/* GRID DE MÉTRICAS EJECUTIVAS */}
+              {/* GRID DE MÉTRICAS BENTO */}
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '14px' }}>
                 {[
-                  { label: 'Ingresos Cobrados', valor: stats.ingresosDelMes, tipo: 'dinero', topColor: '#0F766E', icon: DollarSign, sub: 'Ingresos operativos del mes' },
-                  { label: 'Egresos Totales', valor: stats.egresosDelMes, tipo: 'dinero', topColor: '#BE123C', icon: ArrowDownRight, sub: 'Gastos operativos e impuestos' },
-                  { label: 'Resultado Neto del Mes', valor: balance, tipo: 'dinero', topColor: balance >= 0 ? '#0F766E' : '#B45309', icon: ArrowUpRight, sub: balance >= 0 ? 'Superávit mensual' : 'Déficit mensual' },
-                  { label: 'Caja + Bancos a la Fecha', valor: stats.saldoCajaYBancos, tipo: 'dinero', topColor: '#0F172A', icon: Landmark, sub: `Bancos: ${formatearMonedaAR(stats.saldoBancos)} · Efec.: ${formatearMonedaAR(stats.saldoEfectivo)}` },
-                  { label: 'Cuentas por Cobrar', valor: stats.montoFacturasPendientes, tipo: 'dinero', topColor: '#1D4ED8', icon: TrendingUp, sub: `${stats.facturasPendientes} facturas pendientes` },
-                  { label: 'Cuentas por Pagar', valor: stats.montoPorPagar, tipo: 'dinero', topColor: '#C2410C', icon: TrendingDown, sub: `${stats.facturasCompraPendientes} comprobantes pendientes` },
-                  { label: 'Clientes / Contratos', valor: `${stats.totalClientes} / ${stats.totalContratos}`, tipo: 'texto', topColor: '#334155', icon: Building, sub: 'Empresas y acuerdos activos' },
-                  { label: 'Personal / Órdenes', valor: `${stats.totalEmpleados} / ${stats.serviciosDelMes}`, tipo: 'texto', topColor: '#0F766E', icon: TrendingUp, sub: 'Operarios · Servicios del mes' },
-                ].map((k, i) => (
-                  <div
-                    key={i}
-                    style={{
-                      background: '#FFFFFF',
-                      borderRadius: '8px',
-                      padding: '16px 18px',
-                      border: '1px solid #E2E8F0',
-                      borderTop: `3px solid ${k.topColor}`,
-                      boxShadow: '0 1px 3px 0 rgba(15, 23, 42, 0.03)',
-                      display: 'flex',
-                      flexDirection: 'column',
-                      justifyContent: 'space-between'
-                    }}
-                  >
-                    <div>
-                      <span style={{ fontSize: '11px', fontWeight: '700', color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                        {k.label}
-                      </span>
-                      <p style={{
-                        margin: '8px 0 0',
-                        fontSize: k.tipo === 'dinero' ? '20px' : '24px',
-                        fontWeight: '700',
-                        color: '#0F172A',
-                        fontFamily: paleta.fontMono,
-                        letterSpacing: '-0.02em'
+                  { label: 'Ingresos Cobrados', valor: stats.ingresosDelMes, tipo: 'dinero', theme: 'blue', sub: 'Ingresos operativos del mes' },
+                  { label: 'Egresos Totales', valor: stats.egresosDelMes, tipo: 'dinero', theme: 'light', sub: 'Gastos operativos e impuestos' },
+                  { label: 'Resultado Neto del Mes', valor: balance, tipo: 'dinero', theme: 'light', sub: balance >= 0 ? 'Superávit mensual' : 'Déficit mensual' },
+                  { label: 'Caja + Bancos a la Fecha', valor: stats.saldoCajaYBancos, tipo: 'dinero', theme: 'dark', sub: `Bancos: ${formatearMonedaAR(stats.saldoBancos)} · Efec.: ${formatearMonedaAR(stats.saldoEfectivo)}` },
+                  { label: 'Cuentas por Cobrar', valor: stats.montoFacturasPendientes, tipo: 'dinero', theme: 'light', sub: `${stats.facturasPendientes} facturas pendientes` },
+                  { label: 'Cuentas por Pagar', valor: stats.montoPorPagar, tipo: 'dinero', theme: 'light', sub: `${stats.facturasCompraPendientes} comprobantes pendientes` },
+                  { label: 'Clientes / Contratos', valor: `${stats.totalClientes} / ${stats.totalContratos}`, tipo: 'texto', theme: 'light', sub: 'Empresas y acuerdos activos' },
+                  { label: 'Personal / Órdenes', valor: `${stats.totalEmpleados} / ${stats.serviciosDelMes}`, tipo: 'texto', theme: 'light', sub: 'Operarios · Servicios del mes' },
+                ].map((k, i) => {
+                  const isBlue = k.theme === 'blue'
+                  const isDark = k.theme === 'dark'
+                  return (
+                    <div
+                      key={i}
+                      style={{
+                        background: isBlue ? '#3B66F5' : isDark ? '#18191C' : '#FFFFFF',
+                        color: (isBlue || isDark) ? '#FFFFFF' : '#0F172A',
+                        borderRadius: '18px',
+                        padding: '18px 20px',
+                        border: (isBlue || isDark) ? '1px solid rgba(255,255,255,0.12)' : '1px solid #E5E7EB',
+                        boxShadow: isBlue
+                          ? '0 12px 30px rgba(59, 102, 245, 0.22)'
+                          : isDark
+                            ? '0 12px 30px rgba(24, 25, 28, 0.2)'
+                            : '0 8px 30px rgba(0, 0, 0, 0.04)',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        justifyContent: 'space-between'
+                      }}
+                    >
+                      <div>
+                        <span style={{
+                          fontSize: '12px',
+                          fontWeight: '600',
+                          color: (isBlue || isDark) ? 'rgba(255,255,255,0.78)' : '#64748B',
+                        }}>
+                          {k.label}
+                        </span>
+                        <p style={{
+                          margin: '8px 0 0',
+                          fontSize: k.tipo === 'dinero' ? '22px' : '26px',
+                          fontWeight: '700',
+                          color: (isBlue || isDark) ? '#FFFFFF' : '#0F172A',
+                          fontVariantNumeric: 'tabular-nums',
+                          letterSpacing: '-0.02em'
+                        }}>
+                          {k.tipo === 'dinero' ? formatearMonedaAR(k.valor) : k.valor}
+                        </p>
+                      </div>
+                      <span style={{
+                        fontSize: '11.5px',
+                        color: (isBlue || isDark) ? 'rgba(255,255,255,0.72)' : '#64748B',
+                        marginTop: '10px',
+                        fontVariantNumeric: 'tabular-nums'
                       }}>
-                        {k.tipo === 'dinero' ? formatearMonedaAR(k.valor) : k.valor}
-                      </p>
+                        {k.sub}
+                      </span>
                     </div>
-                    <span style={{ fontSize: '11.5px', color: '#64748B', marginTop: '10px' }}>
-                      {k.sub}
-                    </span>
-                  </div>
-                ))}
+                  )
+                })}
               </div>
 
               {/* GRÁFICOS Y DESGLOSES EN 2 COLUMNAS */}
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '18px' }}>
 
                 {/* TOP CLIENTES POR FACTURACIÓN */}
-                <div style={{ background: '#FFFFFF', borderRadius: '10px', padding: '22px', border: '1px solid #E2E8F0', boxShadow: '0 1px 3px 0 rgba(15, 23, 42, 0.04)' }}>
+                <div style={{ background: '#FFFFFF', borderRadius: '20px', padding: '22px', border: '1px solid #E5E7EB', boxShadow: '0 8px 30px rgba(0, 0, 0, 0.04)' }}>
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '18px' }}>
                     <h4 style={{ margin: 0, color: '#0F172A', fontWeight: '700', fontSize: '14.5px' }}>
                       Mayores Cuentas por Facturación
                     </h4>
-                    <span style={{ fontSize: '11px', color: '#64748B', background: '#F8FAFC', padding: '3px 8px', borderRadius: '4px', border: '1px solid #E2E8F0' }}>
+                    <span style={{ fontSize: '12px', color: '#64748B', fontWeight: '500' }}>
                       Top 6 Clientes
                     </span>
                   </div>
@@ -853,16 +878,16 @@ function Reportes() {
                           <span style={{ fontSize: '13px', color: '#334155', fontWeight: '600' }}>
                             {i + 1}. {cl.nombre}
                           </span>
-                          <span style={{ fontSize: '13px', fontWeight: '700', color: '#0F172A', fontFamily: paleta.fontMono }}>
+                          <span style={{ fontSize: '13px', fontWeight: '700', color: '#0F172A', fontVariantNumeric: 'tabular-nums' }}>
                             {cl.ingresos.toLocaleString('es-AR', { style: 'currency', currency: 'ARS', maximumFractionDigits: 0 })}
                           </span>
                         </div>
-                        <div style={{ background: '#F1F5F9', borderRadius: '4px', height: '7px', overflow: 'hidden' }}>
+                        <div style={{ background: '#F3F5FA', borderRadius: '999px', height: '7px', overflow: 'hidden' }}>
                           <div
                             style={{
-                              background: '#0F766E',
+                              background: i === 0 ? '#3B66F5' : '#A6BEFF',
                               height: '7px',
-                              borderRadius: '4px',
+                              borderRadius: '999px',
                               width: `${(cl.ingresos / maxIngreso) * 100}%`,
                               transition: 'width 0.4s ease'
                             }}
@@ -874,12 +899,12 @@ function Reportes() {
                 </div>
 
                 {/* EGRESOS POR CATEGORÍA */}
-                <div style={{ background: '#FFFFFF', borderRadius: '10px', padding: '22px', border: '1px solid #E2E8F0', boxShadow: '0 1px 3px 0 rgba(15, 23, 42, 0.04)' }}>
+                <div style={{ background: '#FFFFFF', borderRadius: '20px', padding: '22px', border: '1px solid #E5E7EB', boxShadow: '0 8px 30px rgba(0, 0, 0, 0.04)' }}>
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '18px' }}>
                     <h4 style={{ margin: 0, color: '#0F172A', fontWeight: '700', fontSize: '14.5px' }}>
                       Distribución de Egresos por Rubro
                     </h4>
-                    <span style={{ fontSize: '11px', color: '#64748B', background: '#F8FAFC', padding: '3px 8px', borderRadius: '4px', border: '1px solid #E2E8F0' }}>
+                    <span style={{ fontSize: '12px', color: '#64748B', fontWeight: '500' }}>
                       {gastosPorCategoria.length} categorías
                     </span>
                   </div>
@@ -895,16 +920,16 @@ function Reportes() {
                           <span style={{ fontSize: '13px', color: '#334155', fontWeight: '600', textTransform: 'capitalize' }}>
                             {g.categoria}
                           </span>
-                          <span style={{ fontSize: '13px', fontWeight: '700', color: '#334155', fontFamily: paleta.fontMono }}>
+                          <span style={{ fontSize: '13px', fontWeight: '700', color: '#334155', fontVariantNumeric: 'tabular-nums' }}>
                             {g.monto.toLocaleString('es-AR', { style: 'currency', currency: 'ARS', maximumFractionDigits: 0 })}
                           </span>
                         </div>
-                        <div style={{ background: '#F1F5F9', borderRadius: '4px', height: '7px', overflow: 'hidden' }}>
+                        <div style={{ background: '#F3F5FA', borderRadius: '999px', height: '7px', overflow: 'hidden' }}>
                           <div
                             style={{
-                              background: '#475569',
+                              background: i === 0 ? '#18191C' : '#64748B',
                               height: '7px',
-                              borderRadius: '4px',
+                              borderRadius: '999px',
                               width: `${(g.monto / (gastosPorCategoria[0]?.monto || 1)) * 100}%`,
                               transition: 'width 0.4s ease'
                             }}
@@ -928,18 +953,19 @@ function Reportes() {
 
               {/* CRITERIO CONTABLE DE RENTABILIDAD */}
               <div style={{
-                background: '#F8FAFC',
-                border: '1px solid #CBD5E1',
-                borderRadius: '8px',
+                background: '#FFFFFF',
+                border: '1px solid #E5E7EB',
+                borderRadius: '18px',
                 padding: '14px 18px',
                 fontSize: '12.5px',
                 color: '#334155',
                 display: 'flex',
                 alignItems: 'center',
-                gap: '12px'
+                gap: '12px',
+                boxShadow: '0 8px 30px rgba(0, 0, 0, 0.04)'
               }}>
-                <div style={{ width: '28px', height: '28px', borderRadius: '6px', background: '#FFFFFF', border: '1px solid #CBD5E1', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                  <TrendingUp size={15} color="#0F766E" />
+                <div style={{ width: '32px', height: '32px', borderRadius: '10px', background: '#EEF2FF', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                  <TrendingUp size={15} color="#3B66F5" />
                 </div>
                 <span>
                   <strong>Criterio de Costeo Operativo:</strong> La rentabilidad por cuenta se determina deduciendo de las facturas cobradas en el mes los costos directos asignados (horas de mano de obra e insumos directos consumidos).
@@ -948,10 +974,10 @@ function Reportes() {
 
               {/* HISTÓRICO SEMESTRAL DE MOVIMIENTOS */}
               {evolucionGeneral && (
-                <div style={{ background: '#FFFFFF', borderRadius: '10px', padding: '22px', border: '1px solid #E2E8F0', boxShadow: '0 1px 3px 0 rgba(15, 23, 42, 0.04)' }}>
+                <div style={{ background: '#FFFFFF', borderRadius: '20px', padding: '22px', border: '1px solid #E5E7EB', boxShadow: '0 8px 30px rgba(0, 0, 0, 0.04)' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
-                    <History size={16} color="#0F172A" />
-                    <h4 style={{ margin: 0, fontSize: '14px', fontWeight: '700', color: '#0F172A' }}>
+                    <History size={16} color="#3B66F5" />
+                    <h4 style={{ margin: 0, fontSize: '14.5px', fontWeight: '700', color: '#0F172A' }}>
                       Evolución Consolidada — Últimos 6 Meses
                     </h4>
                   </div>
@@ -961,8 +987,8 @@ function Reportes() {
                     serieB={evolucionGeneral.egresos}
                     labelA="Ingresos Percibidos"
                     labelB="Egresos y Pagos"
-                    colorA="#0F172A"
-                    colorB="#64748B"
+                    colorA="#3B66F5"
+                    colorB="#A6BEFF"
                   />
                 </div>
               )}
@@ -970,21 +996,21 @@ function Reportes() {
               {/* TOTALES DEL CUADRO DE RENTABILIDAD */}
               {rentabilidadClientes.length > 0 && (
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '14px' }}>
-                  <div style={{ background: '#FFFFFF', borderRadius: '8px', padding: '16px', border: '1px solid #E2E8F0', borderTop: '3px solid #0F766E' }}>
-                    <span style={{ fontSize: '11px', fontWeight: '700', color: '#64748B', textTransform: 'uppercase' }}>Facturación Imputada</span>
-                    <p style={{ margin: '6px 0 0', fontSize: '20px', fontWeight: '700', color: '#0F172A', fontFamily: paleta.fontMono }}>
+                  <div style={{ background: '#3B66F5', color: '#FFFFFF', borderRadius: '18px', padding: '18px 20px', boxShadow: '0 12px 30px rgba(59, 102, 245, 0.2)' }}>
+                    <span style={{ fontSize: '12px', fontWeight: '600', color: 'rgba(255,255,255,0.8)' }}>Facturación Imputada</span>
+                    <p style={{ margin: '6px 0 0', fontSize: '22px', fontWeight: '700', color: '#FFFFFF', fontVariantNumeric: 'tabular-nums' }}>
                       {rentabilidadClientes.reduce((a, c) => a + c.ingresos, 0).toLocaleString('es-AR', { style: 'currency', currency: 'ARS', maximumFractionDigits: 0 })}
                     </p>
                   </div>
-                  <div style={{ background: '#FFFFFF', borderRadius: '8px', padding: '16px', border: '1px solid #E2E8F0', borderTop: '3px solid #64748B' }}>
-                    <span style={{ fontSize: '11px', fontWeight: '700', color: '#64748B', textTransform: 'uppercase' }}>Costos Directos Asignados</span>
-                    <p style={{ margin: '6px 0 0', fontSize: '20px', fontWeight: '700', color: '#0F172A', fontFamily: paleta.fontMono }}>
+                  <div style={{ background: '#FFFFFF', borderRadius: '18px', padding: '18px 20px', border: '1px solid #E5E7EB', boxShadow: '0 8px 30px rgba(0, 0, 0, 0.04)' }}>
+                    <span style={{ fontSize: '12px', fontWeight: '600', color: '#64748B' }}>Costos Directos Asignados</span>
+                    <p style={{ margin: '6px 0 0', fontSize: '22px', fontWeight: '700', color: '#0F172A', fontVariantNumeric: 'tabular-nums' }}>
                       {rentabilidadClientes.reduce((a, c) => a + c.costos, 0).toLocaleString('es-AR', { style: 'currency', currency: 'ARS', maximumFractionDigits: 0 })}
                     </p>
                   </div>
-                  <div style={{ background: '#FFFFFF', borderRadius: '8px', padding: '16px', border: '1px solid #E2E8F0', borderTop: '3px solid #0F172A' }}>
-                    <span style={{ fontSize: '11px', fontWeight: '700', color: '#64748B', textTransform: 'uppercase' }}>Margen Bruto Total</span>
-                    <p style={{ margin: '6px 0 0', fontSize: '20px', fontWeight: '700', color: '#0F172A', fontFamily: paleta.fontMono }}>
+                  <div style={{ background: '#18191C', color: '#FFFFFF', borderRadius: '18px', padding: '18px 20px', boxShadow: '0 12px 30px rgba(24, 25, 28, 0.18)' }}>
+                    <span style={{ fontSize: '12px', fontWeight: '600', color: 'rgba(255,255,255,0.75)' }}>Margen Bruto Total</span>
+                    <p style={{ margin: '6px 0 0', fontSize: '22px', fontWeight: '700', color: '#FFFFFF', fontVariantNumeric: 'tabular-nums' }}>
                       {rentabilidadClientes.reduce((a, c) => a + c.ganancia, 0).toLocaleString('es-AR', { style: 'currency', currency: 'ARS', maximumFractionDigits: 0 })}
                     </p>
                   </div>
@@ -992,7 +1018,7 @@ function Reportes() {
               )}
 
               {/* TABLA DE RENTABILIDAD POR CUENTA */}
-              <div style={{ background: '#FFFFFF', borderRadius: '10px', border: '1px solid #E2E8F0', overflow: 'hidden', boxShadow: '0 1px 3px 0 rgba(15, 23, 42, 0.04)' }}>
+              <div style={{ background: '#FFFFFF', borderRadius: '20px', border: '1px solid #E5E7EB', overflow: 'hidden', boxShadow: '0 8px 30px rgba(0, 0, 0, 0.04)' }}>
                 {rentabilidadClientes.length === 0 ? (
                   <div style={{ padding: '48px 20px', textAlign: 'center', color: '#64748B', fontSize: '13.5px' }}>
                     Sin datos computables para este período. Cargá facturas cobradas y costos variables para ver el desglose.
@@ -1001,13 +1027,13 @@ function Reportes() {
                   <table style={s.tabla}>
                     <thead>
                       <tr>
-                        <th style={s.tablaCabecera('#0F172A')}>Cliente / Cuenta</th>
-                        <th style={{ ...s.tablaCabecera('#0F172A'), textAlign: 'right' }}>Ingresos Cobrados</th>
-                        <th style={{ ...s.tablaCabecera('#0F172A'), textAlign: 'right' }}>Costos Directos</th>
-                        <th style={{ ...s.tablaCabecera('#0F172A'), textAlign: 'right' }}>Margen Bruto</th>
-                        <th style={{ ...s.tablaCabecera('#0F172A'), textAlign: 'center', width: '160px' }}>Margen %</th>
-                        <th style={{ ...s.tablaCabecera('#0F172A'), textAlign: 'center' }}>Calificación</th>
-                        <th style={{ ...s.tablaCabecera('#0F172A'), textAlign: 'center', width: '120px' }}>Acción</th>
+                        <th style={s.tablaCabecera()}>Cliente / Cuenta</th>
+                        <th style={{ ...s.tablaCabecera(), textAlign: 'right' }}>Ingresos Cobrados</th>
+                        <th style={{ ...s.tablaCabecera(), textAlign: 'right' }}>Costos Directos</th>
+                        <th style={{ ...s.tablaCabecera(), textAlign: 'right' }}>Margen Bruto</th>
+                        <th style={{ ...s.tablaCabecera(), textAlign: 'center', width: '160px' }}>Margen %</th>
+                        <th style={{ ...s.tablaCabecera(), textAlign: 'center' }}>Calificación</th>
+                        <th style={{ ...s.tablaCabecera(), textAlign: 'center', width: '120px' }}>Acción</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -1064,13 +1090,13 @@ function Reportes() {
                             <td style={{ ...s.tablaCell, textAlign: 'center' }}>
                               <button
                                 style={{
-                                  background: '#FFFFFF',
-                                  border: '1px solid #CBD5E1',
-                                  borderRadius: '5px',
-                                  padding: '5px 10px',
+                                  background: '#F3F5FA',
+                                  border: '1px solid #E5E7EB',
+                                  borderRadius: '999px',
+                                  padding: '5px 12px',
                                   fontSize: '11.5px',
                                   fontWeight: '600',
-                                  color: '#334155',
+                                  color: '#18191C',
                                   cursor: 'pointer'
                                 }}
                                 onClick={() => verEvolucionCliente(cl.id, cl.nombre)}
@@ -1097,39 +1123,39 @@ function Reportes() {
 
               {/* CARDS RESUMEN DE COSTOS */}
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '14px' }}>
-                <div style={{ background: '#FFFFFF', borderRadius: '8px', padding: '18px', border: '1px solid #E2E8F0', borderTop: '3px solid #334155' }}>
-                  <span style={{ fontSize: '11px', fontWeight: '700', color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                <div style={{ background: '#FFFFFF', borderRadius: '18px', padding: '18px 20px', border: '1px solid #E5E7EB', boxShadow: '0 8px 30px rgba(0, 0, 0, 0.04)' }}>
+                  <span style={{ fontSize: '12px', fontWeight: '600', color: '#64748B' }}>
                     Costos Fijos Operativos
                   </span>
-                  <p style={{ margin: '6px 0 0', fontSize: '22px', fontWeight: '700', color: '#0F172A', fontFamily: paleta.fontMono }}>
+                  <p style={{ margin: '6px 0 0', fontSize: '22px', fontWeight: '700', color: '#0F172A', fontVariantNumeric: 'tabular-nums' }}>
                     {stats.totalCostosFijos.toLocaleString('es-AR', { style: 'currency', currency: 'ARS', maximumFractionDigits: 0 })}
                   </p>
                   <p style={{ margin: '4px 0 0', fontSize: '11.5px', color: '#64748B' }}>Alquileres, seguros, abonos y servicios fijos</p>
                 </div>
 
-                <div style={{ background: '#FFFFFF', borderRadius: '8px', padding: '18px', border: '1px solid #E2E8F0', borderTop: '3px solid #475569' }}>
-                  <span style={{ fontSize: '11px', fontWeight: '700', color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                <div style={{ background: '#FFFFFF', borderRadius: '18px', padding: '18px 20px', border: '1px solid #E5E7EB', boxShadow: '0 8px 30px rgba(0, 0, 0, 0.04)' }}>
+                  <span style={{ fontSize: '12px', fontWeight: '600', color: '#64748B' }}>
                     Costos Variables Asignados
                   </span>
-                  <p style={{ margin: '6px 0 0', fontSize: '22px', fontWeight: '700', color: '#0F172A', fontFamily: paleta.fontMono }}>
+                  <p style={{ margin: '6px 0 0', fontSize: '22px', fontWeight: '700', color: '#0F172A', fontVariantNumeric: 'tabular-nums' }}>
                     {stats.totalCostosVariables.toLocaleString('es-AR', { style: 'currency', currency: 'ARS', maximumFractionDigits: 0 })}
                   </p>
                   <p style={{ margin: '4px 0 0', fontSize: '11.5px', color: '#64748B' }}>Mano de obra directa e insumos consumidos</p>
                 </div>
 
-                <div style={{ background: '#FFFFFF', borderRadius: '8px', padding: '18px', border: '1px solid #E2E8F0', borderTop: '3px solid #0F172A' }}>
-                  <span style={{ fontSize: '11px', fontWeight: '700', color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                <div style={{ background: '#18191C', color: '#FFFFFF', borderRadius: '18px', padding: '18px 20px', boxShadow: '0 12px 30px rgba(24, 25, 28, 0.18)' }}>
+                  <span style={{ fontSize: '12px', fontWeight: '600', color: 'rgba(255,255,255,0.75)' }}>
                     Costo Operativo Consolidado
                   </span>
-                  <p style={{ margin: '6px 0 0', fontSize: '22px', fontWeight: '700', color: '#0F172A', fontFamily: paleta.fontMono }}>
+                  <p style={{ margin: '6px 0 0', fontSize: '22px', fontWeight: '700', color: '#FFFFFF', fontVariantNumeric: 'tabular-nums' }}>
                     {(stats.totalCostosFijos + stats.totalCostosVariables).toLocaleString('es-AR', { style: 'currency', currency: 'ARS', maximumFractionDigits: 0 })}
                   </p>
-                  <p style={{ margin: '4px 0 0', fontSize: '11.5px', color: '#64748B' }}>Suma de costos fijos y variables del período</p>
+                  <p style={{ margin: '4px 0 0', fontSize: '11.5px', color: 'rgba(255,255,255,0.68)' }}>Suma de costos fijos y variables del período</p>
                 </div>
               </div>
 
               {/* RELACIÓN INGRESOS VS COSTOS */}
-              <div style={{ background: '#FFFFFF', borderRadius: '10px', padding: '22px', border: '1px solid #E2E8F0', boxShadow: '0 1px 3px 0 rgba(15, 23, 42, 0.04)' }}>
+              <div style={{ background: '#FFFFFF', borderRadius: '20px', padding: '22px', border: '1px solid #E5E7EB', boxShadow: '0 8px 30px rgba(0, 0, 0, 0.04)' }}>
                 <h4 style={{ margin: '0 0 16px', color: '#0F172A', fontWeight: '700', fontSize: '14.5px' }}>
                   Análisis de Rendimiento: Ingresos vs Costos Consolidados
                 </h4>
@@ -1142,14 +1168,14 @@ function Reportes() {
                     <div>
                       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '14px', marginBottom: '22px' }}>
                         {[
-                          { label: 'Ingresos Facturados', valor: stats.ingresosDelMes, color: '#0F766E' },
+                          { label: 'Ingresos Facturados', valor: stats.ingresosDelMes, color: '#3B66F5' },
                           { label: 'Estructura de Costos', valor: totalCostos, color: '#334155' },
-                          { label: 'Resultado Operativo', valor: gananciaReal, color: gananciaReal >= 0 ? '#0F766E' : '#BE123C' },
+                          { label: 'Resultado Operativo', valor: gananciaReal, color: gananciaReal >= 0 ? '#15803D' : '#BE123C' },
                           { label: 'Margen Neto', valor: margenReal, color: ind.color, tipo: 'porcentaje' },
                         ].map((k, i) => (
-                          <div key={i} style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: '8px', padding: '14px 16px' }}>
-                            <p style={{ margin: 0, fontSize: '11px', color: '#64748B', fontWeight: '700', textTransform: 'uppercase' }}>{k.label}</p>
-                            <p style={{ margin: '4px 0 0', fontSize: '19px', fontWeight: '700', color: k.color, fontFamily: paleta.fontMono }}>
+                          <div key={i} style={{ background: '#F3F5FA', border: '1px solid #E5E7EB', borderRadius: '14px', padding: '14px 16px' }}>
+                            <p style={{ margin: 0, fontSize: '11.5px', color: '#64748B', fontWeight: '600' }}>{k.label}</p>
+                            <p style={{ margin: '4px 0 0', fontSize: '19px', fontWeight: '700', color: k.color, fontVariantNumeric: 'tabular-nums' }}>
                               {k.tipo === 'porcentaje' ? k.valor.toFixed(1) + '%' : k.valor.toLocaleString('es-AR', { style: 'currency', currency: 'ARS', maximumFractionDigits: 0 })}
                             </p>
                           </div>
@@ -1158,20 +1184,20 @@ function Reportes() {
 
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px', fontSize: '12.5px', color: '#334155', fontWeight: '600' }}>
                         <span>Margen Operativo sobre Ingresos</span>
-                        <span style={{ color: ind.color, fontFamily: paleta.fontMono }}>
+                        <span style={{ color: ind.color, fontVariantNumeric: 'tabular-nums' }}>
                           {ind.label} — {margenReal.toFixed(1)}%
                         </span>
                       </div>
-                      <div style={{ background: '#E2E8F0', borderRadius: '4px', height: '10px', overflow: 'hidden' }}>
+                      <div style={{ background: '#F3F5FA', borderRadius: '999px', height: '10px', overflow: 'hidden' }}>
                         <div style={{
                           background: ind.color,
                           height: '10px',
-                          borderRadius: '4px',
+                          borderRadius: '999px',
                           width: `${Math.max(0, Math.min(margenReal, 100))}%`,
                           transition: 'width 0.4s ease'
                         }} />
                       </div>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', color: '#94A3B8', marginTop: '6px', fontFamily: paleta.fontMono }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', color: '#94A3B8', marginTop: '6px', fontVariantNumeric: 'tabular-nums' }}>
                         <span>0% Mínimo</span>
                         <span>Objetivo de Rentabilidad: 30%+</span>
                         <span>100%</span>
@@ -1190,33 +1216,34 @@ function Reportes() {
           {vista === 'mapa' && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
               <div style={{
-                background: '#F8FAFC',
-                border: '1px solid #CBD5E1',
-                borderRadius: '8px',
-                padding: '12px 18px',
+                background: '#FFFFFF',
+                border: '1px solid #E5E7EB',
+                borderRadius: '18px',
+                padding: '14px 18px',
                 fontSize: '12.5px',
                 color: '#334155',
                 display: 'flex',
                 alignItems: 'center',
-                gap: '10px'
+                gap: '10px',
+                boxShadow: '0 8px 30px rgba(0, 0, 0, 0.04)'
               }}>
-                <MapPin size={16} color="#0F766E" />
+                <MapPin size={16} color="#3B66F5" />
                 <span>
                   Geolocalización de servicios activos. Las coordenadas se configuran en el módulo de <strong>Clientes → Sucursales</strong>.
                 </span>
               </div>
 
               {sucursalesMapa.length === 0 ? (
-                <div style={{ background: '#FFFFFF', borderRadius: '10px', padding: '48px 20px', textAlign: 'center', border: '1px solid #E2E8F0', color: '#64748B', fontSize: '13.5px' }}>
+                <div style={{ background: '#FFFFFF', borderRadius: '20px', padding: '48px 20px', textAlign: 'center', border: '1px solid #E5E7EB', color: '#64748B', fontSize: '13.5px' }}>
                   No se detectaron sucursales con coordenadas geográficas cargadas.
                 </div>
               ) : (
                 <>
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '12px' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '14px' }}>
                     {sucursalesMapa.map((suc, i) => (
-                      <div key={i} style={{ background: '#FFFFFF', borderRadius: '8px', padding: '14px 16px', border: '1px solid #E2E8F0', boxShadow: '0 1px 2px 0 rgba(0, 0, 0, 0.02)' }}>
+                      <div key={i} style={{ background: '#FFFFFF', borderRadius: '18px', padding: '16px 18px', border: '1px solid #E5E7EB', boxShadow: '0 8px 30px rgba(0, 0, 0, 0.04)' }}>
                         <p style={{ margin: '0 0 3px', fontWeight: '700', color: '#0F172A', fontSize: '13.5px' }}>{suc.nombre}</p>
-                        <p style={{ margin: '0 0 6px', fontSize: '12px', color: '#0F766E', fontWeight: '600' }}>
+                        <p style={{ margin: '0 0 6px', fontSize: '12px', color: '#3B66F5', fontWeight: '600' }}>
                           {suc.clientes?.razon_social || suc.clientes?.nombre_contacto || 'Cliente'}
                         </p>
                         {suc.direccion && <p style={{ margin: '0 0 2px', fontSize: '11.5px', color: '#475569' }}>{suc.direccion}</p>}
@@ -1225,7 +1252,7 @@ function Reportes() {
                           href={`https://www.google.com/maps?q=${suc.latitud},${suc.longitud}`}
                           target="_blank"
                           rel="noreferrer"
-                          style={{ fontSize: '11.5px', color: '#0F766E', textDecoration: 'none', fontWeight: '600' }}
+                          style={{ fontSize: '11.5px', color: '#3B66F5', textDecoration: 'none', fontWeight: '600' }}
                         >
                           Ver en Google Maps →
                         </a>
@@ -1233,8 +1260,8 @@ function Reportes() {
                     ))}
                   </div>
 
-                  <div style={{ background: '#FFFFFF', borderRadius: '10px', border: '1px solid #E2E8F0', overflow: 'hidden', boxShadow: '0 1px 3px 0 rgba(15, 23, 42, 0.04)' }}>
-                    <div style={{ padding: '14px 18px', borderBottom: '1px solid #E2E8F0', background: '#F8FAFC', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <div style={{ background: '#FFFFFF', borderRadius: '20px', border: '1px solid #E5E7EB', overflow: 'hidden', boxShadow: '0 8px 30px rgba(0, 0, 0, 0.04)' }}>
+                    <div style={{ padding: '14px 18px', borderBottom: '1px solid #E5E7EB', background: '#F3F5FA', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                       <span style={{ fontWeight: '700', color: '#0F172A', fontSize: '13px' }}>
                         Plano Geoespacial de Cobertura ({sucursalesMapa.length} puntos)
                       </span>
@@ -1257,8 +1284,8 @@ function Reportes() {
         <div style={{
           position: 'fixed',
           inset: 0,
-          background: 'rgba(15, 23, 42, 0.65)',
-          backdropFilter: 'blur(3px)',
+          background: 'rgba(15, 23, 42, 0.55)',
+          backdropFilter: 'blur(4px)',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
@@ -1267,23 +1294,23 @@ function Reportes() {
         }}>
           <div style={{
             background: '#FFFFFF',
-            borderRadius: '10px',
+            borderRadius: '22px',
             padding: '24px',
             width: '100%',
             maxWidth: '580px',
-            boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.35)',
-            border: '1px solid #CBD5E1'
+            boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
+            border: '1px solid #E5E7EB'
           }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '18px', paddingBottom: '12px', borderBottom: '1px solid #E2E8F0' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '18px', paddingBottom: '12px', borderBottom: '1px solid #E5E7EB' }}>
               <div>
-                <span style={{ fontSize: '11px', fontWeight: '700', color: '#0F766E', textTransform: 'uppercase' }}>Historial Semestral</span>
+                <span style={{ fontSize: '11.5px', fontWeight: '600', color: '#3B66F5' }}>Historial Semestral</span>
                 <h4 style={{ margin: '2px 0 0', fontWeight: '700', color: '#0F172A', fontSize: '16px' }}>
                   {clienteEvolucion.nombre}
                 </h4>
               </div>
               <button
                 onClick={() => setClienteEvolucion(null)}
-                style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: '#64748B', padding: '4px' }}
+                style={{ background: '#F3F5FA', border: 'none', borderRadius: '999px', cursor: 'pointer', color: '#64748B', padding: '6px' }}
               >
                 <X size={18} />
               </button>
@@ -1301,8 +1328,8 @@ function Reportes() {
                   serieB={evolucionClienteData.costos}
                   labelA="Facturación Percibida"
                   labelB="Costos Directos"
-                  colorA="#0F172A"
-                  colorB="#64748B"
+                  colorA="#3B66F5"
+                  colorB="#A6BEFF"
                 />
                 <p style={{ marginTop: '16px', fontSize: '11.5px', color: '#64748B', lineHeight: '1.5' }}>
                   Registros correspondientes a los últimos 6 meses hasta {nombreMes(mes)}. Los períodos sin actividad se grafican en cero.

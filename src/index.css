@@ -141,22 +141,26 @@ html { -webkit-text-size-adjust: 100%; }
 /* PULIDO GENERAL: interacciones, tablas y legibilidad (todas las pantallas) */
 /* ================================================================== */
 :root {
-  --sg-brand: #0F766E;
-  --sg-ring: 0 0 0 3px rgba(15, 118, 110, 0.18);
+  --sg-brand: #3B66F5;
+  --sg-ring: 0 0 0 3px rgba(59, 102, 245, 0.16);
 }
 
-/* Botones: respuesta táctil clara (solo ERP legado) */
+.sg-main {
+  font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+}
+
+/* Botones: respuesta táctil clara */
 :not(.saas-analytics-shell) > button:not(:disabled),
 .sg-main button:not(:disabled) { transition: filter .15s ease, transform .08s ease, box-shadow .15s ease, background-color .15s ease; }
-.sg-main button:not(:disabled):hover { filter: brightness(0.96); }
-.sg-main button:not(:disabled):active { transform: translateY(1px) scale(0.985); filter: brightness(0.92); }
+.sg-main button:not(:disabled):hover { filter: brightness(0.97); }
+.sg-main button:not(:disabled):active { transform: translateY(1px) scale(0.985); }
 button:disabled { opacity: .5; cursor: not-allowed !important; }
 
-/* Campos: foco visible en ERP legado; en SaaS Analytics usa foco royal blue */
+/* Campos: foco visible sin pisar fondos oscuros (evita blanco sobre blanco en select oscuros) */
 .sg-main input:not([type="checkbox"]):not([type="radio"]), .sg-main select, .sg-main textarea { transition: border-color .15s ease, box-shadow .15s ease, background-color .15s ease; }
-.sg-main input:not([type="checkbox"]):not([type="radio"]):hover, .sg-main select:hover, .sg-main textarea:hover { border-color: rgba(15, 118, 110, 0.55) !important; }
+.sg-main input:not([type="checkbox"]):not([type="radio"]):hover, .sg-main select:hover, .sg-main textarea:hover { border-color: rgba(59, 102, 245, 0.55) !important; }
 .sg-main input:not([type="checkbox"]):not([type="radio"]):focus, .sg-main select:focus, .sg-main textarea:focus {
-  border-color: var(--sg-brand) !important; box-shadow: var(--sg-ring) !important; background: #fff !important; outline: none;
+  border-color: var(--sg-brand) !important; box-shadow: var(--sg-ring) !important; outline: none;
 }
 .saas-analytics-shell :focus-visible {
   outline: 2px solid #3B66F5;
@@ -171,7 +175,7 @@ select { cursor: pointer; }
 table { font-variant-numeric: tabular-nums; }
 thead th { position: sticky; top: 0; z-index: 2; }
 tbody tr { transition: background-color .12s ease; }
-tbody tr:hover > td, tbody tr:hover > th { background: #EAF4F3 !important; }
+tbody tr:hover > td, tbody tr:hover > th { background: #F3F5FA !important; }
 td, th { vertical-align: middle; }
 
 /* Montos: se leen más rápido si los dígitos tienen el mismo ancho */

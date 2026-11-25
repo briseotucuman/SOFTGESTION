@@ -983,28 +983,29 @@ function Facturacion()  {
       {/* BARRA DE BÚSQUEDA Y FILTROS RÁPIDOS */}
       <div style={{
         background: '#FFFFFF',
-        borderRadius: '10px',
-        border: '1px solid #E2E8F0',
-        padding: '12px 16px',
-        marginBottom: '16px',
+        borderRadius: '20px',
+        border: '1px solid #E5E7EB',
+        padding: '14px 18px',
+        marginBottom: '18px',
         display: 'flex',
         justifyContent: 'space-between',
         alignItems: 'center',
         flexWrap: 'wrap',
         gap: '12px',
-        boxShadow: '0 1px 2px rgba(0,0,0,0.03)'
+        boxShadow: '0 8px 30px rgba(0, 0, 0, 0.04)'
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: '1 1 280px', maxWidth: '420px', position: 'relative' }}>
-          <Search size={16} color="#94A3B8" style={{ position: 'absolute', left: '10px' }} />
+          <Search size={16} color="#94A3B8" style={{ position: 'absolute', left: '12px' }} />
           <input
             type="text"
             placeholder="Buscar por Nº factura, cliente u observaciones..."
             value={busqueda}
             onChange={e => setBusqueda(e.target.value)}
             style={{
-              ...s.input,
-              paddingLeft: '34px',
-              paddingRight: busqueda ? '30px' : '12px',
+              ...s.buscador,
+              maxWidth: '100%',
+              paddingLeft: '36px',
+              paddingRight: busqueda ? '30px' : '14px',
               fontSize: '13px'
             }}
           />
@@ -1013,7 +1014,7 @@ function Facturacion()  {
               onClick={() => setBusqueda('')}
               style={{
                 position: 'absolute',
-                right: '8px',
+                right: '10px',
                 background: 'none',
                 border: 'none',
                 cursor: 'pointer',
@@ -1034,11 +1035,11 @@ function Facturacion()  {
             onClick={() => setFiltroEstado('todos')}
             style={{
               ...s.btnSecundario,
-              padding: '6px 12px',
+              padding: '6px 14px',
               fontSize: '12px',
-              background: filtroEstado === 'todos' ? '#0F172A' : '#FFFFFF',
+              background: filtroEstado === 'todos' ? '#18191C' : '#FFFFFF',
               color: filtroEstado === 'todos' ? '#FFFFFF' : '#475569',
-              borderColor: filtroEstado === 'todos' ? '#0F172A' : '#CBD5E1'
+              borderColor: filtroEstado === 'todos' ? '#18191C' : '#E5E7EB'
             }}
           >
             Todas ({conteos.todas})
@@ -1047,7 +1048,7 @@ function Facturacion()  {
             onClick={() => setFiltroEstado('pendiente')}
             style={{
               ...s.btnSecundario,
-              padding: '6px 12px',
+              padding: '6px 14px',
               fontSize: '12px',
               background: filtroEstado === 'pendiente' ? '#DC2626' : '#FFFFFF',
               color: filtroEstado === 'pendiente' ? '#FFFFFF' : '#DC2626',
@@ -1060,11 +1061,11 @@ function Facturacion()  {
             onClick={() => setFiltroEstado('cobrada')}
             style={{
               ...s.btnSecundario,
-              padding: '6px 12px',
+              padding: '6px 14px',
               fontSize: '12px',
-              background: filtroEstado === 'cobrada' ? '#059669' : '#FFFFFF',
-              color: filtroEstado === 'cobrada' ? '#FFFFFF' : '#059669',
-              borderColor: filtroEstado === 'cobrada' ? '#059669' : '#A7F3D0'
+              background: filtroEstado === 'cobrada' ? '#3B66F5' : '#FFFFFF',
+              color: filtroEstado === 'cobrada' ? '#FFFFFF' : '#3B66F5',
+              borderColor: filtroEstado === 'cobrada' ? '#3B66F5' : '#DBEAFE'
             }}
           >
             Cobradas ({conteos.cobradas})
@@ -1073,11 +1074,11 @@ function Facturacion()  {
             onClick={() => setFiltroEstado('anulada')}
             style={{
               ...s.btnSecundario,
-              padding: '6px 12px',
+              padding: '6px 14px',
               fontSize: '12px',
               background: filtroEstado === 'anulada' ? '#64748B' : '#FFFFFF',
               color: filtroEstado === 'anulada' ? '#FFFFFF' : '#64748B',
-              borderColor: filtroEstado === 'anulada' ? '#64748B' : '#E2E8F0'
+              borderColor: filtroEstado === 'anulada' ? '#64748B' : '#E5E7EB'
             }}
           >
             Anuladas ({conteos.anuladas})
@@ -1086,7 +1087,7 @@ function Facturacion()  {
       </div>
 
       {/* TABLA DE FACTURAS CON DESGLOSE: NETO, IVA Y TOTAL */}
-      <div style={{ ...s.card, padding: 0, overflowX: 'auto', WebkitOverflowScrolling: 'touch', border: '1px solid #E2E8F0', borderRadius: '10px' }}>
+      <div style={{ ...s.card, padding: 0, overflowX: 'auto', WebkitOverflowScrolling: 'touch', border: '1px solid #E5E7EB', borderRadius: '20px' }}>
         {loading ? <div style={s.empty}>Cargando...</div>
         : facturas.length === 0 ? <div style={s.empty}>No hay facturas registradas</div>
         : facturasFiltradas.length === 0 ? (

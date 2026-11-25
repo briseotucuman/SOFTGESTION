@@ -1,90 +1,93 @@
 // ============================================================
-// Sistema de diseño — SOFTGESTION ENTERPRISE ERP (Briseo)
-// Estética: Enterprise ERP de alta densidad (SAP / Stripe / Linear).
-// Tipografía suiza/monospaciada, bordes quirúrgicos de 1px,
-// paleta Slate neutral con acentos cromáticos por dominio operativo.
+// Sistema de diseño — BRISEO ERP (Glassmorphism & Bento Grid)
+// Tipografía: Plus Jakarta Sans + tabular-nums
+// Paleta: Cool Gray (#F3F5FA), Dark Charcoal (#18191C), Royal Blue (#3B66F5), Periwinkle (#A6BEFF)
 // ============================================================
 
 export const paleta = {
-  ink: '#0F172A',          // Slate 900 - texto principal y contrastes altos
-  inkSoft: '#334155',      // Slate 700 - texto de datos y etiquetas
-  muted: '#64748B',        // Slate 500 - metadatos, timestamps y placeholders
-  paper: '#F8FAFC',        // Slate 50 - fondo general del ERP
-  surface: '#FFFFFF',      // Blanco puro - tarjetas, tablas y modales
-  surfaceMuted: '#F1F5F9', // Slate 100 - fondos de inputs, hover y zebra
-  line: '#E2E8F0',         // Slate 200 - divisores y bordes sutiles
-  lineStrong: '#CBD5E1',   // Slate 300 - bordes de inputs y botones
-  brand: '#0F766E',        // Teal 700 - color institucional primario
-  brandDark: '#115E59',    // Teal 800 - estado activo / hover
-  brandSoft: '#F0FDFA',    // Teal 50 - fondos tenues de marca
-  warn: '#B45309',         // Amber 700
-  warnSoft: '#FEF3C7',     // Amber 100
-  danger: '#BE123C',       // Rose 700
-  dangerSoft: '#FFE4E6',   // Rose 100
-  info: '#0369A1',         // Sky 700
-  infoSoft: '#E0F2FE',     // Sky 100
-  success: '#15803D',      // Emerald 700
-  successSoft: '#DCFCE7',  // Emerald 100
-  font: "'IBM Plex Sans', 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif",
-  fontMono: "'IBM Plex Mono', 'Geist Mono', ui-monospace, SFMono-Regular, monospace",
+  ink: '#0F172A',          // Texto principal
+  inkSoft: '#334155',      // Texto secundario
+  muted: '#64748B',        // Metadatos y subtítulos
+  paper: '#F3F5FA',        // Fondo general cool-gray
+  surface: '#FFFFFF',      // Superficies Bento blancas
+  surfaceMuted: '#F3F5FA', // Fondos sutiles de inputs y tablas
+  line: '#E5E7EB',         // Bordes ultra-limpios 1px
+  lineStrong: '#CBD5E1',   // Bordes acentuados
+  brand: '#3B66F5',        // Royal Blue primario
+  brandDark: '#2563EB',    // Royal Blue hover
+  brandSoft: '#EEF2FF',    // Tinte suave azul
+  darkCard: '#18191C',     // Tarjeta oscura acento
+  periwinkle: '#A6BEFF',   // Periwinkle secundario
+  warn: '#B45309',         // Amber
+  warnSoft: '#FEF3C7',
+  danger: '#BE123C',       // Rose
+  dangerSoft: '#FFE4E6',
+  info: '#0369A1',
+  infoSoft: '#E0F2FE',
+  success: '#15803D',
+  successSoft: '#DCFCE7',
+  font: "'Plus Jakarta Sans', 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif",
+  fontMono: "'Plus Jakarta Sans', 'IBM Plex Mono', ui-monospace, monospace",
 }
 
-// Acento por módulo funcional: mantiene consistencia con la arquitectura de permisos
+// Paleta unificada por módulo (sobria: Charcoal #18191C & Royal Blue #3B66F5)
 export const colores = {
-  clientes:     { main: '#0F766E', light: '#0F766E15', gradient: 'linear-gradient(135deg, #0F766E 0%, #115E59 100%)' },
-  crm:          { main: '#2563EB', light: '#2563EB15', gradient: 'linear-gradient(135deg, #2563EB 0%, #1D4ED8 100%)' },
-  contratos:    { main: '#475569', light: '#47556915', gradient: 'linear-gradient(135deg, #334155 0%, #1E293B 100%)' },
-  personal:     { main: '#15803D', light: '#15803D15', gradient: 'linear-gradient(135deg, #15803D 0%, #166534 100%)' },
-  agenda:       { main: '#D97706', light: '#D9770615', gradient: 'linear-gradient(135deg, #B45309 0%, #92400E 100%)' },
-  presupuestos: { main: '#0284C7', light: '#0284C715', gradient: 'linear-gradient(135deg, #0284C7 0%, #0369A1 100%)' },
-  facturacion:  { main: '#E11D48', light: '#E11D4815', gradient: 'linear-gradient(135deg, #BE123C 0%, #9F1239 100%)' },
-  insumos:      { main: '#6366F1', light: '#6366F115', gradient: 'linear-gradient(135deg, #6366F1 0%, #4F46E5 100%)' },
-  finanzas:     { main: '#059669', light: '#05966915', gradient: 'linear-gradient(135deg, #059669 0%, #047857 100%)' },
-  costos:       { main: '#0D9488', light: '#0D948815', gradient: 'linear-gradient(135deg, #0D9488 0%, #0F766E 100%)' },
-  sueldos:      { main: '#7C3AED', light: '#7C3AED15', gradient: 'linear-gradient(135deg, #7C3AED 0%, #6D28D9 100%)' },
-  proveedores:  { main: '#C2410C', light: '#C2410C15', gradient: 'linear-gradient(135deg, #C2410C 0%, #9A3412 100%)' },
-  reportes:     { main: '#1E293B', light: '#1E293B15', gradient: 'linear-gradient(135deg, #0F172A 0%, #1E293B 100%)' },
-  usuarios:     { main: '#4B5563', light: '#4B556315', gradient: 'linear-gradient(135deg, #4B5563 0%, #374151 100%)' },
+  clientes:     { main: '#3B66F5', light: '#3B66F515', gradient: 'linear-gradient(135deg, #3B66F5 0%, #2952D9 100%)' },
+  crm:          { main: '#3B66F5', light: '#3B66F515', gradient: 'linear-gradient(135deg, #18191C 0%, #272930 100%)' },
+  contratos:    { main: '#18191C', light: '#18191C15', gradient: 'linear-gradient(135deg, #18191C 0%, #272930 100%)' },
+  personal:     { main: '#3B66F5', light: '#3B66F515', gradient: 'linear-gradient(135deg, #18191C 0%, #272930 100%)' },
+  agenda:       { main: '#3B66F5', light: '#3B66F515', gradient: 'linear-gradient(135deg, #3B66F5 0%, #2952D9 100%)' },
+  presupuestos: { main: '#3B66F5', light: '#3B66F515', gradient: 'linear-gradient(135deg, #18191C 0%, #272930 100%)' },
+  facturacion:  { main: '#3B66F5', light: '#3B66F515', gradient: 'linear-gradient(135deg, #3B66F5 0%, #2952D9 100%)' },
+  insumos:      { main: '#18191C', light: '#18191C15', gradient: 'linear-gradient(135deg, #18191C 0%, #272930 100%)' },
+  finanzas:     { main: '#3B66F5', light: '#3B66F515', gradient: 'linear-gradient(135deg, #18191C 0%, #272930 100%)' },
+  costos:       { main: '#18191C', light: '#18191C15', gradient: 'linear-gradient(135deg, #18191C 0%, #272930 100%)' },
+  sueldos:      { main: '#3B66F5', light: '#3B66F515', gradient: 'linear-gradient(135deg, #3B66F5 0%, #2952D9 100%)' },
+  proveedores:  { main: '#18191C', light: '#18191C15', gradient: 'linear-gradient(135deg, #18191C 0%, #272930 100%)' },
+  reportes:     { main: '#3B66F5', light: '#3B66F515', gradient: 'linear-gradient(135deg, #18191C 0%, #272930 100%)' },
+  usuarios:     { main: '#18191C', light: '#18191C15', gradient: 'linear-gradient(135deg, #18191C 0%, #272930 100%)' },
   danger:       { main: '#BE123C', light: '#FFE4E6', gradient: '#BE123C' },
   warning:      { main: '#B45309', light: '#FEF3C7', gradient: '#B45309' },
-  info:         { main: '#0369A1', light: '#E0F2FE', gradient: '#0369A1' },
+  info:         { main: '#3B66F5', light: '#EEF2FF', gradient: '#3B66F5' },
 }
 
 export const s = {
   cabecera: (fondo) => ({
-    background: fondo,
-    borderRadius: '22px',
-    padding: '18px 24px',
+    background: fondo || 'linear-gradient(135deg, #18191C 0%, #272930 100%)',
+    borderRadius: '20px',
+    padding: '20px 24px',
     marginBottom: '20px',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'space-between',
-    boxShadow: '0 12px 28px -14px rgba(37, 99, 235, 0.45)',
-    border: '1px solid rgba(255, 255, 255, 0.25)'
+    flexWrap: 'wrap',
+    gap: '12px',
+    boxShadow: '0 12px 32px -12px rgba(24, 25, 28, 0.25)',
+    border: '1px solid rgba(255, 255, 255, 0.14)'
   }),
   cabeceraTexto: {
     color: '#FFFFFF',
     margin: 0,
-    fontSize: '17px',
+    fontSize: '18px',
     fontWeight: '700',
-    letterSpacing: '-0.015em',
+    letterSpacing: '-0.02em',
     lineHeight: '1.2'
   },
   cabeceraSubtexto: {
-    color: 'rgba(255, 255, 255, 0.82)',
+    color: 'rgba(255, 255, 255, 0.78)',
     margin: '4px 0 0',
     fontSize: '12.5px',
     fontWeight: '400'
   },
 
   btnPrimario: (color) => ({
-    background: color || paleta.brand,
+    background: color || '#3B66F5',
     color: '#FFFFFF',
-    border: '1px solid rgba(255, 255, 255, 0.35)',
-    borderRadius: '12px',
-    padding: '8px 16px',
+    border: '1px solid rgba(255, 255, 255, 0.2)',
+    borderRadius: '999px',
+    padding: '8px 18px',
     fontWeight: '600',
-    fontSize: '13px',
+    fontSize: '12.5px',
     cursor: 'pointer',
     transition: 'all 0.15s ease',
     whiteSpace: 'nowrap',
@@ -92,32 +95,30 @@ export const s = {
     alignItems: 'center',
     justifyContent: 'center',
     gap: '6px',
-    boxShadow: '0 6px 14px -6px rgba(37, 99, 235, 0.45)'
+    boxShadow: '0 6px 16px -6px rgba(59, 102, 245, 0.45)'
   }),
   btnSecundario: {
-    background: 'rgba(255, 255, 255, 0.7)',
-    color: paleta.inkSoft,
-    border: '1px solid rgba(255, 255, 255, 0.9)',
-    backdropFilter: 'blur(10px)',
-    WebkitBackdropFilter: 'blur(10px)',
-    borderRadius: '12px',
-    padding: '8px 15px',
+    background: '#FFFFFF',
+    color: '#334155',
+    border: '1px solid #E5E7EB',
+    borderRadius: '999px',
+    padding: '8px 16px',
     fontWeight: '600',
-    fontSize: '13px',
+    fontSize: '12.5px',
     cursor: 'pointer',
     transition: 'all 0.15s ease',
     display: 'inline-flex',
     alignItems: 'center',
     justifyContent: 'center',
     gap: '6px',
-    boxShadow: '0 1px 2px 0 rgba(0, 0, 0, 0.02)'
+    boxShadow: '0 2px 8px rgba(0, 0, 0, 0.03)'
   },
   btnPeligro: {
     background: '#FFF1F2',
-    color: paleta.danger,
+    color: '#BE123C',
     border: '1px solid #FECDD3',
-    borderRadius: '12px',
-    padding: '5px 11px',
+    borderRadius: '999px',
+    padding: '6px 13px',
     fontWeight: '600',
     fontSize: '12px',
     cursor: 'pointer',
@@ -125,18 +126,16 @@ export const s = {
   },
 
   card: {
-    background: 'rgba(255, 255, 255, 0.6)',
-    backdropFilter: 'blur(18px) saturate(160%)',
-    WebkitBackdropFilter: 'blur(18px) saturate(160%)',
-    borderRadius: '22px',
+    background: '#FFFFFF',
+    borderRadius: '20px',
     padding: '22px',
     marginBottom: '18px',
-    boxShadow: '0 10px 30px -14px rgba(37, 99, 235, 0.25)',
-    border: '1px solid rgba(255, 255, 255, 0.85)'
+    boxShadow: '0 8px 30px rgba(0, 0, 0, 0.04)',
+    border: '1px solid #E5E7EB'
   },
   label: {
     display: 'block',
-    color: paleta.inkSoft,
+    color: '#334155',
     fontSize: '12px',
     fontWeight: '600',
     marginBottom: '5px',
@@ -144,16 +143,16 @@ export const s = {
   },
   input: {
     width: '100%',
-    padding: '9px 12px',
+    padding: '9px 13px',
     boxSizing: 'border-box',
-    background: 'rgba(255, 255, 255, 0.8)',
-    border: '1px solid rgba(148, 163, 184, 0.45)',
+    background: '#F3F5FA',
+    border: '1px solid #E5E7EB',
     borderRadius: '12px',
-    color: paleta.ink,
+    color: '#0F172A',
     fontSize: '13.5px',
     outline: 'none',
     transition: 'border-color 0.15s, box-shadow 0.15s',
-    fontFamily: paleta.font
+    fontFamily: "'Plus Jakarta Sans', 'Segoe UI', sans-serif"
   },
   grid2: {
     display: 'grid',
@@ -174,67 +173,66 @@ export const s = {
     fontVariantNumeric: 'tabular-nums'
   },
   tablaCabecera: () => ({
-    background: '#E4ECFB', // opaco: si es translúcido, el texto que se desplaza se ve a través del encabezado fijo
-    color: '#1E3A8A',
+    background: '#F3F5FA',
+    color: '#475569',
     padding: '10px 14px',
     textAlign: 'left',
-    fontWeight: '600',
-    fontSize: '11.5px',
-    letterSpacing: '0.04em',
+    fontWeight: '700',
+    fontSize: '11px',
+    letterSpacing: '0.05em',
     textTransform: 'uppercase',
-    borderBottom: '1px solid rgba(37, 99, 235, 0.12)'
+    borderBottom: '1px solid #E5E7EB'
   }),
   tablaFila: (i) => ({
-    background: i % 2 === 0 ? 'rgba(255, 255, 255, 0.55)' : 'rgba(255, 255, 255, 0.3)',
+    background: i % 2 === 0 ? '#FFFFFF' : '#FAFBFD',
     transition: 'background 0.12s ease'
   }),
   tablaCell: {
     padding: '11px 14px',
-    color: paleta.inkSoft,
-    borderBottom: '1px solid rgba(148, 163, 184, 0.22)',
+    color: '#334155',
+    borderBottom: '1px solid #F1F5F9',
     fontSize: '13px'
   },
   tablaCellBold: {
     padding: '11px 14px',
-    color: paleta.ink,
+    color: '#0F172A',
     fontWeight: '600',
-    borderBottom: '1px solid rgba(148, 163, 184, 0.22)',
+    borderBottom: '1px solid #F1F5F9',
     fontSize: '13px'
   },
 
   badge: (bg, color) => ({
-    background: bg || paleta.surfaceMuted,
-    color: color || paleta.inkSoft,
-    padding: '2px 10px',
+    background: bg || '#F3F5FA',
+    color: color || '#334155',
+    padding: '3px 10px',
     borderRadius: '999px',
     fontSize: '11px',
     fontWeight: '600',
     display: 'inline-flex',
     alignItems: 'center',
     gap: '4px',
-    border: '1px solid rgba(0, 0, 0, 0.06)',
+    border: '1px solid rgba(0, 0, 0, 0.05)',
     letterSpacing: '0.01em'
   }),
 
   buscador: {
     width: '100%',
     maxWidth: '340px',
-    padding: '8px 13px',
-    background: 'rgba(255, 255, 255, 0.8)',
-    border: '1px solid rgba(148, 163, 184, 0.45)',
+    padding: '8px 15px',
+    background: '#FFFFFF',
+    border: '1px solid #E5E7EB',
     borderRadius: '999px',
     fontSize: '13px',
     outline: 'none',
-    color: paleta.ink,
-    fontFamily: paleta.font,
+    color: '#0F172A',
+    fontFamily: "'Plus Jakarta Sans', 'Segoe UI', sans-serif",
     transition: 'border-color 0.15s, box-shadow 0.15s'
   },
 
   empty: {
     padding: '56px 20px',
     textAlign: 'center',
-    color: paleta.muted,
+    color: '#64748B',
     fontSize: '13.5px'
   }
 }
-

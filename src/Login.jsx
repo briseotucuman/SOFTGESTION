@@ -82,52 +82,52 @@ function Login({ onLogin }) {
   }
 
   return (
-    <div style={{ minHeight: '100vh', background: 'radial-gradient(900px 520px at 8% -10%, rgba(147,197,253,0.7), transparent 60%), linear-gradient(160deg, #eaf2ff 0%, #bfd6fb 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: paleta.font, padding: '24px' }}>
-      <div style={{ width: '100%', maxWidth: '960px', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))', background: 'rgba(255,255,255,0.75)', backdropFilter: 'blur(20px)', borderRadius: '28px', overflow: 'hidden', boxShadow: '0 30px 60px -20px rgba(37,99,235,0.45)', border: '1px solid rgba(255,255,255,0.9)' }}>
+    <div style={{ minHeight: '100vh', background: '#F3F5FA', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: paleta.font, padding: '24px' }}>
+      <div style={{ width: '100%', maxWidth: '960px', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))', background: 'rgba(255,255,255,0.78)', backdropFilter: 'blur(20px)', borderRadius: '28px', overflow: 'hidden', boxShadow: '0 24px 60px -20px rgba(24, 25, 28, 0.16)', border: '1px solid rgba(255,255,255,0.9)' }}>
 
         {/* PANEL IZQUIERDO: BRANDING & VALOR ENTERPRISE */}
-        <div style={{ background: 'linear-gradient(155deg, #1d4ed8 0%, #3b82f6 100%)', padding: '48px 40px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', color: '#FFFFFF', position: 'relative' }}>
+        <div style={{ background: 'linear-gradient(155deg, #18191C 0%, #23262F 65%, #27376E 100%)', padding: '48px 40px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', color: '#FFFFFF', position: 'relative' }}>
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '14px', marginBottom: '28px' }}>
-              <div style={{ background: '#FFFFFF', padding: '6px', borderRadius: '10px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
-                <img src="/logo.jpg" alt="Briseo" style={{ height: '36px', width: '36px', objectFit: 'contain', borderRadius: '6px' }} />
+              <div style={{ background: '#FFFFFF', padding: '6px', borderRadius: '14px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
+                <img src="/logo.jpg" alt="Briseo" style={{ height: '36px', width: '36px', objectFit: 'contain', borderRadius: '8px' }} />
               </div>
               <div>
-                <span style={{ fontSize: '11px', letterSpacing: '0.12em', color: '#DBEAFE', textTransform: 'uppercase', fontWeight: '700' }}>DAG Group S.R.L.</span>
+                <span style={{ fontSize: '11px', letterSpacing: '0.1em', color: '#A6BEFF', textTransform: 'uppercase', fontWeight: '700' }}>DAG Group S.R.L.</span>
                 <h1 style={{ margin: 0, fontSize: '20px', fontWeight: '800', letterSpacing: '-0.02em', color: '#FFFFFF' }}>Briseo Limpieza</h1>
               </div>
             </div>
 
-            <h2 style={{ fontSize: '24px', fontWeight: '700', lineHeight: '1.25', margin: '0 0 16px', color: '#F8FAFC' }}>
+            <h2 style={{ fontSize: '24px', fontWeight: '700', lineHeight: '1.25', margin: '0 0 16px', color: '#FFFFFF' }}>
               Gestión integral de Briseo Limpieza
             </h2>
-            <p style={{ color: '#DBEAFE', fontSize: '14px', lineHeight: '1.6', margin: '0 0 32px' }}>
+            <p style={{ color: 'rgba(255,255,255,0.72)', fontSize: '14px', lineHeight: '1.6', margin: '0 0 32px' }}>
               Clientes, contratos, personal, facturación y contabilidad en un solo lugar.
             </p>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '13px', color: '#EFF6FF' }}>
-                <div style={{ width: '22px', height: '22px', borderRadius: '50%', background: 'rgba(45, 212, 191, 0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                  <ShieldCheck size={14} color="#2DD4BF" />
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '13px', color: '#E2E8F0' }}>
+                <div style={{ width: '24px', height: '24px', borderRadius: '50%', background: 'rgba(59, 102, 245, 0.25)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                  <ShieldCheck size={14} color="#A6BEFF" />
                 </div>
                 <span>Autenticación segura con control de roles (RBAC)</span>
               </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '13px', color: '#EFF6FF' }}>
-                <div style={{ width: '22px', height: '22px', borderRadius: '50%', background: 'rgba(45, 212, 191, 0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                  <Building2 size={14} color="#2DD4BF" />
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '13px', color: '#E2E8F0' }}>
+                <div style={{ width: '24px', height: '24px', borderRadius: '50%', background: 'rgba(59, 102, 245, 0.25)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                  <Building2 size={14} color="#A6BEFF" />
                 </div>
                 <span>Trazabilidad integral de clientes, contratos y sucursales</span>
               </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '13px', color: '#EFF6FF' }}>
-                <div style={{ width: '22px', height: '22px', borderRadius: '50%', background: 'rgba(45, 212, 191, 0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                  <CheckCircle size={14} color="#2DD4BF" />
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '13px', color: '#E2E8F0' }}>
+                <div style={{ width: '24px', height: '24px', borderRadius: '50%', background: 'rgba(59, 102, 245, 0.25)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                  <CheckCircle size={14} color="#A6BEFF" />
                 </div>
                 <span>Liquidación salarial y conciliación de facturas</span>
               </div>
             </div>
           </div>
 
-          <div style={{ paddingTop: '32px', borderTop: '1px solid rgba(255, 255, 255, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '12px', color: '#BFDBFE' }}>
+          <div style={{ paddingTop: '32px', borderTop: '1px solid rgba(255, 255, 255, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '12px', color: 'rgba(255,255,255,0.6)' }}>
             <span>Briseo Limpieza · DAG Group S.R.L.</span>
             <span>CUIT 33-71697052-9 · San Martín 930, 4° piso</span>
           </div>
@@ -146,7 +146,7 @@ function Login({ onLogin }) {
               <p style={{ color: '#64748B', fontSize: '13.5px', lineHeight: '1.6', margin: '0 0 24px' }}>
                 Tu solicitud de acceso fue enviada correctamente. El administrador del sistema debe asignar el rol operativo o administrativo antes de habilitar el ingreso.
               </p>
-              <button onClick={() => setModo('login')} style={{ background: '#0F172A', color: '#FFFFFF', border: 'none', borderRadius: '6px', padding: '10px 24px', fontWeight: '600', fontSize: '13px', cursor: 'pointer' }}>
+              <button onClick={() => setModo('login')} style={{ background: '#18191C', color: '#FFFFFF', border: 'none', borderRadius: '999px', padding: '10px 24px', fontWeight: '600', fontSize: '13px', cursor: 'pointer' }}>
                 Volver a la pantalla de ingreso
               </button>
             </div>
@@ -156,13 +156,13 @@ function Login({ onLogin }) {
           {modo === 'login' && (
             <div>
               <div style={{ marginBottom: '24px' }}>
-                <span style={{ fontSize: '12px', fontWeight: '600', color: paleta.brand, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Briseo Limpieza</span>
+                <span style={{ fontSize: '12px', fontWeight: '600', color: '#3B66F5' }}>Briseo Limpieza</span>
                 <h3 style={{ margin: '4px 0 6px', color: '#0F172A', fontWeight: '800', fontSize: '22px', letterSpacing: '-0.02em' }}>Iniciar Sesión</h3>
                 <p style={{ color: '#64748B', fontSize: '13px', margin: 0 }}>Accedé con tu cuenta autorizada</p>
               </div>
 
               {error && (
-                <div style={{ background: '#FFF1F2', border: '1px solid #FECDD3', borderRadius: '6px', padding: '10px 14px', marginBottom: '18px', color: '#BE123C', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <div style={{ background: '#FFF1F2', border: '1px solid #FECDD3', borderRadius: '12px', padding: '10px 14px', marginBottom: '18px', color: '#BE123C', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '8px' }}>
                   <span>⚠️</span>
                   <span>{error}</span>
                 </div>
@@ -174,14 +174,14 @@ function Login({ onLogin }) {
                     Correo electrónico
                   </label>
                   <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
-                    <Mail size={16} color="#94A3B8" style={{ position: 'absolute', left: '12px' }} />
+                    <Mail size={16} color="#94A3B8" style={{ position: 'absolute', left: '14px' }} />
                     <input
                       type="email"
                       value={email}
                       onChange={e => setEmail(e.target.value)}
                       required
                       placeholder="nombre@briseo.com"
-                      style={{ width: '100%', padding: '10px 12px 10px 38px', borderRadius: '6px', border: '1px solid #CBD5E1', fontSize: '13.5px', color: '#0F172A', outline: 'none' }}
+                      style={{ width: '100%', padding: '10px 14px 10px 40px', borderRadius: '12px', background: '#F3F5FA', border: '1px solid #E5E7EB', fontSize: '13.5px', color: '#0F172A', outline: 'none' }}
                     />
                   </div>
                 </div>
@@ -193,14 +193,14 @@ function Login({ onLogin }) {
                     </label>
                   </div>
                   <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
-                    <Lock size={16} color="#94A3B8" style={{ position: 'absolute', left: '12px' }} />
+                    <Lock size={16} color="#94A3B8" style={{ position: 'absolute', left: '14px' }} />
                     <input
                       type="password"
                       value={password}
                       onChange={e => setPassword(e.target.value)}
                       required
                       placeholder="••••••••••••"
-                      style={{ width: '100%', padding: '10px 12px 10px 38px', borderRadius: '6px', border: '1px solid #CBD5E1', fontSize: '13.5px', color: '#0F172A', outline: 'none' }}
+                      style={{ width: '100%', padding: '10px 14px 10px 40px', borderRadius: '12px', background: '#F3F5FA', border: '1px solid #E5E7EB', fontSize: '13.5px', color: '#0F172A', outline: 'none' }}
                     />
                   </div>
                 </div>
@@ -208,14 +208,14 @@ function Login({ onLogin }) {
                 <button
                   type="submit"
                   disabled={loading}
-                  style={{ width: '100%', padding: '11px', background: paleta.brand, color: '#FFFFFF', border: 'none', borderRadius: '6px', fontWeight: '600', fontSize: '14px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', transition: 'background 0.15s ease', opacity: loading ? 0.7 : 1 }}>
+                  style={{ width: '100%', padding: '12px', background: '#3B66F5', color: '#FFFFFF', border: 'none', borderRadius: '999px', fontWeight: '600', fontSize: '14px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', transition: 'background 0.15s ease', boxShadow: '0 8px 20px -6px rgba(59, 102, 245, 0.5)', opacity: loading ? 0.7 : 1 }}>
                   <span>{loading ? 'Validando credenciales…' : 'Acceder al Sistema'}</span>
                   <ArrowRight size={16} />
                 </button>
               </form>
 
               {/* ACCESO RÁPIDO EVALUACIÓN / DEMO */}
-              <div style={{ marginTop: '20px', padding: '12px', background: '#F8FAFC', borderRadius: '8px', border: '1px solid #E2E8F0', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div style={{ marginTop: '20px', padding: '14px', background: '#F3F5FA', borderRadius: '16px', border: '1px solid #E5E7EB', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                 <div>
                   <p style={{ margin: 0, fontSize: '12px', fontWeight: '600', color: '#0F172A' }}>Modo Evaluación Rápida</p>
                   <p style={{ margin: 0, fontSize: '11.5px', color: '#64748B' }}>Entrar como Administrador</p>
@@ -223,8 +223,8 @@ function Login({ onLogin }) {
                 <button
                   type="button"
                   onClick={accesoRapidoDemo}
-                  style={{ background: '#FFFFFF', border: '1px solid #CBD5E1', borderRadius: '6px', padding: '6px 12px', fontSize: '12px', fontWeight: '600', color: '#0F172A', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
-                  <Sparkles size={13} color="#2563EB" />
+                  style={{ background: '#FFFFFF', border: '1px solid #E5E7EB', borderRadius: '999px', padding: '7px 14px', fontSize: '12px', fontWeight: '600', color: '#18191C', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
+                  <Sparkles size={13} color="#3B66F5" />
                   <span>Entrar Demo</span>
                 </button>
               </div>
@@ -232,7 +232,7 @@ function Login({ onLogin }) {
               <div style={{ textAlign: 'center', marginTop: '24px', paddingTop: '18px', borderTop: '1px solid #F1F5F9' }}>
                 <p style={{ color: '#64748B', fontSize: '12.5px', margin: 0 }}>
                   ¿Nuevo operador?{' '}
-                  <button onClick={() => { setModo('registro'); setError('') }} style={{ background: 'none', border: 'none', color: paleta.brand, fontWeight: '600', cursor: 'pointer', fontSize: '12.5px', padding: 0 }}>
+                  <button onClick={() => { setModo('registro'); setError('') }} style={{ background: 'none', border: 'none', color: '#3B66F5', fontWeight: '600', cursor: 'pointer', fontSize: '12.5px', padding: 0 }}>
                     Solicitar alta de usuario
                   </button>
                 </p>
@@ -244,13 +244,13 @@ function Login({ onLogin }) {
           {modo === 'registro' && (
             <div>
               <div style={{ marginBottom: '22px' }}>
-                <span style={{ fontSize: '12px', fontWeight: '600', color: paleta.brand, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Alta de Personal</span>
+                <span style={{ fontSize: '12px', fontWeight: '600', color: '#3B66F5' }}>Alta de Personal</span>
                 <h3 style={{ margin: '4px 0 6px', color: '#0F172A', fontWeight: '800', fontSize: '22px', letterSpacing: '-0.02em' }}>Solicitud de Acceso</h3>
                 <p style={{ color: '#64748B', fontSize: '13px', margin: 0 }}>Completá los datos para solicitar permiso de ingreso</p>
               </div>
 
               {error && (
-                <div style={{ background: '#FFF1F2', border: '1px solid #FECDD3', borderRadius: '6px', padding: '10px 14px', marginBottom: '18px', color: '#BE123C', fontSize: '13px' }}>
+                <div style={{ background: '#FFF1F2', border: '1px solid #FECDD3', borderRadius: '12px', padding: '10px 14px', marginBottom: '18px', color: '#BE123C', fontSize: '13px' }}>
                   ⚠️ {error}
                 </div>
               )}
@@ -259,13 +259,13 @@ function Login({ onLogin }) {
                 <div style={{ marginBottom: '14px' }}>
                   <label style={{ display: 'block', fontSize: '12px', fontWeight: '600', color: '#334155', marginBottom: '5px' }}>Nombre completo</label>
                   <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
-                    <User size={16} color="#94A3B8" style={{ position: 'absolute', left: '12px' }} />
+                    <User size={16} color="#94A3B8" style={{ position: 'absolute', left: '14px' }} />
                     <input
                       value={nombre}
                       onChange={e => setNombre(e.target.value)}
                       required
                       placeholder="Ej. Guillermo Semola"
-                      style={{ width: '100%', padding: '9px 12px 9px 38px', borderRadius: '6px', border: '1px solid #CBD5E1', fontSize: '13.5px', color: '#0F172A', outline: 'none' }}
+                      style={{ width: '100%', padding: '10px 14px 10px 40px', borderRadius: '12px', background: '#F3F5FA', border: '1px solid #E5E7EB', fontSize: '13.5px', color: '#0F172A', outline: 'none' }}
                     />
                   </div>
                 </div>
@@ -273,14 +273,14 @@ function Login({ onLogin }) {
                 <div style={{ marginBottom: '14px' }}>
                   <label style={{ display: 'block', fontSize: '12px', fontWeight: '600', color: '#334155', marginBottom: '5px' }}>Correo corporativo</label>
                   <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
-                    <Mail size={16} color="#94A3B8" style={{ position: 'absolute', left: '12px' }} />
+                    <Mail size={16} color="#94A3B8" style={{ position: 'absolute', left: '14px' }} />
                     <input
                       type="email"
                       value={email}
                       onChange={e => setEmail(e.target.value)}
                       required
                       placeholder="usuario@briseo.com"
-                      style={{ width: '100%', padding: '9px 12px 9px 38px', borderRadius: '6px', border: '1px solid #CBD5E1', fontSize: '13.5px', color: '#0F172A', outline: 'none' }}
+                      style={{ width: '100%', padding: '10px 14px 10px 40px', borderRadius: '12px', background: '#F3F5FA', border: '1px solid #E5E7EB', fontSize: '13.5px', color: '#0F172A', outline: 'none' }}
                     />
                   </div>
                 </div>
@@ -288,7 +288,7 @@ function Login({ onLogin }) {
                 <div style={{ marginBottom: '20px' }}>
                   <label style={{ display: 'block', fontSize: '12px', fontWeight: '600', color: '#334155', marginBottom: '5px' }}>Contraseña deseada</label>
                   <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
-                    <Lock size={16} color="#94A3B8" style={{ position: 'absolute', left: '12px' }} />
+                    <Lock size={16} color="#94A3B8" style={{ position: 'absolute', left: '14px' }} />
                     <input
                       type="password"
                       value={password}
@@ -296,7 +296,7 @@ function Login({ onLogin }) {
                       required
                       minLength={6}
                       placeholder="Mínimo 6 caracteres"
-                      style={{ width: '100%', padding: '9px 12px 9px 38px', borderRadius: '6px', border: '1px solid #CBD5E1', fontSize: '13.5px', color: '#0F172A', outline: 'none' }}
+                      style={{ width: '100%', padding: '10px 14px 10px 40px', borderRadius: '12px', background: '#F3F5FA', border: '1px solid #E5E7EB', fontSize: '13.5px', color: '#0F172A', outline: 'none' }}
                     />
                   </div>
                 </div>
@@ -304,7 +304,7 @@ function Login({ onLogin }) {
                 <button
                   type="submit"
                   disabled={loading}
-                  style={{ width: '100%', padding: '11px', background: paleta.brand, color: '#FFFFFF', border: 'none', borderRadius: '6px', fontWeight: '600', fontSize: '14px', cursor: 'pointer', opacity: loading ? 0.7 : 1 }}>
+                  style={{ width: '100%', padding: '12px', background: '#3B66F5', color: '#FFFFFF', border: 'none', borderRadius: '999px', fontWeight: '600', fontSize: '14px', cursor: 'pointer', boxShadow: '0 8px 20px -6px rgba(59, 102, 245, 0.5)', opacity: loading ? 0.7 : 1 }}>
                   {loading ? 'Enviando solicitud…' : 'Enviar Solicitud de Acceso'}
                 </button>
               </form>
