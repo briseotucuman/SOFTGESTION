@@ -25,10 +25,19 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
-/* Monospace tabular figures for all money, metrics and numeric codes */
-.font-mono, .tabular-nums, code, kbd, samp {
+/* Monospace figures for code and monospace-explicit elements */
+.font-mono, code, kbd, samp {
   font-family: 'IBM Plex Mono', 'Geist Mono', ui-monospace, SFMono-Regular, monospace;
   font-variant-numeric: tabular-nums;
+}
+
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum";
+}
+
+.font-jakarta {
+  font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
 }
 
 a {
@@ -136,17 +145,22 @@ html { -webkit-text-size-adjust: 100%; }
   --sg-ring: 0 0 0 3px rgba(15, 118, 110, 0.18);
 }
 
-/* Botones: respuesta táctil clara */
-button:not(:disabled) { transition: filter .15s ease, transform .08s ease, box-shadow .15s ease, background-color .15s ease; }
-button:not(:disabled):hover { filter: brightness(0.96); }
-button:not(:disabled):active { transform: translateY(1px) scale(0.985); filter: brightness(0.92); }
+/* Botones: respuesta táctil clara (solo ERP legado) */
+:not(.saas-analytics-shell) > button:not(:disabled),
+.sg-main button:not(:disabled) { transition: filter .15s ease, transform .08s ease, box-shadow .15s ease, background-color .15s ease; }
+.sg-main button:not(:disabled):hover { filter: brightness(0.96); }
+.sg-main button:not(:disabled):active { transform: translateY(1px) scale(0.985); filter: brightness(0.92); }
 button:disabled { opacity: .5; cursor: not-allowed !important; }
 
-/* Campos: foco visible con el color de marca */
-input:not([type="checkbox"]):not([type="radio"]), select, textarea { transition: border-color .15s ease, box-shadow .15s ease, background-color .15s ease; }
-input:not([type="checkbox"]):not([type="radio"]):hover, select:hover, textarea:hover { border-color: rgba(15, 118, 110, 0.55) !important; }
-input:not([type="checkbox"]):not([type="radio"]):focus, select:focus, textarea:focus {
+/* Campos: foco visible en ERP legado; en SaaS Analytics usa foco royal blue */
+.sg-main input:not([type="checkbox"]):not([type="radio"]), .sg-main select, .sg-main textarea { transition: border-color .15s ease, box-shadow .15s ease, background-color .15s ease; }
+.sg-main input:not([type="checkbox"]):not([type="radio"]):hover, .sg-main select:hover, .sg-main textarea:hover { border-color: rgba(15, 118, 110, 0.55) !important; }
+.sg-main input:not([type="checkbox"]):not([type="radio"]):focus, .sg-main select:focus, .sg-main textarea:focus {
   border-color: var(--sg-brand) !important; box-shadow: var(--sg-ring) !important; background: #fff !important; outline: none;
+}
+.saas-analytics-shell :focus-visible {
+  outline: 2px solid #3B66F5;
+  outline-offset: 2px;
 }
 input[type="checkbox"], input[type="radio"] { accent-color: var(--sg-brand); width: 16px; height: 16px; cursor: pointer; }
 input[type="number"] { font-variant-numeric: tabular-nums; }

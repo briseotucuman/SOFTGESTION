@@ -5,6 +5,7 @@ import Login from './Login.jsx'
 import Dashboard from './Dashboard.jsx'
 import SolicitudInsumos from './SolicitudInsumos.jsx'
 import Marcar from './Marcar.jsx'
+import AnalyticsDashboard from './pages/AnalyticsDashboard.jsx'
 
 function AppPrivada() {
   const [session, setSession] = useState(null)
@@ -47,9 +48,11 @@ function App() {
   return (
     <BrowserRouter>
       <Routes>
+        <Route path="/" element={<AnalyticsDashboard />} />
         <Route path="/solicitud-insumos" element={<SolicitudInsumos />} />
         <Route path="/marcar/:token" element={<Marcar />} />
-        <Route path="*" element={<AppPrivada />} />
+        <Route path="/erp/*" element={<AppPrivada />} />
+        <Route path="*" element={<AnalyticsDashboard />} />
       </Routes>
     </BrowserRouter>
   )
