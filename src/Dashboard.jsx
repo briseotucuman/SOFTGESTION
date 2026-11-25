@@ -1,19 +1,19 @@
 import { useState, useEffect, useMemo } from 'react'
+import { AnimatePresence, MotionConfig, motion as Motion } from 'framer-motion'
 import { supabase, escucharCambiosDatos } from './supabase.js'
-import { colores, paleta } from './estilos.js'
 import {
   Home, Users, FileText, HardHat, CalendarDays, Wallet, Receipt, Package,
-  BarChart3, ClipboardList, Briefcase, Factory, TrendingUp, TrendingDown, UserCog,
-  Bell, CheckCircle2, LogOut, ChevronLeft, ChevronRight, RefreshCw,
-  Search, Clock, ArrowUpRight, Landmark, Radar, ShieldCheck
+  BarChart3, ClipboardList, Briefcase, Factory, TrendingUp, UserCog,
+  Bell, LogOut, ChevronLeft, ChevronRight, RefreshCw,
+  Search, Clock, ShieldCheck, Radar, Menu, X
 } from 'lucide-react'
 import {
   calcularResumenCuentasPorCobrar,
   calcularResumenCuentasPorPagar,
   calcularSaldosCuentas,
   esMovimientoAjuste,
-  formatearMonedaAR
 } from './finanzasUtils.js'
+import BentoTablero from './components/BentoTablero.jsx'
 import Clientes from './pages/Clientes.jsx'
 import CRM from './pages/CRM.jsx'
 import Contratos from './pages/Contratos.jsx'
@@ -130,7 +130,10 @@ function obtenerRangosPeriodo() {
 function Dashboard({ user }) {
   const [seccionActiva, setSeccionActiva] = useState('inicio')
   const [vistaFinanzasInicial, setVistaFinanzasInicial] = useState('movimientos')
-  const [menuAbierto, setMenuAbierto] = useState(true)
+  const [menuAbierto, setMenuAbierto] = useState(false)
+  const [notifAbierto, setNotifAbierto] = useState(false)
+  const [perfilAbierto, setPerfilAbierto] = useState(false)
+  const [menuMovilAbierto, setMenuMovilAbierto] = useState(false)
   const [esAdmin, setEsAdmin] = useState(false)
   const [rolCargado, setRolCargado] = useState(false)
   const [kpis, setKpis] = useState({
@@ -558,1136 +561,652 @@ function Dashboard({ user }) {
     return mapa
   }, [alertas])
 
+  const saludo = useMemo(() => {
+    const h = horaActual.getHours()
+    if (h < 12) return 'Buen día'
+    if (h < 20) return 'Buenas tardes'
+    return 'Buenas noches'
+  }, [horaActual])
+
+  const navegarModulo = (modulo, vistaFinanzas) => {
+    if (modulo === 'finanzas') {
+      setVistaFinanzasInicial(vistaFinanzas || 'movimientos')
+    }
+    setSeccionActiva(modulo)
+    setMenuMovilAbierto(false)
+  }
+
   if (!rolCargado) {
     return (
-      <div style={{ minHeight: '100vh', background: '#0F172A', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: '#FFFFFF', fontFamily: paleta.font }}>
-        <div style={{ background: '#FFFFFF', padding: '10px', borderRadius: '12px', marginBottom: '16px' }}>
-          <img src="/logo.jpg" alt="Briseo" style={{ height: '36px', width: '36px', objectFit: 'contain' }} />
+      <div className="font-jakarta min-h-screen bg-[#F3F5FA] flex flex-col items-center justify-center text-slate-900">
+        <div className="bg-white p-3 rounded-2xl shadow-md border border-white mb-4">
+          <img src="/logo.jpg" alt="Briseo" className="h-10 w-10 object-contain rounded-lg" />
         </div>
-        <p style={{ margin: 0, fontSize: '15px', fontWeight: '600', color: '#F8FAFC' }}>Iniciando entorno ERP…</p>
-        <p style={{ margin: '6px 0 0', fontSize: '12px', color: '#64748B' }}>Cargando permisos y políticas de seguridad</p>
+        <p className="text-sm font-bold text-slate-900">Iniciando Briseo ERP…</p>
+        <p className="text-xs text-slate-500 mt-1">Cargando permisos y datos del sistema</p>
       </div>
     )
   }
 
   return (
-    <div style={{ minHeight: '100vh', background: paleta.paper, display: 'flex', fontFamily: paleta.font, color: paleta.ink }}>
-
-      {/* ============================================================ */}
-      {/* SIDEBAR CORPORATIVO */}
-      {/* ============================================================ */}
-      <aside style={{
-        width: menuAbierto ? '250px' : '68px',
-        background: '#0F172A',
-        borderRight: '1px solid #1E293B',
-        display: 'flex',
-        flexDirection: 'column',
-        transition: 'width 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
-        flexShrink: 0,
-        zIndex: 30
-      }}>
-        {/* LOGO & BRANDING */}
-        <div style={{
-          height: '64px',
-          padding: menuAbierto ? '0 18px' : '0 12px',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: menuAbierto ? 'space-between' : 'center',
-          borderBottom: '1px solid #1E293B',
-          background: '#0B1120'
-        }}>
-          {menuAbierto ? (
-            <div style={{ display: 'flex', alignItems: 'center', gap: '11px', minWidth: 0 }}>
-              <div style={{ background: '#FFFFFF', borderRadius: '8px', padding: '3px', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid #334155' }}>
-                <img src="/logo.jpg" alt="Briseo" style={{ height: '26px', width: '26px', objectFit: 'contain', borderRadius: '5px' }} />
-              </div>
-              <div style={{ minWidth: 0 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <span style={{ color: '#FFFFFF', fontWeight: '800', fontSize: '14px', letterSpacing: '-0.02em', whiteSpace: 'nowrap' }}>BRISEO</span>
-                  <span style={{ background: '#0F766E', color: '#FFFFFF', fontSize: '9px', fontWeight: '700', padding: '1px 5px', borderRadius: '3px', letterSpacing: '0.04em' }}>ERP</span>
-                </div>
-                <p style={{ margin: '1px 0 0', color: '#64748B', fontSize: '10.5px', whiteSpace: 'nowrap', fontWeight: '500' }}>Softgestión Enterprise</p>
-              </div>
-            </div>
-          ) : (
-            <div style={{ background: '#FFFFFF', borderRadius: '8px', padding: '3px', border: '1px solid #334155' }}>
-              <img src="/logo.jpg" alt="Briseo" style={{ height: '24px', width: '24px', objectFit: 'contain', borderRadius: '4px' }} />
-            </div>
-          )}
+    <MotionConfig reducedMotion="user">
+      <div className="saas-analytics-shell font-jakarta min-h-screen bg-[#F3F5FA] text-slate-900 relative overflow-x-hidden py-3 px-2.5 sm:py-6 sm:px-5 lg:px-7 flex justify-center items-start">
+        {/* Luz ambiental suave para realzar el vidrio esmerilado */}
+        <div className="pointer-events-none fixed inset-0 overflow-hidden" aria-hidden="true">
+          <div className="absolute -top-28 -left-24 w-[480px] h-[480px] rounded-full bg-[#A6BEFF]/25 blur-3xl" />
+          <div className="absolute -bottom-32 right-0 w-[440px] h-[440px] rounded-full bg-[#3B66F5]/12 blur-3xl" />
         </div>
 
-        {/* NAVEGACIÓN PRINCIPAL */}
-        <nav style={{ flex: 1, padding: '12px 8px', overflowY: 'auto' }}>
-          {/* BOTÓN RESUMEN EJECUTIVO / INICIO */}
-          <button
-            onClick={() => setSeccionActiva('inicio')}
-            style={{
-              width: '100%',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '10px',
-              padding: menuAbierto ? '8px 12px' : '9px',
-              justifyContent: menuAbierto ? 'flex-start' : 'center',
-              background: seccionActiva === 'inicio' ? 'rgba(15, 118, 110, 0.25)' : 'transparent',
-              border: 'none',
-              borderLeft: seccionActiva === 'inicio' ? `3px solid #14B8A6` : '3px solid transparent',
-              borderRadius: '6px',
-              cursor: 'pointer',
-              marginBottom: '14px',
-              transition: 'all 0.15s ease'
-            }}
+        {/* CONTENEDOR PRINCIPAL GLASSMORPHISM */}
+        <div className="relative z-10 w-full max-w-[1440px] rounded-3xl bg-white/70 backdrop-blur-xl border border-white/60 shadow-xl p-3 sm:p-5 lg:p-6 flex flex-col md:flex-row gap-4 lg:gap-6 min-h-[calc(100vh-3rem)]">
+
+          {/* ============================================================ */}
+          {/* SIDEBAR FLOTANTE OSCURO EN PÍLDORA (#18191C)                 */}
+          {/* ============================================================ */}
+          <aside
+            aria-label="Navegación principal"
+            style={{ width: menuAbierto ? '230px' : '72px' }}
+            className="hidden md:flex flex-col justify-between shrink-0 rounded-[28px] bg-[#18191C] text-white py-4 px-2.5 shadow-[0_16px_38px_rgba(24,25,28,0.22)] transition-all duration-200 self-stretch"
           >
-            <Home size={17} color={seccionActiva === 'inicio' ? '#2DD4BF' : '#94A3B8'} />
-            {menuAbierto && (
-              <span style={{
-                color: seccionActiva === 'inicio' ? '#FFFFFF' : '#CBD5E1',
-                fontSize: '13px',
-                fontWeight: seccionActiva === 'inicio' ? '600' : '400',
-                letterSpacing: '-0.01em'
-              }}>
-                Tablero Gerencial
-              </span>
-            )}
-          </button>
-
-          {/* GRUPOS MODULARES */}
-          {menuVisible.map(grupo => (
-            <div key={grupo.label} style={{ marginBottom: '18px' }}>
-              {menuAbierto && (
-                <div style={{
-                  padding: '4px 10px 6px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between'
-                }}>
-                  <span style={{
-                    color: '#64748B',
-                    fontSize: '10.5px',
-                    fontWeight: '700',
-                    letterSpacing: '0.06em',
-                    textTransform: 'uppercase'
-                  }}>
-                    {grupo.label}
-                  </span>
-                </div>
-              )}
-
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                {grupo.items.map(item => {
-                  const activo = seccionActiva === item.id
-                  const Icon = item.icon
-                  const alertasItem = conteoAlertasPorModulo[item.id] || 0
-                  return (
-                    <button
-                      key={item.id}
-                      onClick={() => {
-                        if (item.id === 'finanzas') setVistaFinanzasInicial('movimientos')
-                        setSeccionActiva(item.id)
-                      }}
-                      title={!menuAbierto ? item.label : undefined}
-                      style={{
-                        width: '100%',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '10px',
-                        padding: menuAbierto ? '7px 11px' : '9px',
-                        justifyContent: menuAbierto ? 'flex-start' : 'center',
-                        background: activo ? 'rgba(15, 118, 110, 0.22)' : 'transparent',
-                        border: 'none',
-                        borderLeft: activo ? `3px solid #14B8A6` : '3px solid transparent',
-                        borderRadius: '6px',
-                        cursor: 'pointer',
-                        transition: 'all 0.12s ease'
-                      }}
-                    >
-                      <Icon size={16} color={activo ? '#2DD4BF' : '#94A3B8'} style={{ flexShrink: 0 }} />
-                      {menuAbierto && (
-                        <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'space-between', minWidth: 0 }}>
-                          <span style={{
-                            color: activo ? '#FFFFFF' : '#CBD5E1',
-                            fontSize: '12.5px',
-                            fontWeight: activo ? '600' : '400',
-                            whiteSpace: 'nowrap',
-                            overflow: 'hidden',
-                            textOverflow: 'ellipsis'
-                          }}>
-                            {item.label}
-                          </span>
-                          {alertasItem > 0 && (
-                            <span style={{
-                              background: '#BE123C',
-                              color: '#FFFFFF',
-                              borderRadius: '4px',
-                              fontSize: '10px',
-                              fontWeight: '700',
-                              padding: '1px 5px',
-                              marginLeft: '6px'
-                            }}>
-                              {alertasItem}
-                            </span>
-                          )}
-                        </div>
-                      )}
-                    </button>
-                  )
-                })}
-              </div>
-            </div>
-          ))}
-        </nav>
-
-        {/* PIE DEL SIDEBAR: USUARIO & CONTRACCIÓN */}
-        <div style={{
-          padding: '12px',
-          borderTop: '1px solid #1E293B',
-          background: '#0B1120'
-        }}>
-          {menuAbierto ? (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                <div style={{
-                  width: '32px',
-                  height: '32px',
-                  borderRadius: '6px',
-                  background: esAdmin ? '#0F766E' : '#334155',
-                  color: '#FFFFFF',
-                  fontSize: '11px',
-                  fontWeight: '700',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  flexShrink: 0
-                }}>
-                  {iniciales}
-                </div>
-                <div style={{ minWidth: 0, flex: 1 }}>
-                  <p style={{ margin: 0, fontSize: '12px', fontWeight: '600', color: '#F8FAFC', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                    {user.email}
-                  </p>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '5px', marginTop: '2px' }}>
-                    <span style={{
-                      display: 'inline-block',
-                      width: '6px',
-                      height: '6px',
-                      borderRadius: '50%',
-                      background: '#10B981'
-                    }} />
-                    <span style={{ fontSize: '10.5px', color: '#94A3B8', textTransform: 'uppercase', fontWeight: '600' }}>
-                      {esAdmin ? 'Administrador' : 'Operador'}
-                    </span>
-                  </div>
-                </div>
-              </div>
-
-              <div style={{ display: 'flex', gap: '6px' }}>
-                <button
-                  onClick={() => setMenuAbierto(false)}
-                  style={{
-                    flex: 1,
-                    background: '#1E293B',
-                    border: '1px solid #334155',
-                    color: '#94A3B8',
-                    borderRadius: '5px',
-                    padding: '6px 8px',
-                    fontSize: '11.5px',
-                    cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: '4px'
-                  }}
-                >
-                  <ChevronLeft size={13} /> Contraer
-                </button>
-                <button
-                  onClick={() => supabase.auth.signOut()}
-                  title="Cerrar sesión"
-                  style={{
-                    background: 'rgba(190, 18, 60, 0.15)',
-                    border: '1px solid rgba(190, 18, 60, 0.35)',
-                    color: '#FDA4AF',
-                    borderRadius: '5px',
-                    padding: '6px 10px',
-                    cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center'
-                  }}
-                >
-                  <LogOut size={13} />
-                </button>
-              </div>
-            </div>
-          ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
+            {/* Marca superior Briseo */}
+            <div>
               <button
-                onClick={() => setMenuAbierto(true)}
-                title="Expandir barra"
-                style={{
-                  background: '#1E293B',
-                  border: '1px solid #334155',
-                  color: '#94A3B8',
-                  borderRadius: '6px',
-                  padding: '7px',
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center'
-                }}
+                type="button"
+                onClick={() => setSeccionActiva('inicio')}
+                title="Tablero Gerencial · Briseo"
+                className={`w-full flex items-center ${menuAbierto ? 'gap-3 px-2' : 'justify-center'} mb-5 group`}
               >
-                <ChevronRight size={14} />
-              </button>
-              <button
-                onClick={() => supabase.auth.signOut()}
-                title="Cerrar sesión"
-                style={{
-                  background: 'rgba(190, 18, 60, 0.15)',
-                  border: '1px solid rgba(190, 18, 60, 0.35)',
-                  color: '#FDA4AF',
-                  borderRadius: '6px',
-                  padding: '7px',
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center'
-                }}
-              >
-                <LogOut size={14} />
-              </button>
-            </div>
-          )}
-        </div>
-      </aside>
-
-      {/* ============================================================ */}
-      {/* CONTENEDOR PRINCIPAL */}
-      {/* ============================================================ */}
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, overflow: 'hidden' }}>
-
-        {/* TOP COMMAND / APP BAR */}
-        <header style={{
-          height: '64px',
-          background: '#FFFFFF',
-          borderBottom: `1px solid ${paleta.line}`,
-          padding: '0 24px',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          gap: '16px',
-          flexShrink: 0
-        }}>
-          {/* BREADCRUMB & CONTEXTO */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0 }}>
-            <span style={{ color: paleta.muted, fontSize: '13px', fontWeight: '500' }}>Briseo ERP</span>
-            <span style={{ color: paleta.lineStrong, fontSize: '13px' }}>/</span>
-            {grupoActivo && (
-              <>
-                <span style={{ color: paleta.muted, fontSize: '13px', fontWeight: '500' }}>{grupoActivo.label}</span>
-                <span style={{ color: paleta.lineStrong, fontSize: '13px' }}>/</span>
-              </>
-            )}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-              {seccionActiva === 'inicio' ? (
-                <Home size={15} color={paleta.brand} />
-              ) : (
-                itemActivo && <itemActivo.icon size={15} color={paleta.brand} />
-              )}
-              <h2 style={{
-                margin: 0,
-                fontSize: '14.5px',
-                fontWeight: '700',
-                color: paleta.ink,
-                letterSpacing: '-0.01em',
-                whiteSpace: 'nowrap'
-              }}>
-                {seccionActiva === 'inicio' ? 'Tablero Gerencial' : itemActivo?.label}
-              </h2>
-            </div>
-          </div>
-
-          {/* CENTRO: BARRA DE BÚSQUEDA RÁPIDA / COMMAND PALETTE */}
-          <button
-            onClick={() => setBuscadorAbierto(true)}
-            style={{
-              flex: '0 1 420px',
-              background: '#F1F5F9',
-              border: '1px solid #E2E8F0',
-              borderRadius: '6px',
-              padding: '6px 12px',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              cursor: 'pointer',
-              color: '#64748B',
-              fontSize: '12.5px',
-              transition: 'border-color 0.15s ease'
-            }}
-          >
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <Search size={14} color="#94A3B8" />
-              <span>Buscar módulo, clientes o acciones…</span>
-            </div>
-            <span style={{
-              background: '#FFFFFF',
-              border: '1px solid #CBD5E1',
-              borderRadius: '4px',
-              padding: '1px 6px',
-              fontSize: '10.5px',
-              fontWeight: '600',
-              color: '#475569',
-              fontFamily: paleta.fontMono
-            }}>
-              Ctrl K
-            </span>
-          </button>
-
-          {/* DERECHA: ESTADO DEL SISTEMA, RELOJ Y ROL */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '14px', flexShrink: 0 }}>
-            {/* Live operational badge */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', background: '#F0FDF4', border: '1px solid #BBF7D0', padding: '4px 9px', borderRadius: '5px' }}>
-              <span style={{ width: '7px', height: '7px', borderRadius: '50%', background: '#16A34A', display: 'inline-block' }} />
-              <span style={{ fontSize: '11px', fontWeight: '600', color: '#15803D', letterSpacing: '0.02em' }}>
-                ONLINE
-              </span>
-            </div>
-
-            {/* Live Clock & Date */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: paleta.inkSoft, fontSize: '12px' }}>
-              <Clock size={13} color={paleta.muted} />
-              <span style={{ fontFamily: paleta.fontMono, fontSize: '12px', fontWeight: '500' }}>
-                {horaActual.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
-              </span>
-              <span style={{ color: paleta.muted }}>·</span>
-              <span style={{ color: paleta.muted, fontSize: '12px' }}>
-                {horaActual.toLocaleDateString('es-AR', { day: '2-digit', month: 'short', year: 'numeric' })}
-              </span>
-            </div>
-
-            {/* Badge de Rol */}
-            <span style={{
-              background: esAdmin ? '#F0FDFA' : '#F1F5F9',
-              color: esAdmin ? '#0F766E' : '#475569',
-              border: `1px solid ${esAdmin ? '#99F6E4' : '#CBD5E1'}`,
-              borderRadius: '5px',
-              padding: '3px 8px',
-              fontSize: '11px',
-              fontWeight: '700',
-              letterSpacing: '0.03em',
-              textTransform: 'uppercase'
-            }}>
-              {esAdmin ? 'ADMIN' : 'OPERADOR'}
-            </span>
-          </div>
-        </header>
-
-        {/* CUERPO DEL CONTENIDO */}
-        <main style={{ flex: 1, padding: '24px', overflowY: 'auto', background: paleta.paper }}>
-          {seccionActiva === 'inicio' ? (
-            <div style={{ maxWidth: '1440px', margin: '0 auto' }}>
-
-              {/* ENCABEZADO GERENCIAL */}
-              <div style={{
-                background: 'linear-gradient(135deg, #0F172A 0%, #1E293B 100%)',
-                borderRadius: '10px',
-                padding: '24px 28px',
-                marginBottom: '22px',
-                color: '#FFFFFF',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.05)',
-                border: '1px solid #334155'
-              }}>
-                <div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
-                    <span style={{ fontSize: '11px', fontWeight: '700', color: '#2DD4BF', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
-                      SISTEMA INTEGRAL DE GESTIÓN OPERATIVA
-                    </span>
-                  </div>
-                  <h1 style={{ margin: '0 0 6px', fontSize: '22px', fontWeight: '800', letterSpacing: '-0.02em', color: '#F8FAFC' }}>
-                    Panel de Control Gerencial · Briseo SRL
-                  </h1>
-                  <p style={{ margin: 0, fontSize: '13px', color: '#94A3B8' }}>
-                    Monitoreo en tiempo real de facturación, dotación de personal, órdenes de trabajo y alertas operativas.
-                  </p>
+                <div className="w-11 h-11 rounded-2xl bg-white p-1.5 flex items-center justify-center shrink-0 shadow-md group-hover:scale-105 transition-transform">
+                  <img src="/logo.jpg" alt="Briseo" className="w-full h-full object-contain rounded-md" />
                 </div>
-
-                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                  {/* Selector de periodo rápido */}
-                  <div style={{ background: '#0F172A', border: '1px solid #334155', borderRadius: '6px', padding: '3px', display: 'flex', gap: '2px' }}>
-                    {[
-                      { id: 'hoy', label: 'Hoy' },
-                      { id: 'semana', label: 'Semana' },
-                      { id: 'mes', label: 'Mes actual' },
-                    ].map(p => (
-                      <button
-                        key={p.id}
-                        onClick={() => setFiltroPeriodo(p.id)}
-                        style={{
-                          background: filtroPeriodo === p.id ? '#0F766E' : 'transparent',
-                          color: filtroPeriodo === p.id ? '#FFFFFF' : '#94A3B8',
-                          border: 'none',
-                          borderRadius: '4px',
-                          padding: '6px 13px',
-                          fontSize: '11.5px',
-                          fontWeight: filtroPeriodo === p.id ? '700' : '600',
-                          cursor: 'pointer',
-                          transition: 'all 0.15s ease',
-                          boxShadow: filtroPeriodo === p.id ? '0 1px 2px rgba(0,0,0,0.2)' : 'none'
-                        }}
-                      >
-                        {p.label}
-                      </button>
-                    ))}
-                  </div>
-
-                  {/* Botón sincronizar métricas */}
-                  <button
-                    onClick={() => { cargarKpis(); cargarAlertas() }}
-                    disabled={actualizandoKpis}
-                    title="Actualizar datos desde la nube"
-                    style={{
-                      background: '#1E293B',
-                      border: '1px solid #475569',
-                      borderRadius: '6px',
-                      padding: '7px 12px',
-                      color: '#F8FAFC',
-                      fontSize: '12px',
-                      fontWeight: '600',
-                      cursor: 'pointer',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '6px',
-                      transition: 'background 0.15s ease'
-                    }}
-                  >
-                    <RefreshCw size={13} className={actualizandoKpis ? 'animate-spin' : ''} />
-                    <span>{actualizandoKpis ? 'Actualizando…' : 'Sincronizar'}</span>
-                  </button>
-                </div>
-              </div>
-
-              {/* GRID PRINCIPAL: MÉTRICAS Y TABLERO OPERATIVO */}
-              <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 340px', gap: '22px', alignItems: 'start' }}>
-
-                {/* COLUMNA IZQUIERDA: TARJETAS KPI & ACCESOS DIRECTOS */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '22px' }}>
-
-                  {/* BANDA DE KPIS FINANCIEROS (SINCRONIZADOS CON FINANZAS) */}
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '14px' }}>
-                    {/* KPI 1: INGRESOS DEL PERIODO (HOY, SEMANA, MES) */}
-                    <div
-                      onClick={() => {
-                        setVistaFinanzasInicial('movimientos')
-                        setSeccionActiva('finanzas')
-                      }}
-                      style={{
-                        background: '#FFFFFF',
-                        border: '1px solid #CBD5E1',
-                        borderTop: '3px solid #0F766E',
-                        borderRadius: '8px',
-                        padding: '16px 18px',
-                        cursor: 'pointer',
-                        display: 'flex',
-                        flexDirection: 'column',
-                        justifyContent: 'space-between',
-                        boxShadow: '0 1px 3px 0 rgba(15, 23, 42, 0.04)'
-                      }}
-                    >
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '8px' }}>
-                        <div>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
-                            <span style={{ fontSize: '11px', fontWeight: '700', color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                              {metricaPeriodo.tituloIngresos}
-                            </span>
-                            <span style={{ fontSize: '10px', fontWeight: '700', background: '#CCFBF1', color: '#0F766E', padding: '2px 6px', borderRadius: '4px' }}>
-                              {metricaPeriodo.etiquetaPeriodo}
-                            </span>
-                          </div>
-                          <p style={{ margin: '4px 0 0', fontSize: '11.5px', color: '#0F766E', fontWeight: '600' }}>
-                            {metricaPeriodo.subtituloIngresos} · {metricaPeriodo.cantIngresos} {metricaPeriodo.cantIngresos === 1 ? 'ingreso' : 'ingresos'}
-                          </p>
-                        </div>
-                        <div style={{ background: '#F0FDFA', padding: '7px', borderRadius: '6px', border: '1px solid #CCFBF1', flexShrink: 0 }}>
-                          <BarChart3 size={17} color="#0F766E" />
-                        </div>
-                      </div>
-                      <div style={{ marginTop: '14px' }}>
-                        <div style={{ fontFamily: paleta.fontMono, fontSize: '21px', fontWeight: '700', color: '#0F172A', letterSpacing: '-0.02em' }}>
-                          {formatearMonedaAR(metricaPeriodo.ingresos)}
-                        </div>
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '6px' }}>
-                          <span style={{ fontSize: '11px', color: '#64748B' }}>
-                            Egresos: {formatearMonedaAR(metricaPeriodo.egresos)}
-                          </span>
-                          <span style={{ fontSize: '11px', color: '#0F766E', fontWeight: '600', display: 'flex', alignItems: 'center' }}>
-                            Finanzas <ArrowUpRight size={12} />
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* KPI 2: CUENTAS POR COBRAR */}
-                    <div
-                      onClick={() => {
-                        setVistaFinanzasInicial('por-cobrar')
-                        setSeccionActiva('finanzas')
-                      }}
-                      style={{
-                        background: '#FFFFFF',
-                        border: '1px solid #CBD5E1',
-                        borderTop: '3px solid #1D4ED8',
-                        borderRadius: '8px',
-                        padding: '16px 18px',
-                        cursor: 'pointer',
-                        display: 'flex',
-                        flexDirection: 'column',
-                        justifyContent: 'space-between',
-                        boxShadow: '0 1px 3px 0 rgba(15, 23, 42, 0.04)'
-                      }}
-                    >
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '8px' }}>
-                        <div>
-                          <span style={{ fontSize: '11px', fontWeight: '700', color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                            Cuentas por Cobrar
-                          </span>
-                          <p style={{ margin: '4px 0 0', fontSize: '11.5px', color: '#1D4ED8', fontWeight: '600' }}>
-                            {kpis.cantPorCobrar} {kpis.cantPorCobrar === 1 ? 'factura pendiente' : 'facturas pendientes'}
-                          </p>
-                        </div>
-                        <div style={{ background: '#EFF6FF', padding: '7px', borderRadius: '6px', border: '1px solid #BFDBFE', flexShrink: 0 }}>
-                          <TrendingUp size={17} color="#1D4ED8" />
-                        </div>
-                      </div>
-                      <div style={{ marginTop: '14px' }}>
-                        <div style={{ fontFamily: paleta.fontMono, fontSize: '21px', fontWeight: '700', color: '#0F172A', letterSpacing: '-0.02em' }}>
-                          {formatearMonedaAR(kpis.facturasPendientes)}
-                        </div>
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '6px' }}>
-                          <span style={{ fontSize: '11px', color: '#64748B' }}>Saldo neto a cobrar</span>
-                          <span style={{ fontSize: '11px', color: '#1D4ED8', fontWeight: '600', display: 'flex', alignItems: 'center' }}>
-                            Por cobrar <ArrowUpRight size={12} />
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* KPI 3: CUENTAS POR PAGAR */}
-                    <div
-                      onClick={() => {
-                        setVistaFinanzasInicial('por-pagar')
-                        setSeccionActiva('finanzas')
-                      }}
-                      style={{
-                        background: '#FFFFFF',
-                        border: '1px solid #CBD5E1',
-                        borderTop: '3px solid #C2410C',
-                        borderRadius: '8px',
-                        padding: '16px 18px',
-                        cursor: 'pointer',
-                        display: 'flex',
-                        flexDirection: 'column',
-                        justifyContent: 'space-between',
-                        boxShadow: '0 1px 3px 0 rgba(15, 23, 42, 0.04)'
-                      }}
-                    >
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '8px' }}>
-                        <div>
-                          <span style={{ fontSize: '11px', fontWeight: '700', color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                            Cuentas por Pagar
-                          </span>
-                          <p style={{ margin: '4px 0 0', fontSize: '11.5px', color: '#C2410C', fontWeight: '600' }}>
-                            {kpis.cantPorPagar} {kpis.cantPorPagar === 1 ? 'comprobante pendiente' : 'comprobantes pendientes'}
-                          </p>
-                        </div>
-                        <div style={{ background: '#FFF7ED', padding: '7px', borderRadius: '6px', border: '1px solid #FED7AA', flexShrink: 0 }}>
-                          <TrendingDown size={17} color="#C2410C" />
-                        </div>
-                      </div>
-                      <div style={{ marginTop: '14px' }}>
-                        <div style={{ fontFamily: paleta.fontMono, fontSize: '21px', fontWeight: '700', color: '#0F172A', letterSpacing: '-0.02em' }}>
-                          {formatearMonedaAR(kpis.porPagar)}
-                        </div>
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '6px' }}>
-                          <span style={{ fontSize: '11px', color: '#64748B' }}>Saldo neto proveedores</span>
-                          <span style={{ fontSize: '11px', color: '#C2410C', fontWeight: '600', display: 'flex', alignItems: 'center' }}>
-                            Por pagar <ArrowUpRight size={12} />
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* KPI 4: CAJA + BANCOS A LA FECHA */}
-                    <div
-                      onClick={() => {
-                        setVistaFinanzasInicial('movimientos')
-                        setSeccionActiva('finanzas')
-                      }}
-                      style={{
-                        background: '#FFFFFF',
-                        border: '1px solid #CBD5E1',
-                        borderTop: '3px solid #0F172A',
-                        borderRadius: '8px',
-                        padding: '16px 18px',
-                        cursor: 'pointer',
-                        display: 'flex',
-                        flexDirection: 'column',
-                        justifyContent: 'space-between',
-                        boxShadow: '0 1px 3px 0 rgba(15, 23, 42, 0.04)'
-                      }}
-                    >
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '8px' }}>
-                        <div>
-                          <span style={{ fontSize: '11px', fontWeight: '700', color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                            Caja + Bancos a la fecha
-                          </span>
-                          <p style={{ margin: '4px 0 0', fontSize: '11.5px', color: '#334155', fontWeight: '600' }}>
-                            {kpis.cantCuentas} {kpis.cantCuentas === 1 ? 'cuenta activa' : 'cuentas activas'}
-                          </p>
-                        </div>
-                        <div style={{ background: '#F1F5F9', padding: '7px', borderRadius: '6px', border: '1px solid #CBD5E1', flexShrink: 0 }}>
-                          <Landmark size={17} color="#0F172A" />
-                        </div>
-                      </div>
-                      <div style={{ marginTop: '14px' }}>
-                        <div style={{ fontFamily: paleta.fontMono, fontSize: '21px', fontWeight: '700', color: kpis.saldoCajaYBancos >= 0 ? '#0F172A' : '#DC2626', letterSpacing: '-0.02em' }}>
-                          {formatearMonedaAR(kpis.saldoCajaYBancos)}
-                        </div>
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '6px' }}>
-                          <span style={{ fontSize: '11px', color: '#64748B', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                            Bancos: {formatearMonedaAR(kpis.saldoBancos)} · Efec.: {formatearMonedaAR(kpis.saldoEfectivo)}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* FILA SECUNDARIA DE OPERACIONES */}
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '14px' }}>
-                    {/* CUENTAS CORPORATIVAS */}
-                    <div
-                      onClick={() => setSeccionActiva('clientes')}
-                      style={{
-                        background: '#FFFFFF',
-                        border: '1px solid #E2E8F0',
-                        borderRadius: '8px',
-                        padding: '16px 18px',
-                        cursor: 'pointer',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'space-between'
-                      }}
-                    >
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                        <div style={{ background: '#EFF6FF', padding: '10px', borderRadius: '6px', border: '1px solid #BFDBFE' }}>
-                          <Users size={20} color="#2563EB" />
-                        </div>
-                        <div>
-                          <p style={{ margin: 0, fontSize: '11px', fontWeight: '700', color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Cuentas Corporativas</p>
-                          <p style={{ margin: '2px 0 0', fontSize: '18px', fontWeight: '700', color: '#0F172A', fontFamily: paleta.fontMono }}>
-                            {kpis.clientes} <span style={{ fontSize: '12px', color: '#64748B', fontWeight: '400' }}>clientes · {kpis.contratos} contratos</span>
-                          </p>
-                        </div>
-                      </div>
-                      <span style={{ color: '#2563EB', fontSize: '12px', fontWeight: '600' }}>Ver →</span>
-                    </div>
-
-                    {/* PERSONAL EN SERVICIO */}
-                    <div
-                      onClick={() => setSeccionActiva('personal')}
-                      style={{
-                        background: '#FFFFFF',
-                        border: '1px solid #E2E8F0',
-                        borderRadius: '8px',
-                        padding: '16px 18px',
-                        cursor: 'pointer',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'space-between'
-                      }}
-                    >
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                        <div style={{ background: '#F0FDF4', padding: '10px', borderRadius: '6px', border: '1px solid #DCFCE7' }}>
-                          <HardHat size={20} color="#15803D" />
-                        </div>
-                        <div>
-                          <p style={{ margin: 0, fontSize: '11px', fontWeight: '700', color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Dotación de Personal</p>
-                          <p style={{ margin: '2px 0 0', fontSize: '18px', fontWeight: '700', color: '#0F172A', fontFamily: paleta.fontMono }}>
-                            {kpis.empleados} <span style={{ fontSize: '12px', color: '#64748B', fontWeight: '400' }}>operarios activos</span>
-                          </p>
-                        </div>
-                      </div>
-                      <span style={{ color: '#15803D', fontSize: '12px', fontWeight: '600' }}>Gestionar →</span>
-                    </div>
-
-                    {/* AGENDA DEL PERIODO */}
-                    <div
-                      onClick={() => setSeccionActiva('agenda')}
-                      style={{
-                        background: '#FFFFFF',
-                        border: '1px solid #E2E8F0',
-                        borderRadius: '8px',
-                        padding: '16px 18px',
-                        cursor: 'pointer',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'space-between'
-                      }}
-                    >
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                        <div style={{ background: '#FFFBEB', padding: '10px', borderRadius: '6px', border: '1px solid #FEF3C7' }}>
-                          <CalendarDays size={20} color="#D97706" />
-                        </div>
-                        <div>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                            <p style={{ margin: 0, fontSize: '11px', fontWeight: '700', color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                              {metricaPeriodo.tituloServicios}
-                            </p>
-                            <span style={{ fontSize: '9.5px', fontWeight: '700', color: '#D97706', background: '#FEF3C7', padding: '1px 5px', borderRadius: '4px' }}>
-                              {metricaPeriodo.etiquetaPeriodo}
-                            </span>
-                          </div>
-                          <p style={{ margin: '2px 0 0', fontSize: '18px', fontWeight: '700', color: '#0F172A', fontFamily: paleta.fontMono }}>
-                            {metricaPeriodo.servicios} <span style={{ fontSize: '12px', color: '#64748B', fontWeight: '400' }}>{metricaPeriodo.subtituloServicios}</span>
-                          </p>
-                        </div>
-                      </div>
-                      <span style={{ color: '#D97706', fontSize: '12px', fontWeight: '600' }}>Ver agenda →</span>
-                    </div>
-                  </div>
-
-                  {/* MATRIZ DE MÓDULOS DEL SISTEMA */}
-                  <div style={{ background: '#FFFFFF', borderRadius: '10px', padding: '22px', border: '1px solid #E2E8F0', boxShadow: '0 1px 3px 0 rgba(15, 23, 42, 0.04)' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
-                      <div>
-                        <h3 style={{ margin: 0, fontSize: '15px', fontWeight: '700', color: '#0F172A', letterSpacing: '-0.01em' }}>
-                          Módulos del Sistema ERP
-                        </h3>
-                        <p style={{ margin: '3px 0 0', fontSize: '12.5px', color: '#64748B' }}>
-                          Seleccioná un módulo para operar registros y emitir comprobantes
-                        </p>
-                      </div>
-                      <span style={{ fontSize: '11px', color: '#64748B', background: '#F8FAFC', padding: '4px 8px', borderRadius: '4px', border: '1px solid #E2E8F0' }}>
-                        {todosItemsDisponibles.length} módulos habilitados
+                {menuAbierto && (
+                  <div className="text-left min-w-0">
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-sm font-extrabold tracking-tight text-white">BRISEO</span>
+                      <span className="rounded bg-[#3B66F5] px-1.5 py-0.5 text-[9px] font-bold tracking-wider text-white">
+                        ERP
                       </span>
                     </div>
+                    <p className="text-[10.5px] text-zinc-400 truncate">DAG Group S.R.L.</p>
+                  </div>
+                )}
+              </button>
 
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '10px' }}>
-                      {todosItemsDisponibles.map(item => {
+              {/* Navegación: Tablero + Módulos */}
+              <nav className="flex flex-col gap-1 max-h-[calc(100vh-250px)] overflow-y-auto pr-0.5">
+                <button
+                  type="button"
+                  onClick={() => setSeccionActiva('inicio')}
+                  title="Tablero Gerencial"
+                  className={`relative w-full h-10 rounded-full flex items-center ${
+                    menuAbierto ? 'px-3 gap-3 justify-start' : 'justify-center'
+                  } transition-colors ${
+                    seccionActiva === 'inicio' ? 'text-white' : 'text-zinc-400 hover:text-white'
+                  }`}
+                >
+                  {seccionActiva === 'inicio' && (
+                    <Motion.span
+                      layoutId="briseoSidebarActive"
+                      transition={{ type: 'spring', stiffness: 380, damping: 30 }}
+                      className="absolute inset-0 rounded-full bg-[#3B66F5] shadow-[0_6px_16px_rgba(59,102,245,0.45)]"
+                    />
+                  )}
+                  <Home className="relative z-10 w-[18px] h-[18px] shrink-0" strokeWidth={1.9} />
+                  {menuAbierto && (
+                    <span className="relative z-10 text-xs font-semibold truncate">Tablero Gerencial</span>
+                  )}
+                </button>
+
+                <div className="my-2 border-t border-white/10" />
+
+                {menuVisible.map((grupo) => (
+                  <div key={grupo.label} className="mb-1.5">
+                    {menuAbierto && (
+                      <div className="px-3 py-1 text-[9.5px] font-bold uppercase tracking-wider text-zinc-500">
+                        {grupo.label}
+                      </div>
+                    )}
+                    <div className="flex flex-col gap-1">
+                      {grupo.items.map((item) => {
                         const Icon = item.icon
-                        const colorMod = colores[item.id]?.main || '#0F766E'
+                        const activo = seccionActiva === item.id
+                        const cantAlertas = conteoAlertasPorModulo[item.id] || 0
                         return (
                           <button
                             key={item.id}
-                            onClick={() => {
-                              if (item.id === 'finanzas') setVistaFinanzasInicial('movimientos')
-                              setSeccionActiva(item.id)
-                            }}
-                            style={{
-                              background: '#F8FAFC',
-                              border: '1px solid #E2E8F0',
-                              borderRadius: '7px',
-                              padding: '12px 14px',
-                              cursor: 'pointer',
-                              textAlign: 'left',
-                              display: 'flex',
-                              alignItems: 'flex-start',
-                              gap: '11px',
-                              transition: 'all 0.15s ease'
-                            }}
+                            type="button"
+                            onClick={() => navegarModulo(item.id, 'movimientos')}
+                            title={!menuAbierto ? item.label : undefined}
+                            className={`relative w-full h-10 rounded-full flex items-center ${
+                              menuAbierto ? 'px-3 gap-3 justify-between' : 'justify-center'
+                            } transition-colors ${
+                              activo ? 'text-white' : 'text-zinc-400 hover:text-white'
+                            }`}
                           >
-                            <div style={{
-                              width: '32px',
-                              height: '32px',
-                              borderRadius: '6px',
-                              background: '#FFFFFF',
-                              border: `1px solid ${colorMod}33`,
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              flexShrink: 0
-                            }}>
-                              <Icon size={16} color={colorMod} />
-                            </div>
-                            <div style={{ minWidth: 0 }}>
-                              <p style={{ margin: 0, fontSize: '13px', fontWeight: '600', color: '#0F172A' }}>{item.label}</p>
-                              <p style={{ margin: '2px 0 0', fontSize: '11px', color: '#64748B', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                                {item.desc || 'Acceder al módulo'}
-                              </p>
-                            </div>
+                            {activo && (
+                              <Motion.span
+                                layoutId="briseoSidebarActive"
+                                transition={{ type: 'spring', stiffness: 380, damping: 30 }}
+                                className="absolute inset-0 rounded-full bg-[#3B66F5] shadow-[0_6px_16px_rgba(59,102,245,0.45)]"
+                              />
+                            )}
+                            <span className="relative z-10 flex items-center gap-3 min-w-0">
+                              <Icon className="w-[17px] h-[17px] shrink-0" strokeWidth={1.85} />
+                              {menuAbierto && (
+                                <span className="text-xs font-medium truncate">{item.label}</span>
+                              )}
+                            </span>
+                            {cantAlertas > 0 && (
+                              <span
+                                className={`relative z-10 ${
+                                  menuAbierto
+                                    ? 'rounded-full bg-rose-500 px-1.5 py-0.5 text-[9.5px] font-bold text-white tabular-nums'
+                                    : 'absolute top-1.5 right-2 w-2 h-2 rounded-full bg-rose-500 ring-2 ring-[#18191C]'
+                                }`}
+                              >
+                                {menuAbierto ? cantAlertas : ''}
+                              </span>
+                            )}
                           </button>
                         )
                       })}
                     </div>
                   </div>
+                ))}
+              </nav>
+            </div>
 
+            {/* Pie del sidebar: Expandir/Contraer y Cerrar sesión */}
+            <div className="pt-3 border-t border-white/10 flex flex-col gap-2 items-center">
+              <button
+                type="button"
+                onClick={() => setMenuAbierto((v) => !v)}
+                title={menuAbierto ? 'Contraer barra' : 'Expandir menú'}
+                className={`w-full h-9 rounded-full bg-white/8 hover:bg-white/15 text-zinc-300 hover:text-white flex items-center ${
+                  menuAbierto ? 'px-3 gap-2 justify-center' : 'justify-center'
+                } transition-colors text-xs font-medium`}
+              >
+                {menuAbierto ? (
+                  <>
+                    <ChevronLeft className="w-4 h-4" />
+                    <span>Contraer</span>
+                  </>
+                ) : (
+                  <ChevronRight className="w-4 h-4" />
+                )}
+              </button>
+              <button
+                type="button"
+                onClick={() => supabase.auth.signOut()}
+                title="Cerrar sesión"
+                className={`w-full h-9 rounded-full bg-rose-500/15 hover:bg-rose-500/25 text-rose-300 flex items-center ${
+                  menuAbierto ? 'px-3 gap-2 justify-center' : 'justify-center'
+                } transition-colors text-xs font-medium`}
+              >
+                <LogOut className="w-4 h-4" />
+                {menuAbierto && <span>Salir</span>}
+              </button>
+            </div>
+          </aside>
+
+          {/* ============================================================ */}
+          {/* ÁREA PRINCIPAL DERECHA: HEADER + BENTO GRID / MÓDULO ACTIVO  */}
+          {/* ============================================================ */}
+          <div className="flex-1 min-w-0 flex flex-col gap-5">
+
+            {/* TOP HEADER */}
+            <header className="flex flex-col lg:flex-row lg:items-center justify-between gap-3.5 px-1 pt-0.5">
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex items-center gap-3 min-w-0">
+                  {/* Botón menú móvil */}
+                  <button
+                    type="button"
+                    onClick={() => setMenuMovilAbierto(true)}
+                    aria-label="Abrir menú"
+                    className="md:hidden w-10 h-10 rounded-full bg-[#18191C] text-white flex items-center justify-center shrink-0"
+                  >
+                    <Menu className="w-4 h-4" />
+                  </button>
+
+                  {seccionActiva === 'inicio' ? (
+                    <div className="min-w-0">
+                      <h1 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight truncate">
+                        {saludo}, {nombreUsuario}
+                      </h1>
+                      <p className="text-xs sm:text-[13px] text-slate-500 mt-0.5 truncate">
+                        Briseo Limpieza · DAG Group S.R.L. · Tablero Gerencial en tiempo real
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-3 min-w-0">
+                      <button
+                        type="button"
+                        onClick={() => setSeccionActiva('inicio')}
+                        className="rounded-full bg-white border border-[#E5E7EB] hover:border-[#3B66F5] px-3.5 py-1.5 text-xs font-semibold text-slate-700 hover:text-[#3B66F5] flex items-center gap-1.5 shadow-2xs transition-colors shrink-0"
+                      >
+                        <ChevronLeft className="w-3.5 h-3.5" />
+                        <span>Tablero</span>
+                      </button>
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-1.5 text-[11px] text-slate-400 font-medium">
+                          <span>Briseo ERP</span>
+                          {grupoActivo && (
+                            <>
+                              <span>/</span>
+                              <span className="truncate">{grupoActivo.label}</span>
+                            </>
+                          )}
+                        </div>
+                        <h1 className="text-lg sm:text-xl font-bold text-slate-900 tracking-tight truncate">
+                          {itemActivo?.label}
+                        </h1>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* UTILIDADES DERECHA: BUSCADOR, RELOJ, NOTIFICACIONES, PERFIL */}
+              <div className="flex flex-wrap items-center gap-2.5">
+                {/* Buscador Command Palette */}
+                <button
+                  type="button"
+                  onClick={() => setBuscadorAbierto(true)}
+                  className="flex items-center gap-2.5 rounded-full bg-white/90 border border-[#E5E7EB] hover:border-[#3B66F5]/50 px-3.5 py-2 text-xs text-slate-500 shadow-[0_4px_16px_rgb(0,0,0,0.03)] transition-colors"
+                >
+                  <Search className="w-3.5 h-3.5 text-slate-400" />
+                  <span className="hidden sm:inline">Buscar módulo o acción…</span>
+                  <span className="sm:hidden">Buscar…</span>
+                  <kbd className="hidden sm:inline rounded-md bg-[#F3F5FA] px-1.5 py-0.5 text-[10px] font-semibold text-slate-500">
+                    Ctrl K
+                  </kbd>
+                </button>
+
+                {/* Reloj vivo */}
+                <div className="hidden xl:flex items-center gap-1.5 rounded-full bg-white/85 border border-[#E5E7EB] px-3 py-2 text-[11.5px] font-medium text-slate-600 tabular-nums">
+                  <Clock className="w-3.5 h-3.5 text-[#3B66F5]" />
+                  <span>
+                    {horaActual.toLocaleTimeString('es-AR', {
+                      hour: '2-digit',
+                      minute: '2-digit',
+                      second: '2-digit',
+                    })}
+                  </span>
                 </div>
 
-                {/* COLUMNA DERECHA: ALERTAS Y AUDITORÍA OPERATIVA */}
-                <div style={{ position: 'sticky', top: '16px' }}>
-                  <div style={{
-                    background: '#FFFFFF',
-                    borderRadius: '10px',
-                    padding: '20px',
-                    border: '1px solid #E2E8F0',
-                    boxShadow: '0 1px 3px 0 rgba(15, 23, 42, 0.04)'
-                  }}>
-                    {/* Header de Alertas */}
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px', paddingBottom: '12px', borderBottom: '1px solid #F1F5F9' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <Bell size={16} color="#0F172A" />
-                        <h3 style={{ margin: 0, fontSize: '14px', fontWeight: '700', color: '#0F172A' }}>
-                          Alertas & Auditoría
-                        </h3>
-                      </div>
-                      {alertas.length > 0 ? (
-                        <span style={{
-                          background: '#BE123C',
-                          color: '#FFFFFF',
-                          borderRadius: '4px',
-                          fontSize: '11px',
-                          fontWeight: '700',
-                          padding: '2px 7px',
-                          fontFamily: paleta.fontMono
-                        }}>
-                          {alertas.length} ACTIVAS
-                        </span>
-                      ) : (
-                        <span style={{
-                          background: '#DCFCE7',
-                          color: '#15803D',
-                          borderRadius: '4px',
-                          fontSize: '11px',
-                          fontWeight: '600',
-                          padding: '2px 7px'
-                        }}>
-                          AL DÍA
-                        </span>
-                      )}
-                    </div>
+                {/* Notificaciones / Alertas reales */}
+                <div className="relative">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setNotifAbierto((v) => !v)
+                      setPerfilAbierto(false)
+                    }}
+                    aria-label="Alertas del sistema"
+                    className="relative w-10 h-10 rounded-full bg-white/90 border border-[#E5E7EB] hover:bg-white text-slate-700 flex items-center justify-center shadow-[0_4px_16px_rgb(0,0,0,0.03)] transition-colors"
+                  >
+                    <Bell className="w-[17px] h-[17px]" />
+                    {alertas.length > 0 && (
+                      <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] px-1 rounded-full bg-[#3B66F5] text-white text-[10px] font-bold flex items-center justify-center tabular-nums ring-2 ring-white">
+                        {alertas.length}
+                      </span>
+                    )}
+                  </button>
 
-                    {/* Lista de alertas */}
-                    {alertas.length === 0 ? (
-                      <div style={{ textAlign: 'center', padding: '36px 12px' }}>
-                        <div style={{ width: '42px', height: '42px', borderRadius: '50%', background: '#F0FDF4', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', marginBottom: '10px' }}>
-                          <CheckCircle2 size={24} color="#16A34A" />
+                  <AnimatePresence>
+                    {notifAbierto && (
+                      <Motion.div
+                        initial={{ opacity: 0, y: 8, scale: 0.97 }}
+                        animate={{ opacity: 1, y: 0, scale: 1 }}
+                        exit={{ opacity: 0, y: 6, scale: 0.97 }}
+                        transition={{ duration: 0.16 }}
+                        className="absolute right-0 mt-2 w-80 rounded-2xl bg-white border border-[#E5E7EB] shadow-xl p-3.5 z-50"
+                      >
+                        <div className="flex items-center justify-between pb-2.5 border-b border-gray-100">
+                          <span className="text-xs font-bold text-slate-900">
+                            Alertas Operativas ({alertas.length})
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => cargarAlertas()}
+                            className="text-[11px] font-semibold text-[#3B66F5] hover:underline"
+                          >
+                            Actualizar
+                          </button>
                         </div>
-                        <p style={{ margin: 0, fontSize: '13.5px', fontWeight: '600', color: '#0F172A' }}>Sin alertas operativas</p>
-                        <p style={{ margin: '4px 0 0', fontSize: '12px', color: '#64748B' }}>Todos los contratos, facturas y sueldos se encuentran al día.</p>
+                        <div className="mt-2 space-y-1.5 max-h-72 overflow-y-auto">
+                          {alertas.length === 0 ? (
+                            <p className="py-5 text-center text-xs text-slate-500">
+                              Sin alertas activas. Todo se encuentra al día.
+                            </p>
+                          ) : (
+                            alertas.map((a, i) => {
+                              const conf = alertaEstilo[a.tipo] || alertaEstilo.info
+                              return (
+                                <button
+                                  key={i}
+                                  type="button"
+                                  onClick={() => {
+                                    navegarModulo(a.modulo)
+                                    setNotifAbierto(false)
+                                  }}
+                                  className="w-full text-left rounded-xl p-2.5 hover:bg-[#F3F5FA] transition-colors"
+                                >
+                                  <div className="flex items-center justify-between gap-2">
+                                    <span className="text-xs font-semibold text-slate-900 truncate">
+                                      {a.titulo}
+                                    </span>
+                                    <span
+                                      className="rounded px-1.5 py-0.5 text-[9.5px] font-bold uppercase shrink-0"
+                                      style={{ background: conf.bg, color: conf.text }}
+                                    >
+                                      {conf.label}
+                                    </span>
+                                  </div>
+                                  <p className="text-[11px] text-slate-500 mt-0.5 truncate">{a.detalle}</p>
+                                  {a.monto > 0 && (
+                                    <p className="text-[11px] font-bold text-[#3B66F5] mt-0.5 tabular-nums">
+                                      {a.monto.toLocaleString('es-AR', {
+                                        style: 'currency',
+                                        currency: 'ARS',
+                                      })}
+                                    </p>
+                                  )}
+                                </button>
+                              )
+                            })
+                          )}
+                        </div>
+                      </Motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
+
+                {/* Píldora de Usuario */}
+                <div className="relative">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setPerfilAbierto((v) => !v)
+                      setNotifAbierto(false)
+                    }}
+                    className="flex items-center gap-2 rounded-full bg-white/90 border border-[#E5E7EB] pl-1.5 pr-3 py-1.5 shadow-[0_4px_16px_rgb(0,0,0,0.03)] hover:bg-white transition-colors"
+                  >
+                    <div className="w-7 h-7 rounded-full bg-[#3B66F5] text-white text-[11px] font-bold flex items-center justify-center">
+                      {iniciales}
+                    </div>
+                    <span className="hidden sm:inline text-xs font-semibold text-slate-800 max-w-[110px] truncate">
+                      {nombreUsuario}
+                    </span>
+                    <span className="rounded-md bg-[#F3F5FA] px-1.5 py-0.5 text-[9.5px] font-bold text-[#3B66F5] uppercase">
+                      {esAdmin ? 'Admin' : 'Oper'}
+                    </span>
+                  </button>
+
+                  <AnimatePresence>
+                    {perfilAbierto && (
+                      <Motion.div
+                        initial={{ opacity: 0, y: 8, scale: 0.97 }}
+                        animate={{ opacity: 1, y: 0, scale: 1 }}
+                        exit={{ opacity: 0, y: 6, scale: 0.97 }}
+                        transition={{ duration: 0.16 }}
+                        className="absolute right-0 mt-2 w-60 rounded-2xl bg-white border border-[#E5E7EB] shadow-xl p-2 z-50"
+                      >
+                        <div className="px-3 py-2 border-b border-gray-100">
+                          <p className="text-xs font-bold text-slate-900 truncate">{user.email}</p>
+                          <p className="text-[11px] text-slate-500">
+                            {esAdmin ? 'Administrador · Acceso total' : 'Operador'}
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSeccionActiva('inicio')
+                            setPerfilAbierto(false)
+                          }}
+                          className="w-full text-left px-3 py-2 mt-1 rounded-xl text-xs font-medium text-slate-700 hover:bg-[#F3F5FA]"
+                        >
+                          Tablero Gerencial
+                        </button>
+                        {esAdmin && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              navegarModulo('usuarios')
+                              setPerfilAbierto(false)
+                            }}
+                            className="w-full text-left px-3 py-2 rounded-xl text-xs font-medium text-slate-700 hover:bg-[#F3F5FA]"
+                          >
+                            Usuarios y Permisos
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => supabase.auth.signOut()}
+                          className="w-full text-left px-3 py-2 rounded-xl text-xs font-semibold text-rose-600 hover:bg-rose-50"
+                        >
+                          Cerrar sesión
+                        </button>
+                      </Motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
+              </div>
+            </header>
+
+            {/* CONTENIDO PRINCIPAL */}
+            <main className="flex-1 min-w-0">
+              {seccionActiva === 'inicio' ? (
+                <BentoTablero
+                  kpis={kpis}
+                  metricaPeriodo={metricaPeriodo}
+                  alertas={alertas}
+                  esAdmin={esAdmin}
+                  filtroPeriodo={filtroPeriodo}
+                  setFiltroPeriodo={setFiltroPeriodo}
+                  actualizandoKpis={actualizandoKpis}
+                  onSincronizar={() => {
+                    cargarKpis()
+                    cargarAlertas()
+                  }}
+                  onNavegar={navegarModulo}
+                  todosItemsDisponibles={todosItemsDisponibles}
+                />
+              ) : (
+                <div className="sg-main rounded-2xl bg-white/85 border border-[#E5E7EB] p-3 sm:p-5 shadow-[0_8px_30px_rgb(0,0,0,0.04)] overflow-x-auto">
+                  {seccionActiva === 'clientes' && <Clientes />}
+                  {seccionActiva === 'crm' && <CRM />}
+                  {seccionActiva === 'contratos' && <Contratos />}
+                  {seccionActiva === 'personal' && <Personal />}
+                  {seccionActiva === 'agenda' && <Agenda />}
+                  {seccionActiva === 'presupuestos' && <Presupuestos />}
+                  {seccionActiva === 'facturacion' && esAdmin && <Facturacion />}
+                  {seccionActiva === 'insumos' && <Insumos />}
+                  {seccionActiva === 'finanzas' && esAdmin && (
+                    <Finanzas vistaInicial={vistaFinanzasInicial} />
+                  )}
+                  {seccionActiva === 'conciliacion' && esAdmin && (
+                    <Finanzas vistaInicial="conciliacion" />
+                  )}
+                  {seccionActiva === 'costos' && esAdmin && <Costos />}
+                  {seccionActiva === 'sueldos' && esAdmin && <Sueldos />}
+                  {seccionActiva === 'proveedores' && <Proveedores />}
+                  {seccionActiva === 'reportes' && <Reportes />}
+                  {seccionActiva === 'usuarios' && esAdmin && <Usuarios />}
+                </div>
+              )}
+            </main>
+          </div>
+        </div>
+
+        {/* ============================================================ */}
+        {/* DRAWER DE NAVEGACIÓN MÓVIL                                   */}
+        {/* ============================================================ */}
+        <AnimatePresence>
+          {menuMovilAbierto && (
+            <Motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setMenuMovilAbierto(false)}
+              className="md:hidden fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-xs flex"
+            >
+              <Motion.div
+                initial={{ x: -280 }}
+                animate={{ x: 0 }}
+                exit={{ x: -280 }}
+                transition={{ duration: 0.22 }}
+                onClick={(e) => e.stopPropagation()}
+                className="w-72 h-full bg-[#18191C] text-white p-4 flex flex-col justify-between overflow-y-auto"
+              >
+                <div>
+                  <div className="flex items-center justify-between pb-4 border-b border-white/10">
+                    <div className="flex items-center gap-2.5">
+                      <img src="/logo.jpg" alt="Briseo" className="w-8 h-8 rounded-lg bg-white p-0.5" />
+                      <div>
+                        <p className="text-sm font-bold">BRISEO ERP</p>
+                        <p className="text-[11px] text-zinc-400">DAG Group S.R.L.</p>
                       </div>
-                    ) : (
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '420px', overflowY: 'auto' }}>
-                        {alertas.map((a, i) => {
-                          const conf = alertaEstilo[a.tipo] || alertaEstilo.info
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setMenuMovilAbierto(false)}
+                      className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+
+                  <div className="mt-4 space-y-1">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSeccionActiva('inicio')
+                        setMenuMovilAbierto(false)
+                      }}
+                      className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-semibold ${
+                        seccionActiva === 'inicio'
+                          ? 'bg-[#3B66F5] text-white'
+                          : 'text-zinc-300 hover:bg-white/10'
+                      }`}
+                    >
+                      <Home className="w-4 h-4" />
+                      <span>Tablero Gerencial</span>
+                    </button>
+
+                    {menuVisible.map((grupo) => (
+                      <div key={grupo.label} className="pt-3">
+                        <div className="px-3 pb-1 text-[10px] font-bold uppercase tracking-wider text-zinc-500">
+                          {grupo.label}
+                        </div>
+                        {grupo.items.map((item) => {
+                          const Icon = item.icon
+                          const activo = seccionActiva === item.id
                           return (
                             <button
-                              key={i}
-                              onClick={() => setSeccionActiva(a.modulo)}
-                              style={{
-                                background: '#F8FAFC',
-                                border: '1px solid #E2E8F0',
-                                borderLeft: `3px solid ${conf.dot}`,
-                                borderRadius: '6px',
-                                padding: '10px 12px',
-                                cursor: 'pointer',
-                                textAlign: 'left',
-                                width: '100%',
-                                display: 'flex',
-                                flexDirection: 'column',
-                                gap: '3px',
-                                transition: 'background 0.12s ease'
-                              }}
+                              key={item.id}
+                              type="button"
+                              onClick={() => navegarModulo(item.id, 'movimientos')}
+                              className={`w-full flex items-center gap-3 px-3 py-2 rounded-xl text-xs font-medium ${
+                                activo
+                                  ? 'bg-[#3B66F5] text-white'
+                                  : 'text-zinc-300 hover:bg-white/10'
+                              }`}
                             >
-                              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '6px' }}>
-                                <span style={{ fontSize: '12px', fontWeight: '700', color: '#0F172A' }}>
-                                  {a.titulo}
-                                </span>
-                                <span style={{
-                                  background: conf.bg,
-                                  color: conf.text,
-                                  fontSize: '10px',
-                                  fontWeight: '700',
-                                  padding: '1px 5px',
-                                  borderRadius: '3px',
-                                  textTransform: 'uppercase'
-                                }}>
-                                  {conf.label}
-                                </span>
-                              </div>
-                              <p style={{ margin: 0, fontSize: '11.5px', color: '#64748B', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                                {a.detalle}
-                              </p>
-                              {a.monto && (
-                                <p style={{ margin: '2px 0 0', fontSize: '12px', fontWeight: '700', color: conf.text, fontFamily: paleta.fontMono }}>
-                                  {a.monto.toLocaleString('es-AR', { style: 'currency', currency: 'ARS' })}
-                                </p>
-                              )}
+                              <Icon className="w-4 h-4" />
+                              <span>{item.label}</span>
                             </button>
                           )
                         })}
                       </div>
-                    )}
-
-                    <div style={{ marginTop: '16px', paddingTop: '12px', borderTop: '1px solid #F1F5F9' }}>
-                      <button
-                        onClick={() => cargarAlertas()}
-                        style={{
-                          width: '100%',
-                          padding: '7px 12px',
-                          background: '#F8FAFC',
-                          border: '1px solid #CBD5E1',
-                          borderRadius: '6px',
-                          color: '#334155',
-                          fontSize: '12px',
-                          fontWeight: '600',
-                          cursor: 'pointer',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          gap: '6px'
-                        }}
-                      >
-                        <RefreshCw size={12} />
-                        <span>Actualizar alertas</span>
-                      </button>
-                    </div>
+                    ))}
                   </div>
                 </div>
 
-              </div>
-
-            </div>
-          ) : (
-            /* RENDERIZADO DE LOS MÓDULOS ESPECÍFICOS */
-            <div style={{ maxWidth: '1440px', margin: '0 auto' }}>
-              {seccionActiva === 'clientes' && <Clientes />}
-              {seccionActiva === 'crm' && <CRM />}
-              {seccionActiva === 'contratos' && <Contratos />}
-              {seccionActiva === 'personal' && <Personal />}
-              {seccionActiva === 'agenda' && <Agenda />}
-              {seccionActiva === 'presupuestos' && <Presupuestos />}
-              {seccionActiva === 'facturacion' && esAdmin && <Facturacion />}
-              {seccionActiva === 'insumos' && <Insumos />}
-              {seccionActiva === 'finanzas' && esAdmin && <Finanzas vistaInicial={vistaFinanzasInicial} />}
-              {seccionActiva === 'conciliacion' && esAdmin && <Finanzas vistaInicial="conciliacion" />}
-              {seccionActiva === 'costos' && esAdmin && <Costos />}
-              {seccionActiva === 'sueldos' && esAdmin && <Sueldos />}
-              {seccionActiva === 'proveedores' && <Proveedores />}
-              {seccionActiva === 'reportes' && <Reportes />}
-              {seccionActiva === 'usuarios' && esAdmin && <Usuarios />}
-            </div>
+                <button
+                  type="button"
+                  onClick={() => supabase.auth.signOut()}
+                  className="mt-4 w-full py-2.5 rounded-xl bg-rose-500/20 text-rose-300 text-xs font-semibold flex items-center justify-center gap-2"
+                >
+                  <LogOut className="w-4 h-4" />
+                  <span>Cerrar sesión</span>
+                </button>
+              </Motion.div>
+            </Motion.div>
           )}
-        </main>
-      </div>
+        </AnimatePresence>
 
-      {/* ============================================================ */}
-      {/* MODAL GLOBAL: COMMAND PALETTE (CTRL + K) */}
-      {/* ============================================================ */}
-      {buscadorAbierto && (
-        <div
-          onClick={() => setBuscadorAbierto(false)}
-          style={{
-            position: 'fixed',
-            inset: 0,
-            background: 'rgba(15, 23, 42, 0.65)',
-            backdropFilter: 'blur(3px)',
-            display: 'flex',
-            alignItems: 'flex-start',
-            justifyContent: 'center',
-            paddingTop: '100px',
-            zIndex: 999
-          }}
-        >
+        {/* ============================================================ */}
+        {/* MODAL GLOBAL: COMMAND PALETTE (CTRL + K)                     */}
+        {/* ============================================================ */}
+        {buscadorAbierto && (
           <div
-            onClick={e => e.stopPropagation()}
-            style={{
-              width: '100%',
-              maxWidth: '560px',
-              background: '#FFFFFF',
-              borderRadius: '10px',
-              boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.35)',
-              border: '1px solid #CBD5E1',
-              overflow: 'hidden'
-            }}
+            onClick={() => setBuscadorAbierto(false)}
+            className="fixed inset-0 z-50 bg-slate-900/45 backdrop-blur-xs flex items-start justify-center pt-24 px-4"
           >
-            {/* Input del Command Palette */}
-            <div style={{ padding: '14px 18px', borderBottom: '1px solid #E2E8F0', display: 'flex', alignItems: 'center', gap: '10px' }}>
-              <Search size={18} color="#64748B" />
-              <input
-                autoFocus
-                type="text"
-                value={queryBusqueda}
-                onChange={e => setQueryBusqueda(e.target.value)}
-                placeholder="Escribí para buscar módulo o comando…"
-                style={{
-                  flex: 1,
-                  border: 'none',
-                  outline: 'none',
-                  fontSize: '14.5px',
-                  color: '#0F172A',
-                  background: 'transparent',
-                  fontFamily: paleta.font
-                }}
-              />
-              <span style={{ fontSize: '11px', background: '#F1F5F9', color: '#64748B', padding: '2px 6px', borderRadius: '4px' }}>
-                ESC para salir
-              </span>
-            </div>
-
-            {/* Lista de resultados */}
-            <div style={{ maxHeight: '360px', overflowY: 'auto', padding: '8px' }}>
-              <div style={{ padding: '4px 10px 6px', fontSize: '11px', fontWeight: '700', color: '#94A3B8', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                Módulos del ERP
+            <div
+              onClick={(e) => e.stopPropagation()}
+              className="w-full max-w-xl rounded-2xl bg-white border border-gray-200 shadow-2xl overflow-hidden"
+            >
+              <div className="px-4 py-3.5 border-b border-gray-100 flex items-center gap-3">
+                <Search className="w-4 h-4 text-slate-400 shrink-0" />
+                <input
+                  autoFocus
+                  type="text"
+                  value={queryBusqueda}
+                  onChange={(e) => setQueryBusqueda(e.target.value)}
+                  placeholder="Escribí para buscar módulo o comando…"
+                  className="flex-1 bg-transparent text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none"
+                />
+                <span className="rounded-md bg-[#F3F5FA] px-2 py-0.5 text-[11px] font-medium text-slate-500">
+                  ESC
+                </span>
               </div>
-              {resultadosBusqueda.length === 0 ? (
-                <div style={{ padding: '24px', textAlign: 'center', color: '#64748B', fontSize: '13px' }}>
-                  No se encontraron módulos con &quot;{queryBusqueda}&quot;
+
+              <div className="max-h-80 overflow-y-auto p-2">
+                <div className="px-3 py-1.5 text-[10.5px] font-bold uppercase tracking-wider text-slate-400">
+                  Módulos de Briseo ERP
                 </div>
-              ) : (
-                resultadosBusqueda.map(item => {
-                  const Icon = item.icon
-                  return (
-                    <button
-                      key={item.id}
-                      onClick={() => {
-                        if (item.id === 'finanzas') setVistaFinanzasInicial('movimientos')
-                        setSeccionActiva(item.id)
-                        setBuscadorAbierto(false)
-                        setQueryBusqueda('')
-                      }}
-                      style={{
-                        width: '100%',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'space-between',
-                        padding: '9px 12px',
-                        background: 'transparent',
-                        border: 'none',
-                        borderRadius: '6px',
-                        cursor: 'pointer',
-                        textAlign: 'left'
-                      }}
-                    >
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                        <div style={{ width: '28px', height: '28px', borderRadius: '6px', background: '#F1F5F9', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                          <Icon size={15} color="#0F766E" />
+                {resultadosBusqueda.length === 0 ? (
+                  <div className="py-8 text-center text-xs text-slate-500">
+                    No se encontraron módulos con &quot;{queryBusqueda}&quot;
+                  </div>
+                ) : (
+                  resultadosBusqueda.map((item) => {
+                    const Icon = item.icon
+                    return (
+                      <button
+                        key={item.id}
+                        type="button"
+                        onClick={() => {
+                          navegarModulo(item.id, 'movimientos')
+                          setBuscadorAbierto(false)
+                          setQueryBusqueda('')
+                        }}
+                        className="w-full flex items-center justify-between px-3 py-2.5 rounded-xl hover:bg-[#F3F5FA] text-left transition-colors"
+                      >
+                        <div className="flex items-center gap-3 min-w-0">
+                          <div className="w-8 h-8 rounded-lg bg-[#F3F5FA] flex items-center justify-center shrink-0">
+                            <Icon className="w-4 h-4 text-[#3B66F5]" />
+                          </div>
+                          <div className="min-w-0">
+                            <p className="text-xs font-bold text-slate-900 truncate">{item.label}</p>
+                            <p className="text-[11px] text-slate-500 truncate">{item.desc}</p>
+                          </div>
                         </div>
-                        <div>
-                          <p style={{ margin: 0, fontSize: '13.5px', fontWeight: '600', color: '#0F172A' }}>{item.label}</p>
-                          <p style={{ margin: 0, fontSize: '11.5px', color: '#64748B' }}>{item.desc}</p>
-                        </div>
-                      </div>
-                      <span style={{ fontSize: '11px', color: '#0F766E', fontWeight: '600' }}>Abrir →</span>
-                    </button>
-                  )
-                })
-              )}
+                        <span className="text-[11px] font-semibold text-[#3B66F5] shrink-0">
+                          Abrir →
+                        </span>
+                      </button>
+                    )
+                  })
+                )}
+              </div>
             </div>
           </div>
-        </div>
-      )}
-
-    </div>
+        )}
+      </div>
+    </MotionConfig>
   )
 }
 
