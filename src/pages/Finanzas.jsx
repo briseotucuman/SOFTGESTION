@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { supabase, emitirCambioDatos, escucharCambiosDatos } from '../supabase.js'
 import { s, colores, paleta } from '../estilos.js'
 import {
@@ -42,6 +42,9 @@ function Finanzas({ vistaInicial = 'movimientos' }) {
   const [facturasCobrarTodas, setFacturasCobrarTodas] = useState([])
   const [pagosVenta, setPagosVenta] = useState([])
   const [loading, setLoading] = useState(true)
+  const cargaEnVuelo = useRef(null)
+  const cargaPendiente = useRef(false)
+  const primeraCargaHecha = useRef(false)
   const [sincronizando, setSincronizando] = useState(false)
   const [cuentaSeleccionadaId, setCuentaSeleccionadaId] = useState('')
   const [mostrarForm, setMostrarForm] = useState(false)
@@ -105,36 +108,39 @@ function Finanzas({ vistaInicial = 'movimientos' }) {
   useEffect(() => {
     cargarDatos()
 
-    // 1. Escuchar evento de datos global en memoria
-    const desuscribir = escucharCambiosDatos(() => {
-      cargarDatos()
-    })
-
-    // 2. Refrescar al re-enfocar la ventana
-    const alEnfocar = () => {
-      cargarDatos()
+    // Avisos en vivo agrupados: varios cambios seguidos provocan una sola actualización
+    let timerDebounce = null
+    const refrescar = () => {
+      clearTimeout(timerDebounce)
+      timerDebounce = setTimeout(() => cargarDatos(), 600)
     }
+
+    // 1. Cambios hechos desde otras pantallas
+    const desuscribir = escucharCambiosDatos(refrescar)
+
+    // 2. Al volver a la pestaña
+    const alEnfocar = () => refrescar()
     window.addEventListener('focus', alEnfocar)
     const alVisibilidad = () => {
-      if (document.visibilityState === 'visible') cargarDatos()
+      if (document.visibilityState === 'visible') refrescar()
     }
     document.addEventListener('visibilitychange', alVisibilidad)
 
-    // 3. Heartbeat periódico para que las finanzas siempre estén actualizadas
+    // 3. Refresco periódico, solo con la pestaña a la vista
     const timerSync = setInterval(() => {
-      cargarDatos()
-    }, 25000)
+      if (document.visibilityState === 'visible') cargarDatos()
+    }, 60000)
 
     // 4. Canal Realtime de Supabase
     let canalRealtime = null
     try {
       canalRealtime = supabase.channel('finanzas_auto_sync')
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'movimientos_financieros' }, () => cargarDatos())
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'facturas' }, () => cargarDatos())
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'pagos' }, () => cargarDatos())
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'cuentas_bancarias' }, () => cargarDatos())
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'facturas_compra' }, () => cargarDatos())
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'pagos_compra' }, () => cargarDatos())
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'movimientos_financieros' }, refrescar)
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'facturas' }, refrescar)
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'pagos' }, refrescar)
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'cuentas_bancarias' }, refrescar)
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'facturas_compra' }, refrescar)
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'pagos_compra' }, refrescar)
         .subscribe()
     } catch (e) {
       console.warn('Realtime notice in finanzas:', e)
@@ -145,6 +151,7 @@ function Finanzas({ vistaInicial = 'movimientos' }) {
       window.removeEventListener('focus', alEnfocar)
       document.removeEventListener('visibilitychange', alVisibilidad)
       clearInterval(timerSync)
+      clearTimeout(timerDebounce)
       if (canalRealtime) supabase.removeChannel(canalRealtime)
     }
   }, [])
@@ -193,13 +200,22 @@ function Finanzas({ vistaInicial = 'movimientos' }) {
     setProyeccion({ buckets: BUCKETS.map(b => ({ ...b, ...porBucket[b.id] })), costoFijoMensual })
   }
 
-  async function cargarDatos() {
-    setLoading(true)
-    const [
-      { data: movDataRaw }, { data: cuentasData }, { data: facturasData },
-      { data: factCompraData }, { data: pagosCompraData }, { data: provData }, { data: cliData },
-      { data: factVentaTodas, error: errFactVentaTodas }, { data: pagosVentaData }
-    ] = await Promise.all([
+  // Una sola carga a la vez: si llega otra mientras corre una, se repite una vez al terminar.
+  // Así los avisos en vivo, el foco de la ventana y el refresco periódico no se pisan entre sí.
+  function cargarDatos() {
+    if (cargaEnVuelo.current) { cargaPendiente.current = true; return cargaEnVuelo.current }
+    cargaEnVuelo.current = (async () => {
+      try {
+        do { cargaPendiente.current = false; await cargarDatosInterno() } while (cargaPendiente.current)
+      } finally { cargaEnVuelo.current = null }
+    })()
+    return cargaEnVuelo.current
+  }
+
+  async function cargarDatosInterno() {
+    // "Cargando..." solo la primera vez; los refrescos son silenciosos para no mover la pantalla
+    if (!primeraCargaHecha.current) setLoading(true)
+    const resultados = await Promise.all([
       supabase.from('movimientos_financieros').select('*').order('fecha', { ascending: false }),
       supabase.from('cuentas_bancarias').select('*').eq('activa', true),
       supabase.from('facturas').select('id, numero_factura, clientes(razon_social), total, estado').in('estado', ['emitida', 'pendiente', 'parcial', 'vencida']).order('fecha_emision', { ascending: false }),
@@ -210,31 +226,23 @@ function Finanzas({ vistaInicial = 'movimientos' }) {
       supabase.from('facturas').select('id,numero_factura,total,estado,fecha_emision,fecha_vencimiento,clientes(razon_social,nombre_contacto)').order('fecha_emision', { ascending: false }),
       supabase.from('pagos').select('*, facturas(fecha_emision)'),
     ])
+    // Si alguna consulta falla (red, sesión), se conserva lo que ya está en pantalla: nunca se
+    // trabaja con datos incompletos.
+    if (resultados.some(r => r.error)) {
+      console.warn('Finanzas: la actualización falló, se mantienen los datos actuales', resultados.find(r => r.error)?.error)
+      setLoading(false)
+      return
+    }
+    const [
+      { data: movDataRaw }, { data: cuentasData }, { data: facturasData },
+      { data: factCompraData }, { data: pagosCompraData }, { data: provData }, { data: cliData },
+      { data: factVentaTodas }, { data: pagosVentaData }
+    ] = resultados
 
     let movData = movDataRaw || []
-    const setFactVentaIds = new Set((factVentaTodas || []).map(f => f.id))
-
-    // Detección segura: solo depurar movimientos vinculados por factura_id a facturas que fueron eliminadas
-    const huerfanos = (!errFactVentaTodas && Array.isArray(factVentaTodas))
-      ? movData.filter(m => m.tipo === 'ingreso' && m.factura_id && !setFactVentaIds.has(m.factura_id))
-      : []
-
-    if (huerfanos.length > 0) {
-      const idsHuerfanos = huerfanos.map(m => m.id)
-      for (const h of huerfanos) {
-        if (h.cuenta_id && h.monto) {
-          await ajustarSaldo(h.cuenta_id, -Number(h.monto))
-        }
-      }
-      for (let i = 0; i < idsHuerfanos.length; i += 50) {
-        await supabase.from('movimientos_financieros').delete().in('id', idsHuerfanos.slice(i, i + 50))
-      }
-      movData = movData.filter(m => !idsHuerfanos.includes(m.id))
-      const { data: cuentasActualizadas } = await supabase.from('cuentas_bancarias').select('*').eq('activa', true)
-      if (cuentasActualizadas) setCuentas(cuentasActualizadas)
-    } else if (cuentasData) {
-      setCuentas(cuentasData)
-    }
+    // (Se eliminó la purga automática de cobranzas "huérfanas": borraba movimientos y pagos en cada
+    // refresco. Al eliminar una factura, Facturación ya borra sus cobros y movimientos.)
+    if (cuentasData) setCuentas(cuentasData)
 
     setMovimientos(movData)
     if (facturasData) setFacturas(facturasData)
@@ -270,6 +278,7 @@ function Finanzas({ vistaInicial = 'movimientos' }) {
 
     setDiasCobroPago({ diasCobro, diasPago, muestraCobro: diffs.length, muestraPago: diffsPago.length })
 
+    primeraCargaHecha.current = true
     setLoading(false)
   }
 

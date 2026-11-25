@@ -217,3 +217,6 @@ td, th { vertical-align: middle; }
 .sg-tabla-densa td:first-child, .sg-tabla-densa th:first-child { padding-left: 12px !important; }
 .sg-tabla-densa td:last-child, .sg-tabla-densa th:last-child { padding-right: 12px !important; }
 .sg-tabla-densa td { line-height: 1.3; }
+
+/* Tablas anchas: en pantallas medianas se ocultan columnas secundarias (neto e IVA) para que el Total no quede tapado por Acciones */
+@media (max-width: 1600px) { .sg-oculta-chica { display: none !important; } }

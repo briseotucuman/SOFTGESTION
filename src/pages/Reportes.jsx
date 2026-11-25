@@ -255,8 +255,8 @@ function Reportes() {
     if (!confirm(`¿Eliminar definitivamente todas las cobranzas huérfanas de facturas de venta que fueron eliminadas? Esta acción limpiará la base de datos de movimientos contables y sincronizará Reportes y Finanzas.`)) return
     setDepurando(true)
     try {
-      const { data: todasFacts, error: errFacts } = await supabase.from('facturas').select('id')
-      if (errFacts) throw errFacts
+      const { data: todasFacts, error: errFacts } = await supabase.from('facturas').select('id, numero_factura')
+      if (errFacts || !todasFacts) throw new Error('No se pudo leer las facturas; no se eliminó nada.')
       const setIds = new Set((todasFacts || []).map(f => f.id))
 
       const { data: todasCobranzas } = await supabase.from('movimientos_financieros')
@@ -335,14 +335,9 @@ function Reportes() {
       ? (todasCobranzasDb || []).filter(m => m.factura_id && !setIds.has(m.factura_id))
       : []
 
-    if (huerfanasTotales.length > 0) {
-      const idsBorrar = huerfanasTotales.map(m => m.id)
-      for (let i = 0; i < idsBorrar.length; i += 50) {
-        supabase.from('movimientos_financieros').delete().in('id', idsBorrar.slice(i, i + 50)).then(() => {})
-      }
-    }
-
-    setCobranzasHuerfanas([])
+    // Ya no se borra nada solo al abrir Reportes: si hay cobranzas sin factura se avisa y se depuran
+    // a mano con el botón. Si la consulta de facturas no vino completa, no se afirma nada.
+    setCobranzasHuerfanas(todasLasFacturas && todasLasFacturas.length > 0 ? huerfanasTotales : [])
 
     // Excluir huérfanos y movimientos de ajuste de saldo / transferencia interna
     const movimientosValidos = (movimientosMes || []).filter(m => {

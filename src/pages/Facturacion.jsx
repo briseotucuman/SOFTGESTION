@@ -1,7 +1,7 @@
 import { useEffect, useState, useMemo } from 'react'
 import { supabase, emitirCambioDatos } from '../supabase.js'
 import { s, colores } from '../estilos.js'
-import { Pencil, Plus, Receipt, X, FileUp, Trash2, AlertTriangle, Loader2, Calculator, Info, Search } from 'lucide-react'
+import { Pencil, Plus, Receipt, X, FileUp, Trash2, AlertTriangle, Loader2, Calculator, Info, Search, Ban } from 'lucide-react'
 import ImportarARCA from './ImportarARCA.jsx'
 import { calcularDesgloseFactura, calcularResumenCuentasPorCobrar } from '../finanzasUtils.js'
 
@@ -1105,7 +1105,7 @@ function Facturacion()  {
             )}
           </div>
         ) : (
-          <table style={{ ...s.tabla, minWidth: '1080px', width: '100%' }}>
+          <table className="sg-tabla-densa" style={{ ...s.tabla, minWidth: '780px', width: '100%' }}>
             <thead>
               <tr>
                 <th style={s.tablaCabecera('#0F172A')}>Número</th>
@@ -1113,8 +1113,8 @@ function Facturacion()  {
                 <th style={s.tablaCabecera('#0F172A')}>Tipo</th>
                 <th style={s.tablaCabecera('#0F172A')}>Emisión</th>
                 <th style={s.tablaCabecera('#0F172A')}>Vencimiento</th>
-                <th style={{ ...s.tablaCabecera('#0F172A'), textAlign: 'right' }}>Neto Gravado</th>
-                <th style={{ ...s.tablaCabecera('#0F172A'), textAlign: 'right' }}>IVA</th>
+                <th className="sg-oculta-chica" style={{ ...s.tablaCabecera('#0F172A'), textAlign: 'right' }}>Neto Gravado</th>
+                <th className="sg-oculta-chica" style={{ ...s.tablaCabecera('#0F172A'), textAlign: 'right' }}>IVA</th>
                 <th style={{ ...s.tablaCabecera('#0F172A'), textAlign: 'right' }}>Total (con IVA)</th>
                 <th style={{ ...s.tablaCabecera('#0F172A'), textAlign: 'center' }}>Estado</th>
                 <th style={{
@@ -1123,7 +1123,7 @@ function Facturacion()  {
                   right: 0,
                   zIndex: 3,
                   textAlign: 'center',
-                  minWidth: '175px',
+                  minWidth: '150px',
                   boxShadow: '-4px 0 8px rgba(0,0,0,0.12)'
                 }}>
                   Acciones
@@ -1142,7 +1142,7 @@ function Facturacion()  {
                     <td style={{ ...s.tablaCell, fontFamily: 'monospace', fontSize: '12px', color: '#64748B', whiteSpace: 'nowrap' }}>
                       {f.numero_factura}
                     </td>
-                    <td style={s.tablaCellBold}>
+                    <td style={{ ...s.tablaCellBold, minWidth: '150px', maxWidth: '220px' }} title={f.clientes?.razon_social || f.clientes?.nombre_contacto || ''}>
                       {f.clientes?.razon_social || f.clientes?.nombre_contacto || 'Cliente s/n'}
                     </td>
                     <td style={s.tablaCell}>
@@ -1157,11 +1157,11 @@ function Facturacion()  {
                       {formatearFecha(f.fecha_vencimiento)}
                     </td>
                     {/* NETO GRAVADO (DIVIDIDO POR ALÍCUOTA) */}
-                    <td style={{ ...s.tablaCell, textAlign: 'right', whiteSpace: 'nowrap', fontFamily: 'monospace', color: '#334155' }}>
+                    <td className="sg-oculta-chica" style={{ ...s.tablaCell, textAlign: 'right', whiteSpace: 'nowrap', fontFamily: 'monospace', color: '#334155' }}>
                       {d.neto.toLocaleString('es-AR', { style: 'currency', currency: 'ARS' })}
                     </td>
                     {/* IVA DISCRIMINADO */}
-                    <td style={{ ...s.tablaCell, textAlign: 'right', whiteSpace: 'nowrap' }}>
+                    <td className="sg-oculta-chica" style={{ ...s.tablaCell, textAlign: 'right', whiteSpace: 'nowrap' }}>
                       <div style={{ fontFamily: 'monospace', color: '#7C3AED', fontWeight: '700' }}>
                         {d.iva.toLocaleString('es-AR', { style: 'currency', currency: 'ARS' })}
                       </div>
@@ -1181,7 +1181,7 @@ function Facturacion()  {
                       background: bgColor,
                       zIndex: 2,
                       textAlign: 'center',
-                      minWidth: '175px',
+                      minWidth: '150px',
                       boxShadow: '-4px 0 8px rgba(0,0,0,0.05)',
                       whiteSpace: 'nowrap'
                     }}>
@@ -1189,7 +1189,7 @@ function Facturacion()  {
                         <button onClick={() => verPagos(f)} style={{ ...s.btnPrimario('#059669'), padding: '5px 10px', fontSize: '12px' }}>Pagos</button>
                         <button onClick={() => abrirEdicion(f)} style={{ ...s.btnPrimario(c.main), padding: '5px 10px', fontSize: '12px' }} title="Editar"><Pencil size={14} /></button>
                         {f.estado !== 'anulada' && (
-                          <button onClick={() => anularFactura(f.id)} style={{ ...s.btnPeligro, padding: '5px 10px', fontSize: '12px' }}>Anular</button>
+                          <button onClick={() => anularFactura(f.id)} title="Anular factura" style={{ ...s.btnPeligro, padding: '5px 8px', fontSize: '12px' }}><Ban size={13} /></button>
                         )}
                         <button
                           title="Eliminar factura"
@@ -1210,10 +1210,10 @@ function Facturacion()  {
                 <td colSpan={5} style={{ ...s.tablaCell, fontWeight: '800', color: '#0F172A', textAlign: 'right', fontSize: '12px' }}>
                   Totales facturados ({busqueda || filtroEstado !== 'todos' ? `${facturasFiltradas.length} de ${facturas.length}` : 'Neto + IVA = Total'}):
                 </td>
-                <td style={{ ...s.tablaCell, textAlign: 'right', fontFamily: 'monospace', fontWeight: '800', color: '#0284C7', fontSize: '13px' }}>
+                <td className="sg-oculta-chica" style={{ ...s.tablaCell, textAlign: 'right', fontFamily: 'monospace', fontWeight: '800', color: '#0284C7', fontSize: '13px' }}>
                   {totalesFiltrados.neto.toLocaleString('es-AR', { style: 'currency', currency: 'ARS' })}
                 </td>
-                <td style={{ ...s.tablaCell, textAlign: 'right', fontFamily: 'monospace', fontWeight: '800', color: '#7C3AED', fontSize: '13px' }}>
+                <td className="sg-oculta-chica" style={{ ...s.tablaCell, textAlign: 'right', fontFamily: 'monospace', fontWeight: '800', color: '#7C3AED', fontSize: '13px' }}>
                   {totalesFiltrados.iva.toLocaleString('es-AR', { style: 'currency', currency: 'ARS' })}
                 </td>
                 <td style={{ ...s.tablaCellBold, textAlign: 'right', fontFamily: 'monospace', fontWeight: '900', color: c.main, fontSize: '14px' }}>

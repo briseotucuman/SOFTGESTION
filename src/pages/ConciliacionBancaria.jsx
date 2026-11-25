@@ -103,6 +103,37 @@ function extraerSaldoDeCeldaTexto(val) {
   return null
 }
 
+// Saldo del movimiento más nuevo cuando el extracto no informa el saldo en el encabezado.
+// Prueba la continuidad entre filas consecutivas para saber si el archivo viene del más nuevo al más
+// viejo y si "Saldo parcial" es el saldo antes o después de cada movimiento (BBVA: antes).
+function saldoFinalPorContinuidad(filas) {
+  const f = (filas || []).filter(x => x.saldo != null)
+  if (f.length === 0) return null
+  if (f.length === 1) return Math.round((f[0].saldo + f[0].monto) * 100) / 100
+  const ok = (a, b) => Math.abs(a - b) < 0.05
+  const c = { descAntes: 0, ascAntes: 0, descDespues: 0, ascDespues: 0 }
+  for (let i = 0; i < f.length - 1; i++) {
+    const a = f[i], b = f[i + 1]
+    if (ok(b.saldo + b.monto, a.saldo)) c.descAntes++
+    if (ok(a.saldo + a.monto, b.saldo)) c.ascAntes++
+    if (ok(a.saldo, b.saldo + a.monto)) c.descDespues++
+    if (ok(b.saldo, a.saldo + b.monto)) c.ascDespues++
+  }
+  const mejor = Object.entries(c).sort((x, y) => y[1] - x[1])[0]
+  if (mejor[1] === 0) return null
+  const desc = mejor[0].startsWith('desc'), antes = mejor[0].endsWith('Antes')
+  const nueva = desc ? f[0] : f[f.length - 1]
+  return Math.round((antes ? nueva.saldo + nueva.monto : nueva.saldo) * 100) / 100
+}
+
+// ¿El extracto pertenece a la cuenta elegida? (compara los dígitos del número de cuenta del encabezado del banco)
+function cuentaNoCoincide(meta, cuenta) {
+  const nro = String(meta?.cuenta || '').split('(')[0].replace(/\D/g, '')
+  if (!nro || !cuenta) return false
+  const dest = `${cuenta.banco || ''} ${cuenta.numero || ''}`.replace(/\D/g, '')
+  return dest.length > 0 && !dest.includes(nro)
+}
+
 // Parseo unificado de matrices (Excel .xlsx/.xls y CSV/TSV) con soporte completo para extractos BBVA y bancos argentinos
 function parsearMatrizResumenBancario(matrizRaw) {
   if (!Array.isArray(matrizRaw) || matrizRaw.length === 0) {
@@ -251,6 +282,19 @@ function parsearMatrizResumenBancario(matrizRaw) {
       monto = parseMontoCelda(f[2])
     }
 
+    // Red de seguridad: impuestos y comisiones del banco son siempre débitos. Si el archivo los trae sin
+    // signo (una sola columna de importe), se toman como egreso. Devoluciones y reintegros se respetan.
+    let signoCorregido = false
+    if (monto > 0 && iCredito === -1) {
+      const dn = conceptoBase.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+      const tipoCl = clasificarMovimientoBancario(conceptoBase, monto).tipo
+      if ((tipoCl === 'impuesto' || tipoCl === 'gasto_bancario' || /debito autom/.test(dn)) &&
+          !/devol|reint|reversa|bonif|anula|acredit|ajuste a favor/.test(dn)) {
+        monto = -monto
+        signoCorregido = true
+      }
+    }
+
     if (monto === 0 && !conceptoBase) continue
 
     // Buscar saldo explícito en la columna Saldo o en cualquier columna adicional con texto "Saldo Disponible: ..."
@@ -279,6 +323,7 @@ function parsearMatrizResumenBancario(matrizRaw) {
       debito: monto < 0 ? Math.abs(monto) : 0,
       saldo: saldoInformado,
       saldoInformado: saldoInformado !== null,
+      signoCorregido,
       referencia
     })
   }
@@ -310,7 +355,7 @@ function parsearMatrizResumenBancario(matrizRaw) {
 
   const saldoUltimoMovimiento = crono[crono.length - 1]?.saldo ?? null
   meta.saldoUltimoMovimiento = saldoUltimoMovimiento
-  meta.saldoFinal = meta.saldoHeader !== null ? meta.saldoHeader : saldoUltimoMovimiento
+  meta.saldoFinal = meta.saldoHeader !== null ? meta.saldoHeader : (saldoFinalPorContinuidad(resultado) ?? saldoUltimoMovimiento)
   meta.esDescendente = esDescendente
 
   return { filas: resultado, meta }
@@ -589,6 +634,10 @@ function ConciliacionBancaria({
     }
     if (filasPrevia.length === 0) {
       alert('No hay transacciones para guardar.')
+      return
+    }
+    if (cuentaNoCoincide(metaPrevia, cuentaActiva) &&
+        !window.confirm(`Este extracto es de la cuenta ${metaPrevia.cuenta}, pero elegiste ${cuentaActiva?.banco}. ¿Guardarlo igual?`)) {
       return
     }
 
@@ -2361,6 +2410,16 @@ function ConciliacionBancaria({
             )}
 
             {/* METADATOS DETECTADOS DEL BANCO */}
+            {cuentaNoCoincide(metaPrevia, cuentaActiva) && (
+              <div style={{ marginBottom: 8, padding: '8px 10px', borderRadius: 8, background: '#FFE4E6', color: '#9F1239', fontSize: 12, fontWeight: 600 }}>
+                Atención: el archivo es de la cuenta {metaPrevia.cuenta} y tenés seleccionada {cuentaActiva?.banco}. Cambiá de cuenta antes de guardar.
+              </div>
+            )}
+            {filasPrevia.some(f => f.signoCorregido) && (
+              <div style={{ marginBottom: 8, padding: '8px 10px', borderRadius: 8, background: '#FEF3C7', color: '#92400E', fontSize: 12 }}>
+                {filasPrevia.filter(f => f.signoCorregido).length} movimiento(s) de impuestos/comisiones venían con signo positivo en el archivo y se tomaron como débitos (egresos).
+              </div>
+            )}
             {metaPrevia && (metaPrevia.empresa || metaPrevia.cuenta || metaPrevia.saldoHeader !== null) && (
               <div style={{
                 background: '#F0FDFA',
@@ -2609,7 +2668,15 @@ function ConciliacionBancaria({
                 </div>
               </div>
 
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '20px' }}>
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '20px', flexWrap: 'wrap' }}>
+                <button
+                  type="button"
+                  style={{ ...s.btnSecundario, marginRight: 'auto', color: '#0F766E' }}
+                  title={Number(incorporandoFila.monto) < 0 ? 'Registrar este pago contra una factura de compra' : 'Registrar este cobro contra una factura de venta'}
+                  onClick={() => { const fila = incorporandoFila; setIncorporandoFila(null); abrirVincularFactura(fila) }}
+                >
+                  <FileText size={13} /> {Number(incorporandoFila.monto) < 0 ? 'Imputar a factura de compra' : 'Imputar a factura de venta'}
+                </button>
                 <button
                   type="button"
                   style={s.btnSecundario}
