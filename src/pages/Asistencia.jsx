@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { supabase } from '../supabase.js'
 import { s, paleta } from '../estilos.js'
-import { Trash2, Download, Smartphone, Copy, MessageCircle, MapPin, AlertTriangle, Crosshair } from 'lucide-react'
+import { Trash2, Download, Smartphone, Copy, MessageCircle, MapPin, AlertTriangle, Crosshair, FileCheck2 } from 'lucide-react'
+import InformeAsistencia from './InformeAsistencia.jsx'
 
 const hoy = new Date().toISOString().split('T')[0]
 const TIPOS = [['trabajado', 'Trabajó'], ['falta', 'Falta'], ['licencia', 'Licencia'], ['vacaciones', 'Vacaciones'], ['enfermedad', 'Enfermedad']]
@@ -96,7 +97,8 @@ export default function Asistencia() {
       <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
         <button style={vista === 'dia' ? s.btnPrimario('#1e40af') : s.btnSecundario} onClick={() => setVista('dia')}>Registro diario</button>
         <button style={vista === 'mes' ? s.btnPrimario('#1e40af') : s.btnSecundario} onClick={() => setVista('mes')}>Resumen mensual</button>
-        <button style={vista === 'enlaces' ? s.btnPrimario('#1e40af') : s.btnSecundario} onClick={() => setVista('enlaces')}><Smartphone size={13} /> Marcación por celular</button>
+        <button style={vista === 'informe' ? s.btnPrimario('#1e40af') : s.btnSecundario} onClick={() => setVista('informe')}><FileCheck2 size={13} /> Informe para servicios</button>
+        <button style={vista === 'enlaces' ?s.btnPrimario('#1e40af') : s.btnSecundario} onClick={() => setVista('enlaces')}><Smartphone size={13} /> Marcación por celular</button>
         <button style={vista === 'zonas' ? s.btnPrimario('#1e40af') : s.btnSecundario} onClick={() => setVista('zonas')}><MapPin size={13} /> Lugares de trabajo</button>
       </div>
       {error && <div style={{ ...s.card, padding: 12, color: paleta.danger, background: paleta.dangerSoft }}>{error}</div>}
@@ -109,13 +111,13 @@ export default function Asistencia() {
           </div>
         </div>
       )}
-      {vista === 'zonas' ? <Zonas clientes={clientes} recargar={cargar} /> : vista === 'enlaces' ? <Enlaces empleados={empleados} recargar={cargar} /> : vista === 'dia' ? (<>
+      {vista === 'informe' ? <InformeAsistencia /> : vista === 'zonas' ? <Zonas clientes={clientes} recargar={cargar} /> : vista === 'enlaces' ? <Enlaces empleados={empleados} recargar={cargar} /> : vista === 'dia' ? (<>
         <div style={{ ...s.card, padding: 14, display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'flex-end' }}>
           <div><label style={s.label}>Fecha</label><input type="date" style={s.input} value={fecha} onChange={e => setFecha(e.target.value)} /></div>
           <div><label style={s.label}>Empleado</label><select style={s.input} value={f.empleado_id} onChange={e => setF({ ...f, empleado_id: e.target.value })}><option value="">Elegir…</option>{empleados.map(e => <option key={e.id} value={e.id}>{e.apellido} {e.nombre}</option>)}</select></div>
           <div><label style={s.label}>Situación</label><select style={s.input} value={f.tipo} onChange={e => setF({ ...f, tipo: e.target.value })}>{TIPOS.map(([k, l]) => <option key={k} value={k}>{l}</option>)}</select></div>
+          <div><label style={s.label}>Cliente / servicio</label><select style={s.input} value={f.cliente_id} onChange={e => setF({ ...f, cliente_id: e.target.value })}><option value="">—</option>{clientes.map(c => <option key={c.id} value={c.id}>{c.razon_social || c.nombre_contacto}</option>)}</select></div>
           {f.tipo === 'trabajado' && <>
-            <div><label style={s.label}>Cliente / servicio</label><select style={s.input} value={f.cliente_id} onChange={e => setF({ ...f, cliente_id: e.target.value })}><option value="">—</option>{clientes.map(c => <option key={c.id} value={c.id}>{c.razon_social || c.nombre_contacto}</option>)}</select></div>
             <div><label style={s.label}>Entrada</label><input type="time" style={s.input} value={f.entrada} onChange={e => setF({ ...f, entrada: e.target.value })} /></div>
             <div><label style={s.label}>Salida</label><input type="time" style={s.input} value={f.salida} onChange={e => setF({ ...f, salida: e.target.value })} /></div></>}
           <button style={s.btnPrimario('#15803D')} onClick={guardar}>Registrar</button>

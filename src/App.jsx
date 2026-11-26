@@ -5,6 +5,7 @@ import Login from './Login.jsx'
 import Dashboard from './Dashboard.jsx'
 import SolicitudInsumos from './SolicitudInsumos.jsx'
 import Marcar from './Marcar.jsx'
+import Validar from './Validar.jsx'
 
 function AppPrivada() {
   const [session, setSession] = useState(null)
@@ -49,6 +50,7 @@ function App() {
       <Routes>
         <Route path="/solicitud-insumos" element={<SolicitudInsumos />} />
         <Route path="/marcar/:token" element={<Marcar />} />
+        <Route path="/validar/:token" element={<Validar />} />
         <Route path="*" element={<AppPrivada />} />
       </Routes>
     </BrowserRouter>
