@@ -5,7 +5,7 @@ import {
   Home, Users, FileText, HardHat, CalendarDays, Wallet, Receipt, Package,
   BarChart3, ClipboardList, Briefcase, Factory, TrendingUp, UserCog,
   Bell, LogOut, ChevronLeft, ChevronRight, RefreshCw,
-  Search, Clock, ShieldCheck, Radar, Menu, X
+  Search, Clock, Radar, Menu, X
 } from 'lucide-react'
 import {
   calcularResumenCuentasPorCobrar,
@@ -51,7 +51,6 @@ const GRUPOS_MENU = [
       { id: 'presupuestos', icon: Wallet,        label: 'Presupuestos',           desc: 'Cotizaciones comerciales y propuestas' },
       { id: 'facturacion',  icon: Receipt,       label: 'Facturación',            desc: 'Emisión, cuentas corrientes y cobranzas' },
       { id: 'finanzas',     icon: BarChart3,     label: 'Finanzas',               desc: 'Flujo de caja, ingresos y egresos' },
-      { id: 'conciliacion', icon: ShieldCheck,   label: 'Conciliación Bancaria',  desc: 'Resúmenes bancarios y conciliación' },
       { id: 'costos',       icon: ClipboardList, label: 'Costos',                 desc: 'Costeo operativo por servicio y cliente' },
       { id: 'sueldos',      icon: Briefcase,     label: 'Sueldos',                desc: 'Liquidación salarial y jornales' },
     ]
@@ -569,6 +568,8 @@ function Dashboard({ user }) {
   }, [horaActual])
 
   const navegarModulo = (modulo, vistaFinanzas) => {
+    // La conciliación vive dentro de Finanzas (solapa "Conciliación bancaria"): un solo menú
+    if (modulo === 'conciliacion') { modulo = 'finanzas'; vistaFinanzas = 'conciliacion' }
     if (modulo === 'finanzas') {
       setVistaFinanzasInicial(vistaFinanzas || 'movimientos')
     }

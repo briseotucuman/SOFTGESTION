@@ -1,3 +1,5 @@
+import { registrarCobroConRetenciones, retencionesVacias, totalRetenciones } from '../cobrosUtils.js'
+import RetencionesCobro from './RetencionesCobro.jsx'
 import { useEffect, useState, useMemo } from 'react'
 import { supabase, emitirCambioDatos } from '../supabase.js'
 import { s, colores } from '../estilos.js'
@@ -31,7 +33,7 @@ function Facturacion()  {
   const [pagos, setPagos] = useState([])
   const [pagosTodos, setPagosTodos] = useState([])
   const [cuentas, setCuentas] = useState([])
-  const [formPago, setFormPago] = useState({ monto: '', medio_pago: 'transferencia', referencia: '', cuenta_id: '', fecha_pago: new Date().toISOString().split('T')[0] })
+  const [formPago, setFormPago] = useState({ monto: '', medio_pago: 'transferencia', referencia: '', cuenta_id: '', fecha_pago: new Date().toISOString().split('T')[0], retenciones: retencionesVacias(), certificado: '' })
   const [busqueda, setBusqueda] = useState('')
   const [filtroEstado, setFiltroEstado] = useState('todos')
   const [form, setForm] = useState({
@@ -357,40 +359,41 @@ function Facturacion()  {
 
   const FORMA_PAGO_LABEL = { transferencia: 'Transferencia', efectivo: 'Efectivo', cheque: 'Cheque', tarjeta: 'Tarjeta' }
 
-  async function ajustarSaldo(cuenta_id, delta) {
-    if (!cuenta_id) return
-    const { data } = await supabase.from('cuentas_bancarias').select('saldo').eq('id', cuenta_id).single()
-    if (data) await supabase.from('cuentas_bancarias').update({ saldo: Number(data.saldo) + delta }).eq('id', cuenta_id)
+  async function cambiarFechaPago(pago, nuevaFecha) {
+    if (!nuevaFecha || nuevaFecha === (pago.fecha_pago || '').slice(0, 10)) return
+    const fechaVieja = (pago.fecha_pago || '').slice(0, 10)
+    await supabase.from('pagos').update({ fecha_pago: nuevaFecha }).eq('id', pago.id)
+    // Sincroniza el movimiento de caja asociado (es el que usa el tablero y los reportes por mes)
+    let q = supabase.from('movimientos_financieros').update({ fecha: nuevaFecha })
+      .eq('factura_id', pago.factura_id).eq('tipo', 'ingreso').eq('monto', Number(pago.monto) - Number(pago.monto_retenciones || 0))
+    if (fechaVieja) q = q.eq('fecha', fechaVieja)
+    await q
+    await supabase.from('retenciones_cobro').update({ fecha: nuevaFecha }).eq('pago_id', pago.id)
+    await verPagos(mostrarPagos)
+    emitirCambioDatos('facturacion')
   }
 
   async function registrarPago(e) {
     e.preventDefault()
-    const monto = parseFloat(formPago.monto)
+    const neto = parseFloat(formPago.monto) || 0
+    const totRet = totalRetenciones(formPago.retenciones)
+    if (neto <= 0 && totRet <= 0) { alert('Ingresá el importe recibido o alguna retención'); return }
+    if (neto > 0 && !formPago.cuenta_id) { alert('Elegí a qué cuenta entra el cobro'); return }
     const fechaPago = formPago.fecha_pago || new Date().toISOString().split('T')[0]
-    await supabase.from('pagos').insert([{
-      factura_id: mostrarPagos.id,
-      fecha_pago: fechaPago,
-      monto,
-      medio_pago: formPago.medio_pago,
-      referencia: formPago.referencia,
-      cuenta_id: formPago.cuenta_id || null
-    }])
-    await supabase.from('movimientos_financieros').insert([{
-      fecha: fechaPago,
-      tipo: 'ingreso',
-      categoria: 'Cobranzas',
-      descripcion: `Cobro factura ${mostrarPagos.numero_factura}`,
-      monto,
-      cuenta_id: formPago.cuenta_id || null,
-      comprobante: formPago.referencia,
-      forma_pago: FORMA_PAGO_LABEL[formPago.medio_pago] || formPago.medio_pago,
-      factura_id: mostrarPagos.id
-    }])
-    await ajustarSaldo(formPago.cuenta_id, monto)
-    const totalPagado = pagos.reduce((acc, p) => acc + Number(p.monto), 0) + monto
-    const nuevoEstado = totalPagado + 0.01 >= Number(mostrarPagos.total) ? 'cobrada' : 'parcial'
-    await supabase.from('facturas').update({ estado: nuevoEstado }).eq('id', mostrarPagos.id)
-    setFormPago({ monto: '', medio_pago: 'transferencia', referencia: '', cuenta_id: '', fecha_pago: new Date().toISOString().split('T')[0] })
+    try {
+      const { imputado } = await registrarCobroConRetenciones({
+        factura: mostrarPagos, neto, retenciones: formPago.retenciones, certificado: formPago.certificado,
+        fecha: fechaPago, medio_pago: formPago.medio_pago, cuenta_id: formPago.cuenta_id, referencia: formPago.referencia,
+        descripcion: `Cobro factura ${mostrarPagos.numero_factura}`,
+        forma_pago: FORMA_PAGO_LABEL[formPago.medio_pago] || formPago.medio_pago
+      })
+      const totalPagado = pagos.reduce((acc, p) => acc + Number(p.monto), 0) + imputado
+      const nuevoEstado = totalPagado + 0.01 >= Number(mostrarPagos.total) ? 'cobrada' : 'parcial'
+      await supabase.from('facturas').update({ estado: nuevoEstado }).eq('id', mostrarPagos.id)
+    } catch (err) {
+      alert('No se pudo registrar el cobro: ' + (err.message || err)); return
+    }
+    setFormPago({ monto: '', medio_pago: 'transferencia', referencia: '', cuenta_id: '', fecha_pago: new Date().toISOString().split('T')[0], retenciones: retencionesVacias(), certificado: '' })
     verPagos(mostrarPagos)
     await cargarDatos()
     emitirCambioDatos('facturacion')
@@ -933,9 +936,9 @@ function Facturacion()  {
 
               {pagos.map(p => (
                 <div key={p.id} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid #f1f5f9', fontSize: '13px' }}>
-                  <span style={{ color: '#64748b' }}>{formatearFecha(p.fecha_pago)}</span>
+                  <input type="date" title="Cambiar fecha de pago" value={(p.fecha_pago || '').slice(0, 10)} max={new Date().toISOString().split('T')[0]} onChange={e => cambiarFechaPago(p, e.target.value)} style={{ border: '1px solid #E2E8F0', borderRadius: '6px', padding: '3px 6px', fontSize: '12.5px', color: '#475569', background: '#fff' }} />
                   <span style={{ color: '#64748b', textTransform: 'capitalize' }}>{p.medio_pago}{p.cuenta_id ? ` · ${cuentas.find(ct => ct.id === p.cuenta_id)?.banco || ''}` : ''}</span>
-                  <strong style={{ color: '#059669', fontFamily: 'monospace' }}>{Number(p.monto).toLocaleString('es-AR', { style: 'currency', currency: 'ARS' })}</strong>
+                  <strong style={{ color: '#059669', fontFamily: 'monospace' }}>{Number(p.monto).toLocaleString('es-AR', { style: 'currency', currency: 'ARS' })}{Number(p.monto_retenciones) > 0 && <span style={{ color: '#B45309', fontSize: '11px', fontWeight: 600 }}> (incl. ret. {Number(p.monto_retenciones).toLocaleString('es-AR', { style: 'currency', currency: 'ARS' })})</span>}</strong>
                 </div>
               ))}
 
@@ -946,8 +949,8 @@ function Facturacion()  {
                     <input type="date" style={s.input} value={formPago.fecha_pago || ''} onChange={e => setFormPago({...formPago, fecha_pago: e.target.value})} required />
                   </div>
                   <div>
-                    <label style={s.label}>Monto ($)</label>
-                    <input type="number" step="0.01" style={s.input} value={formPago.monto} onChange={e => setFormPago({...formPago, monto: e.target.value})} required />
+                    <label style={s.label}>Importe recibido en cuenta ($)</label>
+                    <input type="number" step="0.01" style={s.input} value={formPago.monto} onChange={e => setFormPago({...formPago, monto: e.target.value})} />
                   </div>
                   <div>
                     <label style={s.label}>Medio de pago</label>
@@ -960,11 +963,14 @@ function Facturacion()  {
                   </div>
                   <div>
                     <label style={s.label}>Cuenta / caja que recibe el pago</label>
-                    <select style={s.input} value={formPago.cuenta_id} onChange={e => setFormPago({...formPago, cuenta_id: e.target.value})} required>
+                    <select style={s.input} value={formPago.cuenta_id} onChange={e => setFormPago({...formPago, cuenta_id: e.target.value})}>
                       <option value="">Seleccionar cuenta</option>
                       {cuentas.map(ct => <option key={ct.id} value={ct.id}>{ct.banco} — {ct.tipo}</option>)}
                     </select>
                   </div>
+                  <RetencionesCobro retenciones={formPago.retenciones} certificado={formPago.certificado} neto={formPago.monto}
+                    saldo={saldoPendiente}
+                    onChange={r => setFormPago({ ...formPago, retenciones: r })} onCertificado={v => setFormPago({ ...formPago, certificado: v })} />
                   <div style={{ gridColumn: '1 / -1' }}>
                     <label style={s.label}>Referencia</label>
                     <input style={s.input} value={formPago.referencia} onChange={e => setFormPago({...formPago, referencia: e.target.value})} placeholder="Nro. transferencia, cheque..." />
