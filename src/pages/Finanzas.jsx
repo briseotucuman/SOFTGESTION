@@ -1,6 +1,9 @@
-import { registrarCobroConRetenciones, retencionesVacias, totalRetenciones } from '../cobrosUtils.js'
+import { registrarCobroConRetenciones, retencionesVacias, totalRetenciones, listaChequesVacia, totalCheques, validarCheques, crearChequesTercero, crearChequesPropios } from '../cobrosUtils.js'
 import RetencionesCobro from './RetencionesCobro.jsx'
+import DatosCheque from './DatosCheque.jsx'
 import VistaRetenciones from './VistaRetenciones.jsx'
+import Cheques from './Cheques.jsx'
+import CuentaCorriente from './CuentaCorriente.jsx'
 import { useEffect, useState, useRef } from 'react'
 import { supabase, emitirCambioDatos, escucharCambiosDatos } from '../supabase.js'
 import { s, colores, paleta } from '../estilos.js'
@@ -11,20 +14,22 @@ import {
 } from 'lucide-react'
 import ImportarARCA from './ImportarARCA.jsx'
 import ConciliacionBancaria from './ConciliacionBancaria.jsx'
+import { esCuentaBancaria } from '../finanzasUtils.js'
+import Compromisos from './Compromisos.jsx'
+import Resultados from './Resultados.jsx'
+import ResumenSemanal from './ResumenSemanal.jsx'
+import RentabilidadClientes from './RentabilidadClientes.jsx'
+import AsignacionPersonal from './AsignacionPersonal.jsx'
+import HorariosServicio from './HorariosServicio.jsx'
 import {
-  esCuentaBancaria,
-  calcularResumenCuentasPorCobrar,
-  calcularResumenCuentasPorPagar,
-  calcularSaldosCuentas,
-  esMovimientoAjuste,
-  formatearMonedaAR
-} from '../finanzasUtils.js'
+  construirItems, agruparPorTramos, agruparPorMes, totalEgresos as totalEgresosProy, isoLocal, NOMBRE_RUBRO, RUBROS_EGRESO,
+} from '../proyeccionCaja.js'
 
 const c = colores.finanzas
 
 const CATEGORIAS = {
   ingreso: ['Cobranzas', 'Otro ingreso', 'Ajuste de saldo'],
-  egreso: ['Insumos', 'Servicios', 'Haberes', 'Impuestos', 'Alquileres', 'Socios', 'Marketing', 'Otro egreso', 'Ajuste de saldo']
+  egreso: ['Insumos', 'Servicios', 'Haberes', 'Cargas sociales', 'Impuestos', 'Préstamos', 'Alquileres', 'Socios', 'Marketing', 'Otro egreso', 'Ajuste de saldo']
 }
 const CATEGORIAS_COMPRA = ['Insumos', 'Servicios', 'Alquiler', 'Impuestos', 'Mantenimiento', 'Otro']
 const FORMAS_PAGO = ['Efectivo', 'Transferencia', 'Cheque', 'Tarjeta', 'Otro']
@@ -58,7 +63,7 @@ function Finanzas({ vistaInicial = 'movimientos' }) {
     fecha: new Date().toISOString().split('T')[0],
     tipo: 'ingreso', categoria: '', descripcion: '',
     monto: '', cuenta_id: '', comprobante: '',
-    forma_pago: 'Efectivo', factura_id: ''
+    forma_pago: 'Efectivo', factura_id: '', cliente_id: ''
   })
   const [formCuenta, setFormCuenta] = useState({ banco: '', tipo: 'caja_ahorro', numero: '', cbu: '', saldo: '0' })
 
@@ -87,12 +92,15 @@ function Finanzas({ vistaInicial = 'movimientos' }) {
   const [mostrarImportarCompras, setMostrarImportarCompras] = useState(false)
   const [formCompra, setFormCompra] = useState({ proveedor_id: '', cliente_id: '', numero_factura: '', fecha_emision: new Date().toISOString().split('T')[0], fecha_vencimiento: '', categoria: 'Insumos', total: '', observaciones: '' })
   const [pagandoFactura, setPagandoFactura] = useState(null)
-  const [formPagoCompra, setFormPagoCompra] = useState({ monto: '', medio_pago: 'transferencia', cuenta_id: '', referencia: '' })
+  const [datosCheque, setDatosCheque] = useState(listaChequesVacia())
+  const [formPagoCompra, setFormPagoCompra] = useState({ monto: '', medio_pago: 'transferencia', cuenta_id: '', referencia: '', fecha_pago: new Date().toISOString().split('T')[0] })
   const [filtroPagar, setFiltroPagar] = useState('todas') // 'todas' | 'pendientes' | 'pagadas'
   const [busquedaPagar, setBusquedaPagar] = useState('')
 
   // ---- Cuentas por cobrar ----
   const [cobrandoFactura, setCobrandoFactura] = useState(null)
+  const guardandoCobro = useRef(false)
+  const guardandoPagoCompra = useRef(false)
   const [formCobro, setFormCobro] = useState({ monto: '', medio_pago: 'transferencia', cuenta_id: '', referencia: '', fecha_pago: new Date().toISOString().split('T')[0], retenciones: retencionesVacias(), certificado: '' })
   const [diasCobroPago, setDiasCobroPago] = useState({ diasCobro: null, diasPago: null })
   const [filtroCobrar, setFiltroCobrar] = useState('todas') // 'todas' | 'pendientes' | 'cobradas'
@@ -102,6 +110,8 @@ function Finanzas({ vistaInicial = 'movimientos' }) {
   const [porCobrar, setPorCobrar] = useState(0)
   const [porPagar, setPorPagar] = useState(0)
   const [proyeccion, setProyeccion] = useState(null)
+  const [vistaProy, setVistaProy] = useState('tramos') // tramos | meses
+  const [incluirCostosMesActual, setIncluirCostosMesActual] = useState(true)
 
   // ---- Estado de cuenta ----
   const [cuentaEstadoId, setCuentaEstadoId] = useState('')
@@ -158,49 +168,19 @@ function Finanzas({ vistaInicial = 'movimientos' }) {
       if (canalRealtime) supabase.removeChannel(canalRealtime)
     }
   }, [])
-  useEffect(() => { if (vista === 'proyeccion' && !proyeccion) cargarProyeccion() }, [vista])
-
-  const BUCKETS = [
-    { id: 'vencido', label: 'Vencido', desde: -99999, hasta: -1 },
-    { id: 'b30', label: '0-30 días', desde: 0, hasta: 30 },
-    { id: 'b60', label: '31-60 días', desde: 31, hasta: 60 },
-    { id: 'b90', label: '61-90 días', desde: 61, hasta: 90 },
-    { id: 'mas90', label: '+90 días', desde: 91, hasta: 99999 },
-    { id: 'sinfecha', label: 'Sin fecha', desde: null, hasta: null },
-  ]
+  useEffect(() => { if (vista === 'proyeccion') cargarProyeccion() }, [vista])
 
   async function cargarProyeccion() {
-    const hoy = new Date(); hoy.setHours(0,0,0,0)
-    const [{ data: fact }, { data: pagosV }, { data: factC }, { data: pagosC }, { data: cf }] = await Promise.all([
+    const [{ data: facturas }, { data: pagosVenta }, { data: facturasCompra }, { data: pagosCompra }, { data: compromisos }, { data: costosFijos }, { data: liquidaciones }] = await Promise.all([
       supabase.from('facturas').select('id,total,fecha_vencimiento').in('estado', ['emitida','pendiente','parcial','vencida']),
       supabase.from('pagos').select('factura_id,monto'),
       supabase.from('facturas_compra').select('id,total,fecha_vencimiento').neq('estado','pagada').neq('estado','anulada'),
       supabase.from('pagos_compra').select('factura_compra_id,monto'),
-      supabase.from('costos_fijos').select('monto').eq('activo', true).eq('mes', new Date().toISOString().slice(0,7)),
+      supabase.from('compromisos_pago').select('tipo,monto,fecha_vencimiento,estado').eq('estado', 'pendiente'),
+      supabase.from('costos_fijos').select('nombre,monto,frecuencia,mes').eq('activo', true),
+      supabase.from('liquidaciones_sueldo').select('total_neto,estado,fecha_pago,periodo').eq('estado', 'pendiente'),
     ])
-    const pagadoV = {}; (pagosV||[]).forEach(p => { pagadoV[p.factura_id] = (pagadoV[p.factura_id]||0) + Number(p.monto) })
-    const pagadoC = {}; (pagosC||[]).forEach(p => { pagadoC[p.factura_compra_id] = (pagadoC[p.factura_compra_id]||0) + Number(p.monto) })
-
-    function bucketDe(fechaVenc) {
-      if (!fechaVenc) return 'sinfecha'
-      const dias = Math.floor((new Date(fechaVenc + 'T00:00:00') - hoy) / (1000*60*60*24))
-      const b = BUCKETS.find(bk => bk.desde !== null && dias >= bk.desde && dias <= bk.hasta)
-      return b ? b.id : 'mas90'
-    }
-
-    const porBucket = {}
-    BUCKETS.forEach(b => { porBucket[b.id] = { cobrar: 0, pagar: 0 } })
-    ;(fact||[]).forEach(f => {
-      const saldo = Number(f.total) - (pagadoV[f.id]||0)
-      if (saldo > 0) porBucket[bucketDe(f.fecha_vencimiento)].cobrar += saldo
-    })
-    ;(factC||[]).forEach(f => {
-      const saldo = Number(f.total) - (pagadoC[f.id]||0)
-      if (saldo > 0) porBucket[bucketDe(f.fecha_vencimiento)].pagar += saldo
-    })
-
-    const costoFijoMensual = (cf||[]).reduce((a,x) => a + Number(x.monto), 0)
-    setProyeccion({ buckets: BUCKETS.map(b => ({ ...b, ...porBucket[b.id] })), costoFijoMensual })
+    setProyeccion({ facturas, pagosVenta, facturasCompra, pagosCompra, compromisos, costosFijos, liquidaciones })
   }
 
   // Una sola carga a la vez: si llega otra mientras corre una, se repite una vez al terminar.
@@ -221,7 +201,7 @@ function Finanzas({ vistaInicial = 'movimientos' }) {
     const resultados = await Promise.all([
       supabase.from('movimientos_financieros').select('*').order('fecha', { ascending: false }),
       supabase.from('cuentas_bancarias').select('*').eq('activa', true),
-      supabase.from('facturas').select('id, numero_factura, clientes(razon_social), total, estado').in('estado', ['emitida', 'pendiente', 'parcial', 'vencida']).order('fecha_emision', { ascending: false }),
+      supabase.from('facturas').select('id, numero_factura, clientes(razon_social), total, estado').eq('estado', 'emitida').order('fecha_emision', { ascending: false }),
       supabase.from('facturas_compra').select('*, proveedores(razon_social), clientes(razon_social,nombre_contacto)').order('fecha_emision', { ascending: false }),
       supabase.from('pagos_compra').select('*'),
       supabase.from('proveedores').select('id, razon_social').eq('activo', true),
@@ -256,12 +236,19 @@ function Finanzas({ vistaInicial = 'movimientos' }) {
     if (factVentaTodas) setFacturasCobrarTodas(factVentaTodas)
     if (pagosVentaData) setPagosVenta(pagosVentaData)
 
-    // Cálculos unificados idénticos a Tablero Gerencial, Reportes y Facturación
-    const resumenCobrar = calcularResumenCuentasPorCobrar(factVentaTodas || [], pagosVentaData || [])
-    setPorCobrar(resumenCobrar.totalPorCobrar)
+    // Por cobrar: total facturado pendiente/parcial/vencida, neto de lo ya cobrado
+    const pagadoPorFacturaVenta = {}
+    ;(pagosVentaData || []).forEach(p => { pagadoPorFacturaVenta[p.factura_id] = (pagadoPorFacturaVenta[p.factura_id] || 0) + Number(p.monto) })
+    const facturasVentaPendientes = (factVentaTodas || []).filter(f => ['emitida','pendiente','parcial','vencida'].includes(f.estado))
+    const cobrar = facturasVentaPendientes.reduce((acc, f) => acc + Math.max(0, Number(f.total) - (pagadoPorFacturaVenta[f.id] || 0)), 0)
+    setPorCobrar(cobrar)
 
-    const resumenPagar = calcularResumenCuentasPorPagar(factCompraData || [], pagosCompraData || [])
-    setPorPagar(resumenPagar.totalPorPagar)
+    // Por pagar: total facturas de compra pendiente/parcial/vencida, neto de lo ya pagado
+    const pagadoPorFacturaCompra = {}
+    ;(pagosCompraData || []).forEach(p => { pagadoPorFacturaCompra[p.factura_compra_id] = (pagadoPorFacturaCompra[p.factura_compra_id] || 0) + Number(p.monto) })
+    const pendientesCompra = (factCompraData || []).filter(f => f.estado !== 'pagada' && f.estado !== 'anulada')
+    const pagar = pendientesCompra.reduce((acc, f) => acc + Math.max(0, Number(f.total) - (pagadoPorFacturaCompra[f.id] || 0)), 0)
+    setPorPagar(pagar)
 
     // Días de cobro (DSO real): promedio de días entre emisión de la factura y cada cobro registrado
     const diffs = (pagosVentaData || [])
@@ -297,13 +284,11 @@ function Finanzas({ vistaInicial = 'movimientos' }) {
   }
 
   function saldoPendiente(factura) {
-    if (['pagada', 'anulada'].includes(factura.estado)) return 0
     const pagado = pagosCompra.filter(p => p.factura_compra_id === factura.id).reduce((a, p) => a + Number(p.monto), 0)
     return Math.max(0, Number(factura.total) - pagado)
   }
 
   function saldoPendienteVenta(factura) {
-    if (['pagada', 'cobrada', 'anulada'].includes(factura.estado)) return 0
     const pagado = pagosVenta.filter(p => p.factura_id === factura.id).reduce((a, p) => a + Number(p.monto), 0)
     return Math.max(0, Number(factura.total) - pagado)
   }
@@ -339,7 +324,7 @@ function Finanzas({ vistaInicial = 'movimientos' }) {
       fecha: m.fecha || new Date().toISOString().split('T')[0],
       tipo: m.tipo || 'ingreso', categoria: m.categoria || '', descripcion: m.descripcion || '',
       monto: m.monto || '', cuenta_id: m.cuenta_id || '', comprobante: m.comprobante || '',
-      forma_pago: m.forma_pago || 'Efectivo', factura_id: m.factura_id || ''
+      forma_pago: m.forma_pago || 'Efectivo', factura_id: m.factura_id || '', cliente_id: m.cliente_id || ''
     })
     setMostrarForm(true)
     window.scrollTo({ top: 0, behavior: 'smooth' })
@@ -347,12 +332,12 @@ function Finanzas({ vistaInicial = 'movimientos' }) {
 
   function cancelar() {
     setMostrarForm(false); setEditando(null)
-    setForm({ fecha: new Date().toISOString().split('T')[0], tipo: 'ingreso', categoria: '', descripcion: '', monto: '', cuenta_id: '', comprobante: '', forma_pago: 'Efectivo', factura_id: '' })
+    setForm({ fecha: new Date().toISOString().split('T')[0], tipo: 'ingreso', categoria: '', descripcion: '', monto: '', cuenta_id: '', comprobante: '', forma_pago: 'Efectivo', factura_id: '', cliente_id: '' })
   }
 
   async function guardarMovimiento(e) {
     e.preventDefault()
-    const datos = { ...form, monto: parseFloat(form.monto), cuenta_id: form.cuenta_id || null, factura_id: form.factura_id || null }
+    const datos = { ...form, monto: parseFloat(form.monto), cuenta_id: form.cuenta_id || null, factura_id: form.factura_id || null, cliente_id: form.cliente_id || null }
     if (editando) {
       if (editando.cuenta_id) await ajustarSaldo(editando.cuenta_id, -efectoEnSaldo(editando.tipo, editando.monto))
       const { error } = await supabase.from('movimientos_financieros').update(datos).eq('id', editando.id)
@@ -363,18 +348,7 @@ function Finanzas({ vistaInicial = 'movimientos' }) {
       if (error) { alert('Error: ' + error.message); return }
       if (datos.cuenta_id) await ajustarSaldo(datos.cuenta_id, efectoEnSaldo(datos.tipo, datos.monto))
       if (form.categoria === 'Cobranzas' && form.factura_id) {
-        await supabase.from('pagos').insert([{
-          factura_id: form.factura_id,
-          fecha_pago: datos.fecha,
-          monto: datos.monto,
-          medio_pago: (datos.forma_pago || 'transferencia').toLowerCase(),
-          cuenta_id: datos.cuenta_id,
-          referencia: datos.comprobante || ''
-        }])
-        const fact = facturasCobrarTodas.find(f => f.id === form.factura_id) || facturas.find(f => f.id === form.factura_id)
-        const totalCobrado = pagosVenta.filter(p => p.factura_id === form.factura_id).reduce((a, p) => a + Number(p.monto), 0) + Number(datos.monto || 0)
-        const nuevoEstado = fact && totalCobrado + 0.01 >= Number(fact.total) ? 'cobrada' : 'parcial'
-        await supabase.from('facturas').update({ estado: nuevoEstado }).eq('id', form.factura_id)
+        await supabase.from('facturas').update({ estado: 'cobrada' }).eq('id', form.factura_id)
       }
     }
     cancelar()
@@ -536,20 +510,38 @@ function Finanzas({ vistaInicial = 'movimientos' }) {
   }
 
   function abrirPago(factura) {
-    setPagandoFactura(factura)
-    setFormPagoCompra({ monto: saldoPendiente(factura).toFixed(2), medio_pago: 'transferencia', cuenta_id: '', referencia: '' })
+    setPagandoFactura(factura); setDatosCheque(listaChequesVacia(factura.proveedores?.razon_social || ''))
+    setFormPagoCompra({ monto: saldoPendiente(factura).toFixed(2), medio_pago: 'transferencia', cuenta_id: '', referencia: '', fecha_pago: new Date().toISOString().split('T')[0] })
   }
 
   async function registrarPagoCompra(e) {
     e.preventDefault()
+    if (guardandoPagoCompra.current) return
     const monto = parseFloat(formPagoCompra.monto)
     if (!formPagoCompra.cuenta_id) { alert('Elegí de qué cuenta sale el pago'); return }
+    const saldoCompra = saldoPendiente(pagandoFactura)
+    if (monto > saldoCompra + 0.01 && !window.confirm(`El pago (${monto.toLocaleString('es-AR', { style: 'currency', currency: 'ARS' })}) supera el saldo pendiente de la factura (${Math.max(0, saldoCompra).toLocaleString('es-AR', { style: 'currency', currency: 'ARS' })}). ¿Registrarlo igual?`)) return
+    const esChequeCompra = formPagoCompra.medio_pago === 'cheque'
+    if (esChequeCompra) {
+      const eCh = validarCheques(datosCheque, monto); if (eCh) { alert(eCh); return }
+      guardandoPagoCompra.current = true
+      try {
+        await crearChequesPropios({ cheques: datosCheque, facturaCompra: pagandoFactura, cuenta_id: formPagoCompra.cuenta_id })
+      } catch (err) { guardandoPagoCompra.current = false; alert('No se pudo cargar el cheque: ' + (err.message || err)); return }
+      guardandoPagoCompra.current = false
+      setPagandoFactura(null); setDatosCheque(listaChequesVacia())
+      alert('Cheque(s) propio(s) cargado(s) como emitido. El pago se registra y sale de la cuenta cuando lo marques como debitado en Bancos y cheques > Cheques.')
+      await cargarDatos(); emitirCambioDatos('finanzas')
+      return
+    }
+    guardandoPagoCompra.current = true
+    const fechaPagoCompra = formPagoCompra.fecha_pago || new Date().toISOString().split('T')[0]
     await supabase.from('pagos_compra').insert([{
-      factura_compra_id: pagandoFactura.id, monto,
+      factura_compra_id: pagandoFactura.id, monto, fecha_pago: fechaPagoCompra,
       medio_pago: formPagoCompra.medio_pago, cuenta_id: formPagoCompra.cuenta_id, referencia: formPagoCompra.referencia
     }])
     await supabase.from('movimientos_financieros').insert([{
-      fecha: new Date().toISOString().split('T')[0], tipo: 'egreso',
+      fecha: fechaPagoCompra, tipo: 'egreso',
       categoria: pagandoFactura.categoria || 'Otro egreso',
       descripcion: `Pago factura ${pagandoFactura.numero_factura || 's/n'} — ${pagandoFactura.proveedores?.razon_social || ''}`,
       monto, cuenta_id: formPagoCompra.cuenta_id, comprobante: formPagoCompra.referencia,
@@ -559,6 +551,7 @@ function Finanzas({ vistaInicial = 'movimientos' }) {
     const totalPagado = pagosCompra.filter(p => p.factura_compra_id === pagandoFactura.id).reduce((a, p) => a + Number(p.monto), 0) + monto
     const nuevoEstado = totalPagado >= Number(pagandoFactura.total) ? 'pagada' : 'parcial'
     await supabase.from('facturas_compra').update({ estado: nuevoEstado }).eq('id', pagandoFactura.id)
+    guardandoPagoCompra.current = false
     setPagandoFactura(null)
     await cargarDatos()
     emitirCambioDatos('finanzas')
@@ -567,68 +560,54 @@ function Finanzas({ vistaInicial = 'movimientos' }) {
   // ---------- Cuentas por cobrar ----------
   function abrirCobro(factura) {
     setCobrandoFactura(factura)
-    setFormCobro({
-      monto: saldoPendienteVenta(factura).toFixed(2),
-      medio_pago: 'transferencia',
-      cuenta_id: '',
-      referencia: '',
-      fecha_pago: new Date().toISOString().split('T')[0],
-      retenciones: retencionesVacias(),
-      certificado: ''
-    })
+    setDatosCheque(listaChequesVacia(factura.clientes?.razon_social || factura.clientes?.nombre_contacto || ''))
+    setFormCobro({ monto: saldoPendienteVenta(factura).toFixed(2), medio_pago: 'transferencia', cuenta_id: '', referencia: '', fecha_pago: new Date().toISOString().split('T')[0], retenciones: retencionesVacias(), certificado: '' })
   }
 
   async function registrarCobro(e) {
     e.preventDefault()
+    if (guardandoCobro.current) return
     const neto = parseFloat(formCobro.monto) || 0
     const totRet = totalRetenciones(formCobro.retenciones)
     if (neto <= 0 && totRet <= 0) { alert('Ingresá el importe recibido o alguna retención'); return }
-    if (neto > 0 && !formCobro.cuenta_id) { alert('Elegí a qué cuenta entra el cobro'); return }
+    const esCheque = formCobro.medio_pago === 'cheque'
+    if (esCheque && neto > 0) { const eCh = validarCheques(datosCheque, neto); if (eCh) { alert(eCh); return } }
+    if (neto > 0 && !esCheque && !formCobro.cuenta_id) { alert('Elegí a qué cuenta entra el cobro'); return }
+    const saldoFactura = saldoPendienteVenta(cobrandoFactura)
+    if (neto + totRet > saldoFactura + 0.01 && !window.confirm(`El cobro (${(neto + totRet).toLocaleString('es-AR', { style: 'currency', currency: 'ARS' })}) supera el saldo pendiente de la factura (${Math.max(0, saldoFactura).toLocaleString('es-AR', { style: 'currency', currency: 'ARS' })}). ¿Registrarlo igual?`)) return
+    guardandoCobro.current = true
     const fechaCobro = formCobro.fecha_pago || new Date().toISOString().split('T')[0]
     try {
-      const { imputado } = await registrarCobroConRetenciones({
-        factura: cobrandoFactura, neto, retenciones: formCobro.retenciones, certificado: formCobro.certificado,
-        fecha: fechaCobro, medio_pago: formCobro.medio_pago, cuenta_id: formCobro.cuenta_id, referencia: formCobro.referencia,
-        descripcion: `Cobro factura ${cobrandoFactura.numero_factura || 's/n'} — ${cobrandoFactura.clientes?.razon_social || cobrandoFactura.clientes?.nombre_contacto || ''}`,
-        forma_pago: formCobro.medio_pago.charAt(0).toUpperCase() + formCobro.medio_pago.slice(1)
-      })
+      let imputado = 0
+      if (esCheque && neto > 0) await crearChequesTercero({ cheques: datosCheque, factura: cobrandoFactura })
+      if (!esCheque || totRet > 0) {
+        const r = await registrarCobroConRetenciones({
+          factura: cobrandoFactura, neto: esCheque ? 0 : neto, retenciones: formCobro.retenciones, certificado: formCobro.certificado,
+          fecha: fechaCobro, medio_pago: formCobro.medio_pago, cuenta_id: formCobro.cuenta_id, referencia: formCobro.referencia,
+          descripcion: `Cobro factura ${cobrandoFactura.numero_factura || 's/n'} — ${cobrandoFactura.clientes?.razon_social || cobrandoFactura.clientes?.nombre_contacto || ''}`,
+          forma_pago: formCobro.medio_pago.charAt(0).toUpperCase() + formCobro.medio_pago.slice(1)
+        })
+        imputado = r.imputado
+      }
       const totalCobrado = pagosVenta.filter(p => p.factura_id === cobrandoFactura.id).reduce((a, p) => a + Number(p.monto), 0) + imputado
-      const nuevoEstado = totalCobrado + 0.01 >= Number(cobrandoFactura.total) ? 'cobrada' : 'parcial'
+      const nuevoEstado = totalCobrado >= Number(cobrandoFactura.total) - 0.01 ? 'cobrada' : 'parcial'
       await supabase.from('facturas').update({ estado: nuevoEstado }).eq('id', cobrandoFactura.id)
     } catch (err) {
+      guardandoCobro.current = false
       alert('No se pudo registrar el cobro: ' + (err.message || err)); return
     }
+    guardandoCobro.current = false
     setCobrandoFactura(null)
+    if (esCheque && neto > 0) alert('Cheque(s) cargado(s) en cartera. La factura se cancela cuando lo deposites o cobres desde Bancos y cheques > Cheques.')
     await cargarDatos()
     emitirCambioDatos('finanzas')
   }
 
   const movMes = movimientos.filter(m => m.fecha && m.fecha.startsWith(filtroMes))
-  const movMesOperativos = movMes.filter(m => !esMovimientoAjuste(m))
-  const ajustesMes = movMes.filter(esMovimientoAjuste)
-
-  // Reconciliar pagos del mes que no tengan movimiento financiero vinculado para que coincida con Tablero Gerencial
-  const factNumPorId = {}
-  facturasCobrarTodas.forEach(f => { factNumPorId[f.id] = f.numero_factura })
-  const facturasConMovMes = new Set()
-  movMesOperativos.forEach(m => {
-    if (m.tipo !== 'ingreso') return
-    if (m.factura_id) facturasConMovMes.add(m.factura_id)
-    if (m.descripcion) {
-      Object.entries(factNumPorId).forEach(([fid, num]) => {
-        if (num && m.descripcion.includes(num)) facturasConMovMes.add(fid)
-      })
-    }
-  })
-  const pagosMesSinMov = pagosVenta
-    .filter(p => p?.fecha_pago && String(p.fecha_pago).startsWith(filtroMes) && p.factura_id && !facturasConMovMes.has(p.factura_id))
-    .reduce((a, p) => a + Number(p.monto || 0), 0)
-
-  const totalIngresos = movMesOperativos.filter(m => m.tipo === 'ingreso').reduce((a, m) => a + Number(m.monto), 0) + pagosMesSinMov
-  const totalEgresos = movMesOperativos.filter(m => m.tipo === 'egreso').reduce((a, m) => a + Number(m.monto), 0)
+  const totalIngresos = movMes.filter(m => m.tipo === 'ingreso').reduce((a, m) => a + Number(m.monto), 0)
+  const totalEgresos = movMes.filter(m => m.tipo === 'egreso').reduce((a, m) => a + Number(m.monto), 0)
   const balance = totalIngresos - totalEgresos
-  const resumenSaldos = calcularSaldosCuentas(cuentas)
-  const saldoTotal = resumenSaldos.totalCajaYBancos
+  const saldoTotal = cuentas.reduce((a, ct) => a + Number(ct.saldo), 0)
   const flujoProyectado = porCobrar - porPagar
 
   return (
@@ -704,86 +683,89 @@ function Finanzas({ vistaInicial = 'movimientos' }) {
 
       {/* INDICADOR DE FLUJO */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: '14px', marginBottom: '14px' }}>
-        <div style={{ ...s.card, margin: 0, display: 'flex', alignItems: 'center', gap: '14px' }}>
-          <div style={{ width: 40, height: 40, borderRadius: 12, background: '#EEF2FF', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}><TrendingUp size={18} color="#3B66F5" /></div>
+        <div style={{ ...s.card, background: '#eff6ff', display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <div style={{ width: 38, height: 38, borderRadius: 10, background: '#dbeafe', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}><TrendingUp size={18} color="#1d4ed8" /></div>
           <div>
-            <p style={{ ...s.label, color: '#64748B', margin: 0 }}>Por cobrar</p>
-            <p style={{ fontSize: '20px', fontWeight: '700', color: '#0F172A', margin: '2px 0 0', fontVariantNumeric: 'tabular-nums' }}>{porCobrar.toLocaleString('es-AR', { style: 'currency', currency: 'ARS' })}</p>
+            <p style={{ ...s.label, color: '#1d4ed8', margin: 0 }}>Por cobrar</p>
+            <p style={{ fontSize: '19px', fontWeight: '800', color: '#1d4ed8', margin: 0 }}>{porCobrar.toLocaleString('es-AR', { style: 'currency', currency: 'ARS' })}</p>
           </div>
         </div>
-        <div style={{ ...s.card, margin: 0, display: 'flex', alignItems: 'center', gap: '14px' }}>
-          <div style={{ width: 40, height: 40, borderRadius: 12, background: '#FFF7ED', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}><TrendingDown size={18} color="#C2410C" /></div>
+        <div style={{ ...s.card, background: '#fff7ed', display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <div style={{ width: 38, height: 38, borderRadius: 10, background: '#fed7aa', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}><TrendingDown size={18} color="#c2410c" /></div>
           <div>
-            <p style={{ ...s.label, color: '#64748B', margin: 0 }}>Por pagar</p>
-            <p style={{ fontSize: '20px', fontWeight: '700', color: '#C2410C', margin: '2px 0 0', fontVariantNumeric: 'tabular-nums' }}>{porPagar.toLocaleString('es-AR', { style: 'currency', currency: 'ARS' })}</p>
+            <p style={{ ...s.label, color: '#c2410c', margin: 0 }}>Por pagar</p>
+            <p style={{ fontSize: '19px', fontWeight: '800', color: '#c2410c', margin: 0 }}>{porPagar.toLocaleString('es-AR', { style: 'currency', currency: 'ARS' })}</p>
           </div>
         </div>
-        <div style={{ background: '#18191C', color: '#FFFFFF', borderRadius: '20px', padding: '20px 22px', display: 'flex', alignItems: 'center', gap: '14px', boxShadow: '0 12px 30px rgba(24, 25, 28, 0.18)' }}>
-          <div style={{ width: 40, height: 40, borderRadius: 12, background: 'rgba(255,255,255,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}><ArrowRightLeft size={18} color="#A6BEFF" /></div>
+        <div style={{ ...s.card, background: flujoProyectado >= 0 ? '#f0fdf4' : '#fef2f2', display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <div style={{ width: 38, height: 38, borderRadius: 10, background: flujoProyectado >= 0 ? '#bbf7d0' : '#fecaca', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}><ArrowRightLeft size={18} color={flujoProyectado >= 0 ? '#15803d' : '#b91c1c'} /></div>
           <div>
-            <p style={{ fontSize: '12px', fontWeight: '600', color: 'rgba(255,255,255,0.75)', margin: 0 }}>Flujo proyectado (cobrar − pagar)</p>
-            <p style={{ fontSize: '20px', fontWeight: '700', color: '#FFFFFF', margin: '2px 0 0', fontVariantNumeric: 'tabular-nums' }}>{flujoProyectado.toLocaleString('es-AR', { style: 'currency', currency: 'ARS' })}</p>
+            <p style={{ ...s.label, color: flujoProyectado >= 0 ? '#15803d' : '#b91c1c', margin: 0 }}>Flujo proyectado (cobrar − pagar)</p>
+            <p style={{ fontSize: '19px', fontWeight: '800', color: flujoProyectado >= 0 ? '#15803d' : '#b91c1c', margin: 0 }}>{flujoProyectado.toLocaleString('es-AR', { style: 'currency', currency: 'ARS' })}</p>
           </div>
         </div>
       </div>
 
       {/* RESUMEN DEL MES */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: '14px', marginBottom: '20px' }}>
-        <div style={{ ...s.card, margin: 0 }}>
-          <p style={{ ...s.label, color: '#64748B', margin: '0 0 4px' }}>Ingresos del mes ({filtroMes})</p>
-          <p style={{ fontSize: '21px', fontWeight: '700', color: '#15803D', margin: 0, fontVariantNumeric: 'tabular-nums' }}>{formatearMonedaAR(totalIngresos)}</p>
-          <p style={{ fontSize: '11.5px', color: '#64748B', margin: '6px 0 0' }}>
-            Cobranzas e ingresos operativos{ajustesMes.length > 0 ? ` (excl. ${ajustesMes.length} ajuste/s)` : ''}
-          </p>
+        <div style={{ ...s.card, background: '#f0fdf4' }}>
+          <p style={{ ...s.label, color: '#059669' }}>Ingresos del mes</p>
+          <p style={{ fontSize: '20px', fontWeight: '800', color: '#059669', margin: 0 }}>{totalIngresos.toLocaleString('es-AR', { style: 'currency', currency: 'ARS' })}</p>
         </div>
-        <div style={{ ...s.card, margin: 0 }}>
-          <p style={{ ...s.label, color: '#64748B', margin: '0 0 4px' }}>Egresos del mes ({filtroMes})</p>
-          <p style={{ fontSize: '21px', fontWeight: '700', color: '#BE123C', margin: 0, fontVariantNumeric: 'tabular-nums' }}>{formatearMonedaAR(totalEgresos)}</p>
-          <p style={{ fontSize: '11.5px', color: '#64748B', margin: '6px 0 0' }}>Gastos, pagos e impuestos</p>
+        <div style={{ ...s.card, background: '#fff1f2' }}>
+          <p style={{ ...s.label, color: '#dc2626' }}>Egresos del mes</p>
+          <p style={{ fontSize: '20px', fontWeight: '800', color: '#dc2626', margin: 0 }}>{totalEgresos.toLocaleString('es-AR', { style: 'currency', currency: 'ARS' })}</p>
         </div>
-        <div style={{ ...s.card, margin: 0 }}>
-          <p style={{ ...s.label, color: '#64748B', margin: '0 0 4px' }}>Resultado neto del mes</p>
-          <p style={{ fontSize: '21px', fontWeight: '700', color: balance >= 0 ? '#0F172A' : '#B45309', margin: 0, fontVariantNumeric: 'tabular-nums' }}>{formatearMonedaAR(balance)}</p>
-          <p style={{ fontSize: '11.5px', color: '#64748B', margin: '6px 0 0' }}>Ingresos − Egresos de {filtroMes}</p>
+        <div style={{ ...s.card, background: balance >= 0 ? '#eff6ff' : '#fff7ed' }}>
+          <p style={{ ...s.label, color: balance >= 0 ? '#1d4ed8' : '#d97706' }}>Balance del mes</p>
+          <p style={{ fontSize: '20px', fontWeight: '800', color: balance >= 0 ? '#1d4ed8' : '#d97706', margin: 0 }}>{balance.toLocaleString('es-AR', { style: 'currency', currency: 'ARS' })}</p>
         </div>
-        <div style={{ background: '#3B66F5', color: '#FFFFFF', borderRadius: '20px', padding: '22px', boxShadow: '0 12px 30px rgba(59, 102, 245, 0.22)' }}>
-          <p style={{ fontSize: '12px', fontWeight: '600', color: 'rgba(255,255,255,0.82)', margin: '0 0 4px' }}>Caja + Bancos a la fecha</p>
-          <p style={{ fontSize: '22px', fontWeight: '700', color: '#FFFFFF', margin: 0, fontVariantNumeric: 'tabular-nums' }}>{formatearMonedaAR(saldoTotal)}</p>
-          <p style={{ fontSize: '11.5px', color: 'rgba(255,255,255,0.75)', margin: '6px 0 0', fontVariantNumeric: 'tabular-nums' }}>
-            Bancos: {formatearMonedaAR(resumenSaldos.totalBancos)} · Efec.: {formatearMonedaAR(resumenSaldos.totalEfectivo)}
-          </p>
+        <div style={s.card}>
+          <p style={{ ...s.label, color: '#64748b' }}>Saldo en cuentas (bancos + efectivo)</p>
+          <p style={{ fontSize: '20px', fontWeight: '800', color: '#0f172a', margin: 0 }}>{saldoTotal.toLocaleString('es-AR', { style: 'currency', currency: 'ARS' })}</p>
         </div>
       </div>
 
-      <div style={{ display: 'flex', gap: '10px', marginBottom: '16px', flexWrap: 'wrap' }}>
-        <button onClick={() => setVista('movimientos')} style={vista === 'movimientos' ? s.btnPrimario(c.main) : s.btnSecundario}>Movimientos</button>
-        <button onClick={() => setVista('por-cobrar')} style={vista === 'por-cobrar' ? s.btnPrimario(c.main) : s.btnSecundario}>
-          <TrendingUp size={13} style={{ marginRight: 5, verticalAlign: '-2px' }} />Cuentas por cobrar
-        </button>
-        <button onClick={() => setVista('por-pagar')} style={vista === 'por-pagar' ? s.btnPrimario(c.main) : s.btnSecundario}>
-          <Wallet2 size={13} style={{ marginRight: 5, verticalAlign: '-2px' }} />Cuentas por pagar
-        </button>
-        <button
-          onClick={() => {
-            const ctActual = cuentas.find(c => c.id === cuentaSeleccionadaId)
+      {/* NAVEGACIÓN: secciones y, debajo, las vistas de la sección activa */}
+      {(() => {
+        const SECCIONES = [
+          { id: 'resumen', label: 'Resumen', vistas: [['resultados', 'Estado de resultados y cash flow'], ['rentabilidad', 'Rentabilidad por cliente'], ['asignacion-personal', 'Personal por cliente'], ['horarios', 'Horarios de servicio'], ['resumen-semanal', 'Resumen semanal'], ['movimientos', 'Movimientos'], ['estado-cuenta', 'Estado de cuenta'], ['proyeccion', 'Proyección de caja']] },
+          { id: 'cobrar-pagar', label: 'Cobrar y pagar', vistas: [['por-cobrar', 'Cuentas por cobrar'], ['por-pagar', 'Cuentas por pagar'], ['cuenta-corriente', 'Cuentas corrientes'], ['compromisos', 'Préstamos e impuestos'], ['retenciones', 'Retenciones']] },
+          { id: 'bancos', label: 'Bancos y cheques', vistas: [['conciliacion', 'Conciliación bancaria'], ['cheques', 'Cheques']] }
+        ]
+        const seccionActiva = SECCIONES.find(sec => sec.vistas.some(([id]) => id === vista)) || SECCIONES[0]
+        const irA = (id) => {
+          if (id === 'conciliacion') {
+            const ctActual = cuentas.find(ct => ct.id === cuentaSeleccionadaId)
             if (!ctActual || !esCuentaBancaria(ctActual)) {
               const primeraBanco = cuentas.find(esCuentaBancaria)
               setCuentaSeleccionadaId(primeraBanco?.id || '')
             }
-            setVista('conciliacion')
-          }}
-          style={vista === 'conciliacion' ? s.btnPrimario(c.main) : s.btnSecundario}
-        >
-          <ShieldCheck size={13} style={{ marginRight: 5, verticalAlign: '-2px' }} />Conciliación bancaria
-        </button>
-        <button onClick={() => setVista('estado-cuenta')} style={vista === 'estado-cuenta' ? s.btnPrimario(c.main) : s.btnSecundario}>
-          <ArrowRightLeft size={13} style={{ marginRight: 5, verticalAlign: '-2px' }} />Estado de cuenta
-        </button>
-        <button onClick={() => setVista('retenciones')} style={vista === 'retenciones' ? s.btnPrimario(c.main) : s.btnSecundario}>Retenciones</button>
-        <button onClick={() => setVista('proyeccion')} style={vista === 'proyeccion' ? s.btnPrimario(c.main) : s.btnSecundario}>
-          <BarChart3 size={13} style={{ marginRight: 5, verticalAlign: '-2px' }} />Proyección de caja
-        </button>
-      </div>
+          }
+          setVista(id)
+        }
+        return (
+          <div style={{ marginBottom: '16px' }}>
+            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '10px' }}>
+              {SECCIONES.map(sec => (
+                <button key={sec.id} onClick={() => irA(sec.vistas[0][0])} style={sec.id === seccionActiva.id ? s.btnPrimario(c.main) : s.btnSecundario}>{sec.label}</button>
+              ))}
+            </div>
+            <div style={{ display: 'flex', gap: '2px', flexWrap: 'wrap', borderBottom: '1px solid #E2E8F0' }}>
+              {seccionActiva.vistas.map(([id, label]) => {
+                const activa = vista === id
+                return (
+                  <button key={id} onClick={() => irA(id)} style={{
+                    background: 'none', border: 'none', cursor: 'pointer', padding: '8px 14px', fontSize: '13px',
+                    fontWeight: activa ? 700 : 500, color: activa ? c.main : '#64748B',
+                    borderBottom: activa ? `2px solid ${c.main}` : '2px solid transparent', marginBottom: '-1px'
+                  }}>{label}</button>
+                )
+              })}
+            </div>
+          </div>
+        )
+      })()}
 
       {/* FORM MOVIMIENTO */}
       {vista === 'movimientos' && mostrarForm && (
@@ -806,6 +788,13 @@ function Finanzas({ vistaInicial = 'movimientos' }) {
                 <select style={s.input} value={form.categoria} onChange={e => setForm({...form, categoria: e.target.value})} required>
                   <option value="">Seleccionar</option>
                   {CATEGORIAS[form.tipo].map(cat => <option key={cat} value={cat}>{cat}</option>)}
+                </select>
+              </div>
+              <div>
+                <label style={s.label}>Cliente (centro de costos)</label>
+                <select style={s.input} value={form.cliente_id} onChange={e => setForm({...form, cliente_id: e.target.value})}>
+                  <option value="">Sin asignar (general)</option>
+                  {clientes.map(cl => <option key={cl.id} value={cl.id}>{cl.razon_social || cl.nombre_contacto}</option>)}
                 </select>
               </div>
               <div>
@@ -885,7 +874,7 @@ function Finanzas({ vistaInicial = 'movimientos' }) {
       {/* MODAL REGISTRAR PAGO DE COMPRA */}
       {pagandoFactura && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50 }}>
-          <div style={{ background: '#fff', borderRadius: '20px', padding: '28px', width: '100%', maxWidth: '420px', boxShadow: '0 20px 60px rgba(0,0,0,0.2)' }}>
+          <div style={{ background: '#fff', borderRadius: '20px', padding: '28px', width: '100%', maxWidth: '420px', maxHeight: '92vh', overflowY: 'auto', boxShadow: '0 20px 60px rgba(0,0,0,0.2)' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
               <h4 style={{ margin: 0, fontWeight: '700', color: '#0f172a' }}>Registrar pago</h4>
               <button onClick={() => setPagandoFactura(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8' }}><X size={16} /></button>
@@ -912,6 +901,8 @@ function Finanzas({ vistaInicial = 'movimientos' }) {
                     {cuentas.map(ct => <option key={ct.id} value={ct.id}>{ct.banco} — {ct.tipo}</option>)}
                   </select>
                 </div>
+                {formPagoCompra.medio_pago === 'cheque' && <DatosCheque propio cheques={datosCheque} onChange={arr => { setDatosCheque(arr); const t = totalCheques(arr); if (t > 0) setFormPagoCompra(f => ({ ...f, monto: t.toFixed(2) })) }} />}
+                <div style={{ gridColumn: '1 / -1' }}><label style={s.label}>Fecha de pago</label><input type="date" style={s.input} value={formPagoCompra.fecha_pago || ''} max={new Date().toISOString().split('T')[0]} onChange={e => setFormPagoCompra({...formPagoCompra, fecha_pago: e.target.value})} required /></div>
                 <div style={{ gridColumn: '1 / -1' }}><label style={s.label}>Referencia</label><input style={s.input} value={formPagoCompra.referencia} onChange={e => setFormPagoCompra({...formPagoCompra, referencia: e.target.value})} /></div>
               </div>
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '18px' }}>
@@ -926,7 +917,7 @@ function Finanzas({ vistaInicial = 'movimientos' }) {
       {/* MODAL CREAR NUEVA CUENTA / CAJA */}
       {mostrarCuenta && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(2px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 60 }}>
-          <div style={{ background: '#fff', borderRadius: '16px', padding: '28px', width: '100%', maxWidth: '440px', boxShadow: '0 20px 60px rgba(0,0,0,0.25)', border: '1px solid #E2E8F0' }}>
+          <div style={{ background: '#fff', borderRadius: '16px', padding: '28px', width: '100%', maxWidth: '440px', maxHeight: '92vh', overflowY: 'auto', boxShadow: '0 20px 60px rgba(0,0,0,0.25)', border: '1px solid #E2E8F0' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '18px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <div style={{ width: 34, height: 34, borderRadius: 8, background: '#E0F2FE', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -981,7 +972,7 @@ function Finanzas({ vistaInicial = 'movimientos' }) {
       {/* MODAL EDITAR / MODIFICAR SALDO DE CUENTA (BANCO O EFECTIVO) */}
       {cuentaEditando && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(2px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 60 }}>
-          <div style={{ background: '#fff', borderRadius: '16px', padding: '28px', width: '100%', maxWidth: '480px', boxShadow: '0 20px 60px rgba(0,0,0,0.25)', border: '1px solid #E2E8F0' }}>
+          <div style={{ background: '#fff', borderRadius: '16px', padding: '28px', width: '100%', maxWidth: '480px', maxHeight: '92vh', overflowY: 'auto', boxShadow: '0 20px 60px rgba(0,0,0,0.25)', border: '1px solid #E2E8F0' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '18px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <div style={{ width: 34, height: 34, borderRadius: 8, background: '#FEF3C7', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -1037,7 +1028,7 @@ function Finanzas({ vistaInicial = 'movimientos' }) {
                     <input
                       type="number"
                       step="0.01"
-                      style={{ ...s.input, fontSize: '16px', fontWeight: '700', color: '#3B66F5', borderColor: '#3B66F5' }}
+                      style={{ ...s.input, fontSize: '16px', fontWeight: '700', color: '#0F766E', borderColor: '#0F766E' }}
                       value={formEditCuenta.saldoNuevo}
                       onChange={e => setFormEditCuenta({...formEditCuenta, saldoNuevo: e.target.value})}
                       required
@@ -1109,7 +1100,7 @@ function Finanzas({ vistaInicial = 'movimientos' }) {
       {/* MODAL AJUSTE RÁPIDO DE TODOS LOS SALDOS (BANCOS Y EFECTIVO) */}
       {modalAjusteSaldos && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(2px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 60 }}>
-          <div style={{ background: '#fff', borderRadius: '16px', padding: '28px', width: '100%', maxWidth: '640px', boxShadow: '0 20px 60px rgba(0,0,0,0.25)', border: '1px solid #E2E8F0', maxHeight: '90vh', overflowY: 'auto' }}>
+          <div style={{ background: '#fff', borderRadius: '16px', padding: '28px', width: '100%', maxWidth: '640px', maxHeight: '92vh', overflowY: 'auto', boxShadow: '0 20px 60px rgba(0,0,0,0.25)', border: '1px solid #E2E8F0', maxHeight: '90vh', overflowY: 'auto' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
               <div>
                 <h4 style={{ margin: 0, fontWeight: '700', color: '#0F172A', fontSize: '17px' }}>Ajustar saldos de bancos y efectivo</h4>
@@ -1189,13 +1180,13 @@ function Finanzas({ vistaInicial = 'movimientos' }) {
 
       {/* SECCIÓN DE CUENTAS BANCARIAS Y EFECTIVO */}
       <div style={{ marginBottom: '22px' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px', flexWrap: 'wrap', gap: '8px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
           <div>
-            <h4 style={{ margin: 0, fontSize: '14.5px', fontWeight: '700', color: '#0F172A', display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-              <Landmark size={16} color="#3B66F5" />
+            <h4 style={{ margin: 0, fontSize: '14px', fontWeight: '700', color: '#0F172A', display: 'flex', alignItems: 'center', gap: '7px' }}>
+              <Landmark size={15} color="#0F766E" />
               <span>Saldos de Bancos y Efectivo</span>
-              <span style={{ fontSize: '12px', color: '#64748B', fontWeight: '500' }}>
-                · {cuentas.length} {cuentas.length === 1 ? 'cuenta' : 'cuentas'} · Total {formatearMonedaAR(saldoTotal)}
+              <span style={{ fontSize: '11px', background: '#F1F5F9', color: '#64748B', padding: '2px 8px', borderRadius: '10px', fontWeight: '600' }}>
+                {cuentas.length} {cuentas.length === 1 ? 'cuenta' : 'cuentas'}
               </span>
             </h4>
           </div>
@@ -1205,18 +1196,18 @@ function Finanzas({ vistaInicial = 'movimientos' }) {
                 setFormCuenta({ banco: 'Caja Efectivo', tipo: 'caja_chica', numero: 'Caja 1', cbu: '', saldo: '0' })
                 setMostrarCuenta(true)
               }}
-              style={{ ...s.btnSecundario, padding: '7px 14px', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '6px' }}
+              style={{ ...s.btnSecundario, padding: '5px 10px', fontSize: '11.5px', display: 'flex', alignItems: 'center', gap: '5px' }}
               title="Crear cuenta para control de efectivo físico / caja chica"
             >
-              <Banknote size={14} color="#15803D" />
+              <Banknote size={13} color="#059669" />
               <span>+ Caja Efectivo</span>
             </button>
             <button
               onClick={abrirAjusteTodosSaldos}
-              style={{ ...s.btnSecundario, padding: '7px 14px', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '6px' }}
+              style={{ ...s.btnSecundario, padding: '5px 10px', fontSize: '11.5px', display: 'flex', alignItems: 'center', gap: '5px' }}
               title="Modificar o ajustar saldos de todas las cuentas"
             >
-              <SlidersHorizontal size={14} color="#3B66F5" />
+              <SlidersHorizontal size={13} color="#0F766E" />
               <span>Ajustar saldos</span>
             </button>
           </div>
@@ -1226,23 +1217,23 @@ function Finanzas({ vistaInicial = 'movimientos' }) {
           {cuentas.map(ct => {
             const esCaja = ct.tipo === 'caja_chica' || ct.banco?.toLowerCase().includes('efectivo') || ct.banco?.toLowerCase().includes('caja')
             return (
-              <div key={ct.id} style={{ ...s.card, margin: 0, padding: '18px 20px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', border: '1px solid #E5E7EB', position: 'relative' }}>
+              <div key={ct.id} style={{ ...s.card, margin: 0, padding: '16px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', border: '1px solid #E2E8F0', position: 'relative' }}>
                 <div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '8px' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                      <div style={{ width: 34, height: 34, borderRadius: 10, background: esCaja ? '#DCFCE7' : '#EEF2FF', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                        {esCaja ? <Banknote size={17} color="#15803D" /> : <Building2 size={17} color="#3B66F5" />}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <div style={{ width: 32, height: 32, borderRadius: 8, background: esCaja ? '#DCFCE7' : '#E0F2FE', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        {esCaja ? <Banknote size={17} color="#15803D" /> : <Building2 size={17} color="#0369A1" />}
                       </div>
                       <div>
                         <p style={{ margin: 0, fontSize: '14px', fontWeight: '700', color: '#0F172A' }}>{ct.banco}</p>
-                        <span style={{ fontSize: '11px', fontWeight: '600', color: esCaja ? '#15803D' : '#3B66F5' }}>
+                        <span style={{ fontSize: '10.5px', fontWeight: '600', color: esCaja ? '#15803D' : '#0369A1', textTransform: 'uppercase' }}>
                           {esCaja ? 'Efectivo / Caja' : ct.tipo.replace('_', ' ')}
                         </span>
                       </div>
                     </div>
                     <button
                       onClick={() => abrirEditarCuenta(ct)}
-                      style={{ background: '#F3F5FA', border: '1px solid #E5E7EB', borderRadius: '999px', padding: '5px 10px', cursor: 'pointer', color: '#334155', display: 'flex', alignItems: 'center', gap: '4px', fontSize: '11px', fontWeight: '600' }}
+                      style={{ background: '#F8FAFC', border: '1px solid #CBD5E1', borderRadius: '6px', padding: '5px 7px', cursor: 'pointer', color: '#475569', display: 'flex', alignItems: 'center', gap: '4px', fontSize: '11px', fontWeight: '600' }}
                       title="Modificar cuenta o ajustar saldo"
                     >
                       <Pencil size={11} />
@@ -1251,23 +1242,23 @@ function Finanzas({ vistaInicial = 'movimientos' }) {
                   </div>
 
                   {ct.numero && (
-                    <p style={{ margin: '0 0 6px', fontSize: '11.5px', color: '#94A3B8' }}>Nº / Alias: {ct.numero}</p>
+                    <p style={{ margin: '0 0 6px', fontSize: '11px', color: '#94A3B8' }}>Nº / Alias: {ct.numero}</p>
                   )}
 
-                  <div style={{ marginTop: '12px' }}>
-                    <p style={{ margin: 0, fontSize: '11.5px', color: '#64748B', fontWeight: '500' }}>Saldo disponible:</p>
-                    <p style={{ fontSize: '21px', fontWeight: '700', color: Number(ct.saldo) >= 0 ? '#0F172A' : '#DC2626', margin: '2px 0 0', fontVariantNumeric: 'tabular-nums' }}>
+                  <div style={{ marginTop: '10px' }}>
+                    <p style={{ margin: 0, fontSize: '11px', color: '#64748B' }}>Saldo disponible:</p>
+                    <p style={{ fontSize: '20px', fontWeight: '800', color: Number(ct.saldo) >= 0 ? '#0F172A' : '#DC2626', margin: '2px 0 0' }}>
                       {Number(ct.saldo).toLocaleString('es-AR', { style: 'currency', currency: 'ARS' })}
                     </p>
                   </div>
                 </div>
 
-                <div style={{ display: 'flex', gap: '8px', marginTop: '14px', paddingTop: '12px', borderTop: '1px solid #F1F5F9' }}>
+                <div style={{ display: 'flex', gap: '6px', marginTop: '14px', paddingTop: '10px', borderTop: '1px solid #F1F5F9' }}>
                   <button
                     onClick={() => abrirEditarCuenta(ct)}
-                    style={{ flex: 1, background: '#F3F5FA', border: '1px solid #E5E7EB', borderRadius: '999px', padding: '6px 10px', fontSize: '11.5px', fontWeight: '600', color: '#334155', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px' }}
+                    style={{ flex: 1, background: '#F1F5F9', border: 'none', borderRadius: '6px', padding: '6px 8px', fontSize: '11.5px', fontWeight: '600', color: '#334155', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px' }}
                   >
-                    <SlidersHorizontal size={12} color="#3B66F5" />
+                    <SlidersHorizontal size={12} color="#0F766E" />
                     <span>Ajustar saldo</span>
                   </button>
                   {esCuentaBancaria(ct) ? (
@@ -1276,15 +1267,15 @@ function Finanzas({ vistaInicial = 'movimientos' }) {
                         setCuentaSeleccionadaId(ct.id)
                         setVista('conciliacion')
                       }}
-                      style={{ flex: 1, background: '#18191C', border: 'none', borderRadius: '999px', padding: '6px 10px', fontSize: '11.5px', fontWeight: '600', color: '#FFFFFF', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px' }}
+                      style={{ flex: 1, background: '#F0FDFA', border: '1px solid #CCFBF1', borderRadius: '6px', padding: '6px 8px', fontSize: '11.5px', fontWeight: '600', color: '#0F766E', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px' }}
                       title="Cargar extracto bancario y conciliar movimientos"
                     >
-                      <ShieldCheck size={12} color="#A6BEFF" />
+                      <ShieldCheck size={12} color="#0F766E" />
                       <span>Conciliar</span>
                     </button>
                   ) : (
                     <div
-                      style={{ flex: 1, background: '#F8FAFC', border: '1px dashed #E2E8F0', borderRadius: '999px', padding: '6px 10px', fontSize: '11px', fontWeight: '500', color: '#94A3B8', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }}
+                      style={{ flex: 1, background: '#F8FAFC', border: '1px dashed #E2E8F0', borderRadius: '6px', padding: '6px 8px', fontSize: '11px', fontWeight: '500', color: '#94A3B8', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }}
                       title="Las cuentas de efectivo y cajas físicas se controlan por arqueo / ajuste manual, no por conciliación bancaria"
                     >
                       <span>Caja física</span>
@@ -1329,19 +1320,19 @@ function Finanzas({ vistaInicial = 'movimientos' }) {
             {loading ? <div style={s.empty}>Cargando...</div>
             : movMes.length === 0 ? <div style={s.empty}>No hay movimientos este mes</div>
             : (
-              <table style={{ ...s.tabla, minWidth: '880px', width: '100%' }}>
+              <table className="sg-tabla-compacta sg-tabla-densa" style={{ ...s.tabla, minWidth: '780px', width: '100%' }}>
                 <thead>
                   <tr>
-                    {['Fecha','Tipo','Categoría','Descripción','Cuenta','Forma de pago','Comprobante'].map(h => <th key={h} style={s.tablaCabecera(c.main)}>{h}</th>)}
+                    {['Fecha','Tipo','Categoría','Descripción','Cliente','Cuenta y pago'].map(h => <th key={h} style={s.tablaCabecera(c.main)}>{h}</th>)}
                     <th style={{ ...s.tablaCabecera(c.main), textAlign: 'right', whiteSpace: 'nowrap' }}>Monto</th>
                     <th style={{
                       ...s.tablaCabecera(c.main),
-                      position: 'sticky',
+                      position: 'static',
                       right: 0,
                       zIndex: 3,
                       textAlign: 'center',
-                      minWidth: '100px',
-                      boxShadow: '-4px 0 8px rgba(0,0,0,0.08)'
+                      width: '1%',
+                      minWidth: '84px'
                     }}>
                       Acciones
                     </th>
@@ -1353,23 +1344,22 @@ function Finanzas({ vistaInicial = 'movimientos' }) {
                       <td style={{ ...s.tablaCell, whiteSpace: 'nowrap' }}>{new Date(m.fecha + 'T00:00:00').toLocaleDateString('es-AR')}</td>
                       <td style={s.tablaCell}><span style={s.badge(m.tipo === 'ingreso' ? '#d1fae5' : '#fee2e2', m.tipo === 'ingreso' ? '#059669' : '#dc2626')}>{m.tipo}</span></td>
                       <td style={s.tablaCell}>{m.categoria || '—'}</td>
-                      <td style={s.tablaCell}>{m.descripcion || '—'}</td>
-                      <td style={{ ...s.tablaCell, fontSize: '12px' }}>{cuentas.find(ct => ct.id === m.cuenta_id)?.banco || '—'}</td>
-                      <td style={s.tablaCell}>{m.forma_pago || '—'}</td>
-                      <td style={{ ...s.tablaCell, fontSize: '12px', color: '#94a3b8' }}>{m.comprobante || '—'}</td>
+                      <td style={s.tablaCell}>{m.descripcion || '—'}{m.comprobante ? <div style={{ fontSize: '11px', color: '#94a3b8' }}>{m.comprobante}</div> : null}</td>
+                      <td style={{ ...s.tablaCell, fontSize: '12px' }}>{(() => { const cl = clientes.find(x => x.id === m.cliente_id); return cl ? (cl.razon_social || cl.nombre_contacto) : '—' })()}</td>
+                      <td style={{ ...s.tablaCell, fontSize: '12px' }}>{cuentas.find(ct => ct.id === m.cuenta_id)?.banco || '—'}<div style={{ fontSize: '11px', color: '#94a3b8' }}>{m.forma_pago || '—'}</div></td>
                       <td style={{ ...s.tablaCellBold, textAlign: 'right', whiteSpace: 'nowrap', color: m.tipo === 'ingreso' ? '#059669' : '#dc2626' }}>{m.tipo === 'ingreso' ? '+' : '-'}{Number(m.monto).toLocaleString('es-AR', { style: 'currency', currency: 'ARS' })}</td>
                       <td style={{
                         ...s.tablaCell,
-                        position: 'sticky',
+                        position: 'static',
                         right: 0,
-                        background: i % 2 === 0 ? '#FFFFFF' : '#F8FAFC',
+                        background: 'transparent',
                         zIndex: 2,
                         textAlign: 'center',
-                        minWidth: '100px',
-                        boxShadow: '-4px 0 8px rgba(0,0,0,0.05)',
+                        width: '1%',
+                        minWidth: '84px',
                         whiteSpace: 'nowrap'
                       }}>
-                        <div style={{ display: 'flex', gap: '6px', justifyContent: 'center' }}>
+                        <div style={{ display: 'flex', gap: '4px', justifyContent: 'center' }}>
                           <button style={{ ...s.btnPrimario(c.main), padding: '5px 10px', fontSize: '12px' }} onClick={() => abrirEdicion(m)} title="Editar"><Pencil size={14} /></button>
                           <button style={s.btnPeligro} onClick={() => eliminarMovimiento(m)} title="Eliminar"><Trash2 size={14} /></button>
                         </div>
@@ -1410,15 +1400,16 @@ function Finanzas({ vistaInicial = 'movimientos' }) {
                   style={{ ...s.buscador, paddingLeft: '32px', minWidth: '240px' }}
                 />
               </div>
-              <div style={{ display: 'flex', background: '#FFFFFF', padding: '4px', borderRadius: '999px', border: '1px solid #E5E7EB', gap: '4px' }}>
+              <div style={{ display: 'flex', background: '#F1F5F9', padding: '3px', borderRadius: '8px', gap: '4px' }}>
                 <button
                   type="button"
                   onClick={() => setFiltroCobrar('todas')}
                   style={{
-                    background: filtroCobrar === 'todas' ? '#18191C' : 'transparent',
-                    color: filtroCobrar === 'todas' ? '#FFFFFF' : '#64748B',
-                    fontWeight: '600',
-                    border: 'none', borderRadius: '999px', padding: '5px 12px', fontSize: '12px', cursor: 'pointer'
+                    background: filtroCobrar === 'todas' ? '#FFFFFF' : 'transparent',
+                    color: filtroCobrar === 'todas' ? '#0F172A' : '#64748B',
+                    fontWeight: filtroCobrar === 'todas' ? '700' : '500',
+                    border: 'none', borderRadius: '6px', padding: '5px 10px', fontSize: '12px', cursor: 'pointer',
+                    boxShadow: filtroCobrar === 'todas' ? '0 1px 3px rgba(0,0,0,0.06)' : 'none'
                   }}
                 >
                   Todas ({facturasCobrarTodas.filter(f => f.estado !== 'anulada').length})
@@ -1427,10 +1418,11 @@ function Finanzas({ vistaInicial = 'movimientos' }) {
                   type="button"
                   onClick={() => setFiltroCobrar('pendientes')}
                   style={{
-                    background: filtroCobrar === 'pendientes' ? '#3B66F5' : 'transparent',
-                    color: filtroCobrar === 'pendientes' ? '#FFFFFF' : '#64748B',
-                    fontWeight: '600',
-                    border: 'none', borderRadius: '999px', padding: '5px 12px', fontSize: '12px', cursor: 'pointer'
+                    background: filtroCobrar === 'pendientes' ? '#FFFFFF' : 'transparent',
+                    color: filtroCobrar === 'pendientes' ? '#1D4ED8' : '#64748B',
+                    fontWeight: filtroCobrar === 'pendientes' ? '700' : '500',
+                    border: 'none', borderRadius: '6px', padding: '5px 10px', fontSize: '12px', cursor: 'pointer',
+                    boxShadow: filtroCobrar === 'pendientes' ? '0 1px 3px rgba(0,0,0,0.06)' : 'none'
                   }}
                 >
                   Pendientes ({facturasCobrarTodas.filter(f => !['pagada','cobrada','anulada'].includes(f.estado)).length})
@@ -1439,22 +1431,24 @@ function Finanzas({ vistaInicial = 'movimientos' }) {
                   type="button"
                   onClick={() => setFiltroCobrar('cobradas')}
                   style={{
-                    background: filtroCobrar === 'cobradas' ? '#15803D' : 'transparent',
-                    color: filtroCobrar === 'cobradas' ? '#FFFFFF' : '#64748B',
-                    fontWeight: '600',
-                    border: 'none', borderRadius: '999px', padding: '5px 12px', fontSize: '12px', cursor: 'pointer'
+                    background: filtroCobrar === 'cobradas' ? '#FFFFFF' : 'transparent',
+                    color: filtroCobrar === 'cobradas' ? '#059669' : '#64748B',
+                    fontWeight: filtroCobrar === 'cobradas' ? '700' : '500',
+                    border: 'none', borderRadius: '6px', padding: '5px 10px', fontSize: '12px', cursor: 'pointer',
+                    boxShadow: filtroCobrar === 'cobradas' ? '0 1px 3px rgba(0,0,0,0.06)' : 'none'
                   }}
                 >
                   Cobradas ({facturasCobrarTodas.filter(f => ['pagada','cobrada'].includes(f.estado)).length})
                 </button>
               </div>
             </div>
-            <div style={{ fontSize: '12px', color: '#64748B' }}>
-              Columna <strong>Acción (Registrar cobro)</strong> fija a la derecha
+            <div style={{ fontSize: '12px', color: '#64748B', display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <span style={{ display: 'inline-block', width: '8px', height: '8px', borderRadius: '50%', background: '#0F766E' }}></span>
+              <span>Columna <strong>Acción (Registrar cobro)</strong> fija a la derecha</span>
             </div>
           </div>
 
-          <div style={{ ...s.card, padding: 0, overflowX: 'auto', WebkitOverflowScrolling: 'touch', border: '1px solid #E5E7EB', borderRadius: '20px' }}>
+          <div style={{ ...s.card, padding: 0, overflowX: 'auto', WebkitOverflowScrolling: 'touch', border: '1px solid #E2E8F0', borderRadius: '10px' }}>
             {loading ? <div style={s.empty}>Cargando...</div>
             : (() => {
                 const facturasCobrarFiltradas = facturasCobrarTodas.filter(f => {
@@ -1491,7 +1485,7 @@ function Finanzas({ vistaInicial = 'movimientos' }) {
                         <th style={{ ...s.tablaCabecera(c.main), textAlign: 'center', whiteSpace: 'nowrap' }}>Estado</th>
                         <th style={{
                           ...s.tablaCabecera(c.main),
-                          position: 'sticky',
+                          position: 'static',
                           right: 0,
                           zIndex: 3,
                           textAlign: 'center',
@@ -1519,7 +1513,7 @@ function Finanzas({ vistaInicial = 'movimientos' }) {
                             <td style={{ ...s.tablaCell, textAlign: 'center', whiteSpace: 'nowrap' }}><span style={s.badge(ec.bg, ec.color)}>{f.estado}</span></td>
                             <td style={{
                               ...s.tablaCell,
-                              position: 'sticky',
+                              position: 'static',
                               right: 0,
                               background: bgColor,
                               zIndex: 2,
@@ -1564,8 +1558,8 @@ function Finanzas({ vistaInicial = 'movimientos' }) {
 
       {/* MODAL REGISTRAR COBRO */}
       {cobrandoFactura && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50 }}>
-          <div style={{ background: '#fff', borderRadius: '20px', padding: '28px', width: '100%', maxWidth: '520px', maxHeight: '92vh', overflowY: 'auto', boxShadow: '0 20px 60px rgba(0,0,0,0.2)' }}>
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50, padding: '12px' }}>
+          <div style={{ background: '#fff', borderRadius: '20px', padding: '28px', width: '100%', maxWidth: '420px', maxHeight: '92vh', overflowY: 'auto', boxShadow: '0 20px 60px rgba(0,0,0,0.2)' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
               <h4 style={{ margin: 0, fontWeight: '700', color: '#0f172a' }}>Registrar cobro</h4>
               <button onClick={() => setCobrandoFactura(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8' }}><X size={16} /></button>
@@ -1575,7 +1569,6 @@ function Finanzas({ vistaInicial = 'movimientos' }) {
             </p>
             <form onSubmit={registrarCobro}>
               <div style={s.grid2}>
-                <div><label style={s.label}>Fecha de cobro</label><input type="date" style={s.input} value={formCobro.fecha_pago || ''} onChange={e => setFormCobro({...formCobro, fecha_pago: e.target.value})} required /></div>
                 <div><label style={s.label}>Importe recibido en cuenta ($)</label><input type="number" step="0.01" style={s.input} value={formCobro.monto} onChange={e => setFormCobro({...formCobro, monto: e.target.value})} /></div>
                 <div>
                   <label style={s.label}>Medio de pago</label>
@@ -1586,13 +1579,15 @@ function Finanzas({ vistaInicial = 'movimientos' }) {
                     <option value="tarjeta">Tarjeta</option>
                   </select>
                 </div>
-                <div>
-                  <label style={s.label}>Cuenta que recibe el cobro</label>
+                <div style={{ gridColumn: '1 / -1' }}>
+                  <label style={s.label}>{formCobro.medio_pago === 'cheque' ? 'Cuenta (opcional: se elige al depositar)' : 'Cuenta que recibe el cobro'}</label>
                   <select style={s.input} value={formCobro.cuenta_id} onChange={e => setFormCobro({...formCobro, cuenta_id: e.target.value})}>
                     <option value="">Seleccionar cuenta</option>
                     {cuentas.map(ct => <option key={ct.id} value={ct.id}>{ct.banco} — {ct.tipo}</option>)}
                   </select>
                 </div>
+                <div style={{ gridColumn: '1 / -1' }}><label style={s.label}>Fecha de cobro</label><input type="date" style={s.input} value={formCobro.fecha_pago || ''} max={new Date().toISOString().split('T')[0]} onChange={e => setFormCobro({...formCobro, fecha_pago: e.target.value})} required /></div>
+                {formCobro.medio_pago === 'cheque' && <DatosCheque cheques={datosCheque} onChange={arr => { setDatosCheque(arr); const t = totalCheques(arr); if (t > 0) setFormCobro(f => ({ ...f, monto: t.toFixed(2) })) }} />}
                 <RetencionesCobro retenciones={formCobro.retenciones} certificado={formCobro.certificado} neto={formCobro.monto}
                   saldo={saldoPendienteVenta(cobrandoFactura)}
                   onChange={r => setFormCobro({ ...formCobro, retenciones: r })} onCertificado={v => setFormCobro({ ...formCobro, certificado: v })} />
@@ -1656,15 +1651,16 @@ function Finanzas({ vistaInicial = 'movimientos' }) {
                       style={{ ...s.buscador, paddingLeft: '32px', minWidth: '240px' }}
                     />
                   </div>
-                  <div style={{ display: 'flex', background: '#FFFFFF', padding: '4px', borderRadius: '999px', border: '1px solid #E5E7EB', gap: '4px' }}>
+                  <div style={{ display: 'flex', background: '#F1F5F9', padding: '3px', borderRadius: '8px', gap: '4px' }}>
                     <button
                       type="button"
                       onClick={() => setFiltroPagar('todas')}
                       style={{
-                        background: filtroPagar === 'todas' ? '#18191C' : 'transparent',
-                        color: filtroPagar === 'todas' ? '#FFFFFF' : '#64748B',
-                        fontWeight: '600',
-                        border: 'none', borderRadius: '999px', padding: '5px 12px', fontSize: '12px', cursor: 'pointer'
+                        background: filtroPagar === 'todas' ? '#FFFFFF' : 'transparent',
+                        color: filtroPagar === 'todas' ? '#0F172A' : '#64748B',
+                        fontWeight: filtroPagar === 'todas' ? '700' : '500',
+                        border: 'none', borderRadius: '6px', padding: '5px 10px', fontSize: '12px', cursor: 'pointer',
+                        boxShadow: filtroPagar === 'todas' ? '0 1px 3px rgba(0,0,0,0.06)' : 'none'
                       }}
                     >
                       Todas ({facturasCompra.length})
@@ -1673,10 +1669,11 @@ function Finanzas({ vistaInicial = 'movimientos' }) {
                       type="button"
                       onClick={() => setFiltroPagar('pendientes')}
                       style={{
-                        background: filtroPagar === 'pendientes' ? '#3B66F5' : 'transparent',
-                        color: filtroPagar === 'pendientes' ? '#FFFFFF' : '#64748B',
-                        fontWeight: '600',
-                        border: 'none', borderRadius: '999px', padding: '5px 12px', fontSize: '12px', cursor: 'pointer'
+                        background: filtroPagar === 'pendientes' ? '#FFFFFF' : 'transparent',
+                        color: filtroPagar === 'pendientes' ? '#C2410C' : '#64748B',
+                        fontWeight: filtroPagar === 'pendientes' ? '700' : '500',
+                        border: 'none', borderRadius: '6px', padding: '5px 10px', fontSize: '12px', cursor: 'pointer',
+                        boxShadow: filtroPagar === 'pendientes' ? '0 1px 3px rgba(0,0,0,0.06)' : 'none'
                       }}
                     >
                       Pendientes ({facturasCompra.filter(f => f.estado !== 'pagada' && f.estado !== 'anulada').length})
@@ -1685,22 +1682,24 @@ function Finanzas({ vistaInicial = 'movimientos' }) {
                       type="button"
                       onClick={() => setFiltroPagar('pagadas')}
                       style={{
-                        background: filtroPagar === 'pagadas' ? '#15803D' : 'transparent',
-                        color: filtroPagar === 'pagadas' ? '#FFFFFF' : '#64748B',
-                        fontWeight: '600',
-                        border: 'none', borderRadius: '999px', padding: '5px 12px', fontSize: '12px', cursor: 'pointer'
+                        background: filtroPagar === 'pagadas' ? '#FFFFFF' : 'transparent',
+                        color: filtroPagar === 'pagadas' ? '#059669' : '#64748B',
+                        fontWeight: filtroPagar === 'pagadas' ? '700' : '500',
+                        border: 'none', borderRadius: '6px', padding: '5px 10px', fontSize: '12px', cursor: 'pointer',
+                        boxShadow: filtroPagar === 'pagadas' ? '0 1px 3px rgba(0,0,0,0.06)' : 'none'
                       }}
                     >
                       Pagadas ({facturasCompra.filter(f => f.estado === 'pagada').length})
                     </button>
                   </div>
                 </div>
-                <div style={{ fontSize: '12px', color: '#64748B' }}>
-                  Columna <strong>Acción (Registrar pago)</strong> anclada a la derecha
+                <div style={{ fontSize: '12px', color: '#64748B', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <span style={{ display: 'inline-block', width: '8px', height: '8px', borderRadius: '50%', background: '#0F766E' }}></span>
+                  <span>Columna <strong>Acción (Registrar pago)</strong> anclada a la derecha</span>
                 </div>
               </div>
 
-              <div style={{ ...s.card, padding: 0, overflowX: 'auto', WebkitOverflowScrolling: 'touch', border: '1px solid #E5E7EB', borderRadius: '20px' }}>
+              <div style={{ ...s.card, padding: 0, overflowX: 'auto', WebkitOverflowScrolling: 'touch', border: '1px solid #E2E8F0', borderRadius: '10px' }}>
                 {loading ? <div style={s.empty}>Cargando...</div>
                 : (() => {
                     const facturasCompraFiltradas = facturasCompra.filter(f => {
@@ -1739,7 +1738,7 @@ function Finanzas({ vistaInicial = 'movimientos' }) {
                             <th style={{ ...s.tablaCabecera(c.main), textAlign: 'center', whiteSpace: 'nowrap' }}>Estado</th>
                             <th style={{
                               ...s.tablaCabecera(c.main),
-                              position: 'sticky',
+                              position: 'static',
                               right: 0,
                               zIndex: 3,
                               textAlign: 'center',
@@ -1768,7 +1767,7 @@ function Finanzas({ vistaInicial = 'movimientos' }) {
                                 <td style={{ ...s.tablaCell, textAlign: 'center', whiteSpace: 'nowrap' }}><span style={s.badge(ec.bg, ec.color)}>{f.estado}</span></td>
                                 <td style={{
                                   ...s.tablaCell,
-                                  position: 'sticky',
+                                  position: 'static',
                                   right: 0,
                                   background: bgColor,
                                   zIndex: 2,
@@ -1813,9 +1812,16 @@ function Finanzas({ vistaInicial = 'movimientos' }) {
         </div>
       )}
 
+      {/* VISTA ESTADO DE CUENTA */}
+      {vista === 'resultados' && <Resultados />}
+      {vista === 'resumen-semanal' && <ResumenSemanal />}
+      {vista === 'rentabilidad' && <RentabilidadClientes />}
+      {vista === 'asignacion-personal' && <AsignacionPersonal />}
+      {vista === 'horarios' && <HorariosServicio />}
+      {vista === 'cheques' && <Cheques />}
+      {vista === 'cuenta-corriente' && <CuentaCorriente />}
       {vista === 'retenciones' && <VistaRetenciones />}
 
-      {/* VISTA ESTADO DE CUENTA */}
       {vista === 'estado-cuenta' && (() => {
         const cuentaActivaId = cuentaEstadoId || cuentas[0]?.id || ''
         const estado = cuentaActivaId ? calcularEstadoCuenta(cuentaActivaId, rangoDesde, rangoHasta) : null
@@ -1884,60 +1890,97 @@ function Finanzas({ vistaInicial = 'movimientos' }) {
         )
       })()}
 
+      {/* VISTA PRÉSTAMOS E IMPUESTOS */}
+      {vista === 'compromisos' && (
+        <Compromisos
+          cuentas={cuentas}
+          onCambio={async () => { await cargarDatos(); setProyeccion(null); emitirCambioDatos('finanzas') }}
+        />
+      )}
+
       {/* VISTA PROYECCIÓN DE CAJA */}
       {vista === 'proyeccion' && (
         <div>
-          {!proyeccion ? <div style={s.empty}>Calculando…</div> : (
-            <>
-              <div style={{ ...s.card, background: '#eff6ff', marginBottom: '18px' }}>
-                <p style={{ margin: 0, fontSize: '13px', color: '#1d4ed8' }}>
-                  Proyecta el saldo disponible sumando <strong>lo que hoy tenés en cuentas</strong> ({saldoTotal.toLocaleString('es-AR',{style:'currency',currency:'ARS'})}) más lo que se espera cobrar, menos lo que se espera pagar, según la fecha de vencimiento de cada factura.
-                  {proyeccion.costoFijoMensual > 0 && <> No incluye costos fijos recurrentes (alquiler, sueldos, etc.) — estos rondan <strong>{proyeccion.costoFijoMensual.toLocaleString('es-AR',{style:'currency',currency:'ARS'})}/mes</strong> adicionales según lo cargado en Costos.</>}
-                </p>
-              </div>
-
-              <div style={{ marginBottom: '18px' }}>
-                <p style={{ ...s.label, marginBottom: '10px' }}>Punto de partida — saldo actual por cuenta</p>
-                <div style={{ display: 'grid', gridTemplateColumns: `repeat(${Math.max(cuentas.length,1)}, 1fr)`, gap: '12px' }}>
-                  {cuentas.map(ct => (
-                    <div key={ct.id} style={{ ...s.card, margin: 0, padding: '12px 14px' }}>
-                      <p style={{ ...s.label, color: '#64748b', margin: '0 0 4px' }}>{ct.banco} · {ct.tipo.replace('_',' ')}</p>
-                      <p style={{ fontSize: '15px', fontWeight: '800', color: '#0f172a', margin: 0 }}>{Number(ct.saldo).toLocaleString('es-AR',{style:'currency',currency:'ARS'})}</p>
-                    </div>
-                  ))}
+          {!proyeccion ? <div style={s.empty}>Calculando…</div> : (() => {
+            const hoyISO = isoLocal(new Date())
+            const items = construirItems({ ...proyeccion, hoyISO, meses: 12, incluirCostosMesActual })
+            const filas = vistaProy === 'meses' ? agruparPorMes(items, hoyISO, 12) : agruparPorTramos(items, hoyISO)
+            const moneda = n => n.toLocaleString('es-AR', { style: 'currency', currency: 'ARS' })
+            const colorRubro = { cobrar: '#059669', facturas: '#dc2626', prestamos: '#4338ca', impuestos: '#7c3aed', costosFijos: '#b45309', sueldos: '#0369a1' }
+            const columnas = ['cobrar', ...RUBROS_EGRESO]
+            const totales = Object.fromEntries(columnas.map(r => [r, filas.reduce((a, f) => a + f[r], 0)]))
+            const totalEgr = filas.reduce((a, f) => a + totalEgresosProy(f), 0)
+            let acumulado = saldoTotal
+            return (
+              <>
+                <div style={{ ...s.card, background: '#eff6ff', marginBottom: '18px' }}>
+                  <p style={{ margin: 0, fontSize: '13px', color: '#1d4ed8' }}>
+                    Parte de <strong>lo que hoy tenés en cuentas</strong> ({moneda(saldoTotal)}) y suma lo que se espera cobrar, menos <strong>todos los egresos</strong> según su vencimiento: facturas de proveedores, cuotas de préstamos, impuestos y otros egresos (se cargan en <em>Préstamos e impuestos</em>), costos fijos (se repiten cada mes desde el último importe cargado en Costos) y sueldos pendientes de pago.
+                  </p>
                 </div>
-                <p style={{ fontSize: '11.5px', color: paleta.muted, marginTop: '8px' }}>
-                  La proyección de abajo es a nivel consolidado: una factura pendiente todavía no tiene asignada una cuenta específica (eso se define recién al registrar el cobro o el pago), así que no es posible proyectar el saldo futuro cuenta por cuenta — sí el punto de partida de cada una.
-                </p>
-              </div>
 
-              <div style={{ ...s.card, padding: 0, overflowX: 'auto', WebkitOverflowScrolling: 'touch', border: '1px solid #E2E8F0', borderRadius: '10px' }}>
-                <table style={{ ...s.tabla, minWidth: '750px', width: '100%' }}>
-                  <thead><tr>{['Período','Por cobrar','Por pagar','Neto del período','Saldo proyectado acumulado'].map(h => <th key={h} style={s.tablaCabecera(c.main)}>{h}</th>)}</tr></thead>
-                  <tbody>
-                    {(() => {
-                      let acumulado = saldoTotal
-                      return proyeccion.buckets.map((b, i) => {
-                        const neto = b.cobrar - b.pagar
-                        if (b.id !== 'sinfecha') acumulado += neto
+                <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap', marginBottom: '14px' }}>
+                  <button onClick={() => setVistaProy('tramos')} style={vistaProy === 'tramos' ? s.btnPrimario(c.main) : s.btnSecundario}>Por tramos de días</button>
+                  <button onClick={() => setVistaProy('meses')} style={vistaProy === 'meses' ? s.btnPrimario(c.main) : s.btnSecundario}>Por mes (12 meses)</button>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12.5px', color: paleta.inkSoft, marginLeft: '8px', cursor: 'pointer' }}>
+                    <input type="checkbox" checked={incluirCostosMesActual} onChange={e => setIncluirCostosMesActual(e.target.checked)} />
+                    Incluir costos fijos del mes en curso (desmarcar si ya los pagaste)
+                  </label>
+                </div>
+
+                <div style={{ marginBottom: '18px' }}>
+                  <p style={{ ...s.label, marginBottom: '10px' }}>Punto de partida — saldo actual por cuenta</p>
+                  <div style={{ display: 'grid', gridTemplateColumns: `repeat(${Math.max(cuentas.length,1)}, 1fr)`, gap: '12px' }}>
+                    {cuentas.map(ct => (
+                      <div key={ct.id} style={{ ...s.card, margin: 0, padding: '12px 14px' }}>
+                        <p style={{ ...s.label, color: '#64748b', margin: '0 0 4px' }}>{ct.banco} · {ct.tipo.replace('_',' ')}</p>
+                        <p style={{ fontSize: '15px', fontWeight: '800', color: '#0f172a', margin: 0 }}>{moneda(Number(ct.saldo))}</p>
+                      </div>
+                    ))}
+                  </div>
+                  <p style={{ fontSize: '11.5px', color: paleta.muted, marginTop: '8px' }}>
+                    La proyección es consolidada: los vencimientos pendientes todavía no tienen una cuenta asignada (se define al registrar el pago), así que se proyecta el saldo total.
+                  </p>
+                </div>
+
+                <div style={{ ...s.card, padding: 0, overflowX: 'auto', WebkitOverflowScrolling: 'touch', border: '1px solid #E2E8F0', borderRadius: '10px' }}>
+                  <table style={{ ...s.tabla, minWidth: '1100px', width: '100%' }}>
+                    <thead><tr>{['Período', ...columnas.map(r => NOMBRE_RUBRO[r]), 'Total egresos', 'Neto del período', 'Saldo proyectado'].map(h => <th key={h} style={s.tablaCabecera(c.main)}>{h}</th>)}</tr></thead>
+                    <tbody>
+                      {filas.map((f, i) => {
+                        const egr = totalEgresosProy(f)
+                        const neto = f.cobrar - egr
+                        if (f.id !== 'sinfecha') acumulado += neto
                         return (
-                          <tr key={b.id} style={s.tablaFila(i)}>
-                            <td style={s.tablaCellBold}>{b.label}</td>
-                            <td style={{ ...s.tablaCell, color: '#059669', whiteSpace: 'nowrap' }}>{b.cobrar.toLocaleString('es-AR',{style:'currency',currency:'ARS'})}</td>
-                            <td style={{ ...s.tablaCell, color: '#dc2626', whiteSpace: 'nowrap' }}>{b.pagar.toLocaleString('es-AR',{style:'currency',currency:'ARS'})}</td>
-                            <td style={{ ...s.tablaCellBold, color: neto >= 0 ? '#059669' : '#dc2626', whiteSpace: 'nowrap' }}>{neto >= 0 ? '+' : ''}{neto.toLocaleString('es-AR',{style:'currency',currency:'ARS'})}</td>
-                            <td style={{ ...s.tablaCellBold, whiteSpace: 'nowrap', color: b.id === 'sinfecha' ? '#94a3b8' : (acumulado >= 0 ? paleta.ink : '#dc2626') }}>
-                              {b.id === 'sinfecha' ? '—' : acumulado.toLocaleString('es-AR',{style:'currency',currency:'ARS'})}
+                          <tr key={f.id} style={s.tablaFila(i)}>
+                            <td style={s.tablaCellBold}>{f.label}</td>
+                            {columnas.map(r => (
+                              <td key={r} style={{ ...s.tablaCell, whiteSpace: 'nowrap', color: f[r] ? colorRubro[r] : '#cbd5e1' }}>{f[r] ? moneda(f[r]) : '—'}</td>
+                            ))}
+                            <td style={{ ...s.tablaCellBold, whiteSpace: 'nowrap', color: egr ? '#dc2626' : '#cbd5e1' }}>{egr ? moneda(egr) : '—'}</td>
+                            <td style={{ ...s.tablaCellBold, whiteSpace: 'nowrap', color: neto >= 0 ? '#059669' : '#dc2626' }}>{neto >= 0 ? '+' : ''}{moneda(neto)}</td>
+                            <td style={{ ...s.tablaCellBold, whiteSpace: 'nowrap', color: f.id === 'sinfecha' ? '#94a3b8' : (acumulado >= 0 ? paleta.ink : '#dc2626') }}>
+                              {f.id === 'sinfecha' ? '—' : moneda(acumulado)}
                             </td>
                           </tr>
                         )
-                      })
-                    })()}
-                  </tbody>
-                </table>
-              </div>
-            </>
-          )}
+                      })}
+                      <tr style={{ background: paleta.surfaceMuted }}>
+                        <td style={s.tablaCellBold}>Total</td>
+                        {columnas.map(r => <td key={r} style={{ ...s.tablaCellBold, whiteSpace: 'nowrap', color: colorRubro[r] }}>{moneda(totales[r])}</td>)}
+                        <td style={{ ...s.tablaCellBold, whiteSpace: 'nowrap', color: '#dc2626' }}>{moneda(totalEgr)}</td>
+                        <td style={{ ...s.tablaCellBold, whiteSpace: 'nowrap' }}>{moneda(totales.cobrar - totalEgr)}</td>
+                        <td style={s.tablaCell}></td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+                <p style={{ fontSize: '11.5px', color: paleta.muted, marginTop: '8px' }}>
+                  "Sin fecha" reúne facturas sin vencimiento cargado y no entra en el saldo proyectado. Vencido = vencimientos anteriores a hoy que siguen sin pagarse.
+                </p>
+              </>
+            )
+          })()}
         </div>
       )}
     </div>

@@ -5,7 +5,7 @@ import {
   Home, Users, FileText, HardHat, CalendarDays, Wallet, Receipt, Package,
   BarChart3, ClipboardList, Briefcase, Factory, TrendingUp, UserCog,
   Bell, LogOut, ChevronLeft, ChevronRight, RefreshCw,
-  Search, Clock, Radar, Menu, X
+  Search, Clock, Radar, Menu, X, Calculator, ShieldCheck, ClipboardCheck, FolderOpen, AlertTriangle, Landmark
 } from 'lucide-react'
 import {
   calcularResumenCuentasPorCobrar,
@@ -28,9 +28,20 @@ import Sueldos from './pages/Sueldos.jsx'
 import Proveedores from './pages/Proveedores.jsx'
 import Reportes from './pages/Reportes.jsx'
 import Usuarios from './pages/Usuarios.jsx'
+import Contabilidad from './pages/Contabilidad.jsx'
+import AumentosContratos from './pages/AumentosContratos.jsx'
+import Vencimientos from './pages/Vencimientos.jsx'
+import Asistencia from './pages/Asistencia.jsx'
+import Inversiones from './pages/Inversiones.jsx'
+import Formulario931 from './pages/Formulario931.jsx'
+import Auditoria from './pages/Auditoria.jsx'
+import ControlDatos from './pages/ControlDatos.jsx'
+import Documentos from './pages/Documentos.jsx'
 
 // Módulos restringidos a rol admin (coincide con las políticas RLS en Supabase)
-const SOLO_ADMIN = ['facturacion', 'finanzas', 'conciliacion', 'costos', 'sueldos', 'usuarios']
+const SOLO_ADMIN = ['control', 'documentos', 'facturacion', 'finanzas', 'conciliacion', 'costos', 'sueldos', 'contabilidad', 'f931', 'inversiones', 'auditoria', 'aumentos', 'asistencia', 'vencimientos', 'usuarios']
+// Permiso por módulo para usuarios no admin (usuarios_sistema.modulos)
+const PERMISO_MODULO = { finanzas: 'finanzas', facturacion: 'finanzas', costos: 'finanzas', conciliacion: 'finanzas', sueldos: 'sueldos', f931: 'sueldos', documentos: 'documentos' }
 
 const GRUPOS_MENU = [
   {
@@ -43,6 +54,9 @@ const GRUPOS_MENU = [
       { id: 'personal',    icon: HardHat,      label: 'Personal',    desc: 'Dotación, legajos y asignación de puestos' },
       { id: 'insumos',     icon: Package,      label: 'Insumos',     desc: 'Control de inventario, stock y reposición' },
       { id: 'proveedores', icon: Factory,      label: 'Proveedores', desc: 'Directorio de compras y servicios externos' },
+      { id: 'asistencia',  icon: Clock,        label: 'Asistencia',  desc: 'Fichaje, horas por servicio e informe mensual' },
+      { id: 'vencimientos', icon: AlertTriangle, label: 'Vencimientos', desc: 'Documentación y obligaciones por vencer' },
+      { id: 'aumentos',    icon: TrendingUp,   label: 'Aumentos y abonos', desc: 'Actualización de contratos y abonos' },
     ]
   },
   {
@@ -53,11 +67,17 @@ const GRUPOS_MENU = [
       { id: 'finanzas',     icon: BarChart3,     label: 'Finanzas',               desc: 'Flujo de caja, ingresos y egresos' },
       { id: 'costos',       icon: ClipboardList, label: 'Costos',                 desc: 'Costeo operativo por servicio y cliente' },
       { id: 'sueldos',      icon: Briefcase,     label: 'Sueldos',                desc: 'Liquidación salarial y jornales' },
+      { id: 'f931',         icon: FileText,      label: 'F.931 (SUSS)',           desc: 'Declaración jurada de cargas sociales' },
+      { id: 'contabilidad', icon: Calculator,    label: 'Contabilidad',           desc: 'Asientos, impuestos, informes y cierre de períodos' },
+      { id: 'inversiones',  icon: Landmark,      label: 'Inversiones',            desc: 'Colocaciones y rendimientos' },
     ]
   },
   {
     label: 'Inteligencia & Auditoría',
     items: [
+      { id: 'control',    icon: ClipboardCheck, label: 'Control y cierre', desc: 'Qué falta cargar o revisar para que los números cierren' },
+      { id: 'documentos', icon: FolderOpen,     label: 'Documentos',       desc: 'Archivo digital de facturas, cheques y contratos' },
+      { id: 'auditoria',  icon: ShieldCheck,    label: 'Auditoría',        desc: 'Registro de cambios y trazabilidad' },
       { id: 'reportes', icon: TrendingUp, label: 'Reportes', desc: 'Métricas gerenciales y rentabilidad' },
       { id: 'usuarios', icon: UserCog,    label: 'Usuarios', desc: 'Permisos del sistema y accesos' },
     ]
@@ -134,6 +154,9 @@ function Dashboard({ user }) {
   const [perfilAbierto, setPerfilAbierto] = useState(false)
   const [menuMovilAbierto, setMenuMovilAbierto] = useState(false)
   const [esAdmin, setEsAdmin] = useState(false)
+  const [modulosUsuario, setModulosUsuario] = useState([])
+  // El administrador ve todo; un usuario ve lo no restringido y lo que se le habilitó
+  const puede = id => esAdmin || !SOLO_ADMIN.includes(id) || modulosUsuario.includes(PERMISO_MODULO[id])
   const [rolCargado, setRolCargado] = useState(false)
   const [kpis, setKpis] = useState({
     clientes: 0,
@@ -308,7 +331,8 @@ function Dashboard({ user }) {
 
   async function cargarRol() {
     try {
-      const { data } = await supabase.from('usuarios_sistema').select('rol').eq('user_id', user.id).maybeSingle()
+      const { data } = await supabase.from('usuarios_sistema').select('rol, modulos').eq('user_id', user.id).maybeSingle()
+      setModulosUsuario(data?.modulos || [])
       setEsAdmin(data?.rol === 'admin' || user.email === 'admin@briseo.com')
       setRolCargado(true)
     } catch {
@@ -520,7 +544,7 @@ function Dashboard({ user }) {
         modulo: 'contratos'
       }))
 
-      setAlertas(nuevasAlertas.filter(a => esAdmin || !SOLO_ADMIN.includes(a.modulo)))
+      setAlertas(nuevasAlertas.filter(a => puede(a.modulo)))
     } catch {
       // Ignorar si aún no hay conexión Supabase
     }
@@ -529,13 +553,13 @@ function Dashboard({ user }) {
   const menuVisible = useMemo(() => {
     return GRUPOS_MENU.map(g => ({
       ...g,
-      items: g.items.filter(i => esAdmin || !SOLO_ADMIN.includes(i.id))
+      items: g.items.filter(i => puede(i.id))
     })).filter(g => g.items.length > 0)
-  }, [esAdmin])
+  }, [esAdmin, modulosUsuario])
 
   const todosItemsDisponibles = useMemo(() => {
-    return TODOS_LOS_ITEMS.filter(i => esAdmin || !SOLO_ADMIN.includes(i.id))
-  }, [esAdmin])
+    return TODOS_LOS_ITEMS.filter(i => puede(i.id))
+  }, [esAdmin, modulosUsuario])
 
   const resultadosBusqueda = useMemo(() => {
     if (!queryBusqueda.trim()) return todosItemsDisponibles
@@ -1021,16 +1045,25 @@ function Dashboard({ user }) {
                   {seccionActiva === 'personal' && <Personal />}
                   {seccionActiva === 'agenda' && <Agenda />}
                   {seccionActiva === 'presupuestos' && <Presupuestos />}
-                  {seccionActiva === 'facturacion' && esAdmin && <Facturacion />}
+                  {seccionActiva === 'facturacion' && puede('facturacion') && <Facturacion />}
                   {seccionActiva === 'insumos' && <Insumos />}
-                  {seccionActiva === 'finanzas' && esAdmin && (
+                  {seccionActiva === 'finanzas' && puede('finanzas') && (
                     <Finanzas vistaInicial={vistaFinanzasInicial} />
                   )}
-                  {seccionActiva === 'conciliacion' && esAdmin && (
+                  {seccionActiva === 'conciliacion' && puede('conciliacion') && (
                     <Finanzas vistaInicial="conciliacion" />
                   )}
-                  {seccionActiva === 'costos' && esAdmin && <Costos />}
-                  {seccionActiva === 'sueldos' && esAdmin && <Sueldos />}
+                  {seccionActiva === 'costos' && puede('costos') && <Costos />}
+                  {seccionActiva === 'sueldos' && puede('sueldos') && <Sueldos />}
+                  {seccionActiva === 'f931' && puede('f931') && <Formulario931 />}
+                  {seccionActiva === 'contabilidad' && puede('contabilidad') && <Contabilidad />}
+                  {seccionActiva === 'inversiones' && puede('inversiones') && <Inversiones />}
+                  {seccionActiva === 'asistencia' && puede('asistencia') && <Asistencia />}
+                  {seccionActiva === 'vencimientos' && puede('vencimientos') && <Vencimientos />}
+                  {seccionActiva === 'aumentos' && puede('aumentos') && <AumentosContratos />}
+                  {seccionActiva === 'auditoria' && puede('auditoria') && <Auditoria />}
+                  {seccionActiva === 'control' && puede('control') && <ControlDatos onIr={id => navegarModulo(id, 'movimientos')} />}
+                  {seccionActiva === 'documentos' && puede('documentos') && <Documentos />}
                   {seccionActiva === 'proveedores' && <Proveedores />}
                   {seccionActiva === 'reportes' && <Reportes />}
                   {seccionActiva === 'usuarios' && esAdmin && <Usuarios />}
